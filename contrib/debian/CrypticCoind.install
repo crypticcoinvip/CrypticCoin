@@ -1,0 +1,2 @@
+debian/bin/CrypticCoind usr/bin
+src/CrypticCoind usr/lib/CrypticCoin/

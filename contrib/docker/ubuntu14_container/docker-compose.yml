@@ -1,0 +1,10 @@
+version: '2.1'
+services:
+  container_crypticcoin:
+    image: my/container_crypticcoin
+    container_name: container_crypticcoin
+    ports:
+      - "23202:23202"
+      - "23303:23303"
+    volumes:
+    - ./conf/CrypticCoin.conf:/root/.CrypticCoin/CrypticCoin.conf

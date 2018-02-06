@@ -1,0 +1,45 @@
+language: cpp
+
+matrix:
+
+  include:
+
+    - os: linux
+      dist: xenial
+      sudo: required
+      env: CrypticCoin_PLATFORM='linux'
+      compiler: gcc
+      file: 'release_linux.zip'
+
+    - os: linux
+      dist: trusty
+      sudo: required
+      env: CrypticCoin_PLATFORM='windows'
+      compiler: gcc
+      file: 'release_windows.zip'
+
+    - os: osx
+      osx_image: xcode9.2
+      env: CrypticCoin_PLATFORM='mac'
+      compiler: clang
+      file: 'release_mac.zip'
+
+before_install:
+  - ./building/common.sh
+  - ./building/${CrypticCoin_PLATFORM}/requirements.sh
+
+install:
+  - ./building/${CrypticCoin_PLATFORM}/build.sh
+
+script:
+  - ./building/${CrypticCoin_PLATFORM}/dist.sh
+
+deploy:
+  provider: releases
+  api_key:
+    secure: "V7l/O3E2rpi0Y4AMBadMII7BS5HNx8zoJZeca+dYxBqKMgIhxkzpBiSio4gQBBlAmnI071J+xWm50wMFRLJzctTJvQWkSfmstM15TFg4PkdPi1XBzKV2lbc4/dsFtH0ODsTb8kY09oqAwdNDUlu0wMCIuO7fte/HK0J4Cghs456Ker3VHEnswexnprtYlRaeGHOLJvBe2rThBX3J1NdpfMvbBF6KQ4ZElKSTUz7FWeAk7ozQA8N5oe7J9irNrenBqN/pfDWr7PL531W2DXaHEA0gABwz49pbUyximoxzW9coyAdoaawGzQY4KufInTTMAGkxOED0DpC2SyKxIYnI6BB2M+TSILJ7s94MA6whPcJq5OCiRqiyQWfampnzSkuEcOfHRDWaDeM/IW9xTvXFKjwxaaIxv3X/XTAmQuhqjKjNbI85Q07KChrVIc6R74rDrAaDOxRjLvywygcPMDaqbdqLpnFb21JGHEMjo87V1C5YmHrlv4t0Wb0agAyrxH2ZtC/Rqd8tuqbESuFRRmOB2lG8utrxwNLm7qozZABvZhyomxMBFW3WzoTQLTpWqBev13sT7ZadkgyNl0AFkHpduWugo/hDCpIYiBQ4XyzW5mVk+/fd1upR9VOhjSbIJzTuzid0+ONBqL4Iah3aGk4wT2EeR27VJm7aHCZMPdWOnVo="
+  skip_cleanup: true
+  on:
+    repo: cryptic/CrypticCoin
+    tags: true
+    all_branches: true

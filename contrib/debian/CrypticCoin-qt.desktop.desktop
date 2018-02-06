@@ -1,0 +1,11 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=CrypticCoin
+Comment=CrypticCoin P2P Cryptocurrency
+Exec=/usr/bin/CrypticCoin-qt
+Terminal=false
+Type=Application
+Icon=/usr/share/pixmaps/CrypticCoin80.xpm
+MimeType=x-scheme-handler/CrypticCoin;
+Categories=Office;
+Name[en_US]=CrypticCoin-qt.desktop

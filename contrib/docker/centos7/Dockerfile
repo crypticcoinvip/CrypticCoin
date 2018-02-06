@@ -1,0 +1,40 @@
+FROM centos:7
+
+RUN yum upgrade -y
+RUN yum install -y wget 
+RUN yum install -y epel-release
+RUN yum install -y autoconf automake gcc-c++ libdb4-cxx libdb4-cxx-devel boost-devel openssl-devel git bzip2 make file sudo
+
+RUN cd /tmp && \
+        wget https://github.com/google/protobuf/releases/download/v2.6.0/protobuf-2.6.0.tar.bz2 && \
+        tar xf protobuf-2.6.0.tar.bz2 && \
+        cd /tmp/protobuf-2.6.0 && \
+        ./configure && \
+        make -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare && \
+        make install
+
+RUN echo "/usr/local/lib" >> /etc/ld.so.conf && \
+    echo "/usr/lib" >> /etc/ld.so.conf && \
+    ldconfig
+
+ENV PKG_CONFIG_PATH /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+
+RUN yum install -y qt5-qtbase-devel qt5-qttools-devel qt5-qtwebsockets qrencode-devel
+
+RUN git clone https://github.com/crypticcoin/crypticcoin.git /coin/git
+
+WORKDIR /coin/git
+
+RUN ./autogen.sh && ./configure --with-gui=qt5 && make && mv src/CrypticCoind /coin/CrypticCoind
+
+ADD ./conf/CrypticCoin.conf /root/.CrypticCoin/CrypticCoin.conf
+
+WORKDIR /coin
+VOLUME ["/coin/home"]
+
+ENV HOME /coin/home
+
+CMD ["/coin/CrypticCoind"]
+
+# P2P, RPC
+EXPOSE 23303 23202
