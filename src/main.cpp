@@ -48,7 +48,7 @@ unsigned int nStakeMaxAge = 10000 * 10000;	// stake max age disabled
 unsigned int nStakeTargetSpacing = 30;		// 30 seconds POS block spacing
 unsigned int nProofOfWorkTargetSpacing = 150; 	// 30 seconds PoW block spacing
 
-int64 nChainStartTime = 1517483700; //1412878964;
+int64 nChainStartTime = 1518000150;
 int nCoinbaseMaturity = 120;
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
@@ -2867,7 +2867,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
         //    CTxOut(empty)
         //vMerkleTree: ea6fed5e2
         // Genesis block
-        const char* pszTimestamp = "Name: Cryptic Coin";
+        const char* pszTimestamp = "Name: CrypticCoin 2";
 				if(fTestNet)
 					pszTimestamp = "CrypticCoin TESTNET";
         CTransaction txNew;
@@ -2913,7 +2913,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
 
            //=====
            // If genesis block hash does not match, then generate new genesis hash.
-           if (true && block.GetHash() != hashGenesisBlock) {
+           if (block.GetHash() != hashGenesisBlock) {
             printf("Searching for genesis block…\n");
             // This will figure out a valid hash and Nonce if you’re
             // creating a different genesis block:
