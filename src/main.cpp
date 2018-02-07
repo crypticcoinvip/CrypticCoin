@@ -2900,7 +2900,8 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
            printf("block.nTime = %u \n", block.nTime);
            printf("block.nNonce = %u \n", block.nNonce);
-           assert(block.hashMerkleRoot == uint256("0x768cc22f70bbcc4de26f83aca1b4ea2a7e25f0d100497ba47c7ff2d9b696414c"));
+           assert(block.hashMerkleRoot == uint256("0x92b59f6b52e1670bbaf32bd5046f7f8ed05334bf0bbe7d9107d66df13ec5f9b6"));
+//           assert(block.hashMerkleRoot == uint256("0x768cc22f70bbcc4de26f83aca1b4ea2a7e25f0d100497ba47c7ff2d9b696414c"));
            block.print();
         }
         else {
@@ -4328,6 +4329,10 @@ int static FormatHashBlocks(void* pbuffer, unsigned int len)
     pend[-4] = (bits >> 24) & 0xff;
     return blocks;
 }
+
+//assertion `block.hashMerkleRoot == uint256("0x92b59f6b52e1670bbaf32bd5046f7f8ed05334bf0bbe7d9107d66df13ec5f9b6")' failed.
+//Aborted
+
 
 static const unsigned int pSHA256InitState[8] =
 {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
