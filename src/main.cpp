@@ -2900,7 +2900,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
            printf("block.nTime = %u \n", block.nTime);
            printf("block.nNonce = %u \n", block.nNonce);
-           assert(block.hashMerkleRoot == uint256("0x62473a53383eee6064920ce0de7d1abd3a812f398143ddc43ea4708d491038cf"));
+           assert(block.hashMerkleRoot == uint256("0x8f854b5c592f1183adfbbfadf404c2676e6e932fefdf0ce410183d6635583cba"));
            // 0x8f854b5c592f1183adfbbfadf404c2676e6e932fefdf0ce410183d6635583cba
 //           assert(block.hashMerkleRoot == uint256("0x768cc22f70bbcc4de26f83aca1b4ea2a7e25f0d100497ba47c7ff2d9b696414c"));
            block.print();
