@@ -2888,14 +2888,15 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
         block.nBits    = bnProofOfWorkLimit[ALGO_SCRYPT].GetCompact();
         block.nNonce   = 1557354; //1476191;  //1473191;
 
-				if(fTestNet)
+		if(fTestNet)
 		{
 			block.nTime = 1517486400; //1462058066;
 			block.nNonce = 2;
 		}
 						
 
-				if(fTestNet) {
+		if(fTestNet)
+        {
            printf("block.GetHash() == %s\n", block.GetHash().ToString().c_str());
            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
            printf("block.nTime = %u \n", block.nTime);
@@ -2905,7 +2906,8 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
            // assert(block.hashMerkleRoot == uint256("0x768cc22f70bbcc4de26f83aca1b4ea2a7e25f0d100497ba47c7ff2d9b696414c"));
            block.print();
         }
-        else {
+        else
+        {
            printf("block.GetHash() == %s\n", block.GetHash().ToString().c_str());
            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
            printf("block.nTime = %u \n", block.nTime);
@@ -4331,9 +4333,6 @@ int static FormatHashBlocks(void* pbuffer, unsigned int len)
     pend[-4] = (bits >> 24) & 0xff;
     return blocks;
 }
-
-//assertion `block.hashMerkleRoot == uint256("0x92b59f6b52e1670bbaf32bd5046f7f8ed05334bf0bbe7d9107d66df13ec5f9b6")' failed.
-//Aborted
 
 
 static const unsigned int pSHA256InitState[8] =
