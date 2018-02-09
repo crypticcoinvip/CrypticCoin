@@ -1,5 +1,4 @@
 #include "bitcoinunits.h"
-#include "globaldata.h"
 
 #include <QStringList>
 
@@ -35,9 +34,9 @@ QString BitcoinUnits::name(int unit)
 {
     switch(unit)
     {
-    case BTC: return QString(GlobalData::CURRENCY_SHORTHAND.c_str());
-    case mBTC: return QString(("m" + GlobalData::CURRENCY_SHORTHAND).c_str());
-    case uBTC: return QString::fromUtf8(("μ" + GlobalData::CURRENCY_SHORTHAND).c_str());
+    case BTC: return QString("CRYP");
+    case mBTC: return QString("mCRYP");
+    case uBTC: return QString::fromUtf8("μCRYP");
     default: return QString("???");
     }
 }

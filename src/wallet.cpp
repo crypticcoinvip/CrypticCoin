@@ -11,7 +11,6 @@
 #include "base58.h"
 #include "kernel.h"
 #include "smessage.h"
-#include "globaldata.h"
 #include <boost/algorithm/string.hpp>
 
 using namespace std;
@@ -382,7 +381,7 @@ void CWallet::WalletUpdateSpent(const CTransaction &tx)
                     printf("WalletUpdateSpent: bad wtx %s\n", wtx.GetHash().ToString().c_str());
                 else if (!wtx.IsSpent(txin.prevout.n) && IsMine(wtx.vout[txin.prevout.n]))
                 {
-                    printf("WalletUpdateSpent found spent coin %s %s %s\n", FormatMoney(wtx.GetCredit()).c_str(), GlobalData::CURRENCY_SHORTHAND.c_str(), wtx.GetHash().ToString().c_str());
+                    printf("WalletUpdateSpent found spent coin %s CRYP %s\n", FormatMoney(wtx.GetCredit()).c_str(), wtx.GetHash().ToString().c_str());
                     wtx.MarkSpent(txin.prevout.n);
                     wtx.WriteToDisk();
                     NotifyTransactionChanged(this, txin.prevout.hash, CT_UPDATED);
@@ -895,7 +894,7 @@ void CWallet::ReacceptWalletTransactions()
                 }
                 if (fUpdated)
                 {
-                    printf("ReacceptWalletTransactions found spent coin %s %s %s\n", FormatMoney(wtx.GetCredit()).c_str(), GlobalData::CURRENCY_SHORTHAND.c_str(), wtx.GetHash().ToString().c_str());
+                    printf("ReacceptWalletTransactions found spent coin %s CRYP %s\n", FormatMoney(wtx.GetCredit()).c_str(), wtx.GetHash().ToString().c_str());
                     wtx.MarkDirty();
                     wtx.WriteToDisk();
                 }
@@ -2855,9 +2854,8 @@ void CWallet::FixSpentCoins(int& nMismatchFound, int64& nBalanceInQuestion, bool
             if (IsMine(pcoin->vout[n]) && pcoin->IsSpent(n) && (txindex.vSpent.size() <= n || txindex.vSpent[n].IsNull()))
             {
                 printf(
-                    "FixSpentCoins found lost coin %s %s %s[%d], %s\n",
+                    "FixSpentCoins found lost coin %s CRYP %s[%d], %s\n",
                     FormatMoney(pcoin->vout[n].nValue).c_str(),
-                    GlobalData::CURRENCY_SHORTHAND.c_str(),
                     pcoin->GetHash().ToString().c_str(),
                     n,
                     fCheckOnly ? "repair not attempted" : "repairing"
@@ -2873,9 +2871,8 @@ void CWallet::FixSpentCoins(int& nMismatchFound, int64& nBalanceInQuestion, bool
             else if (IsMine(pcoin->vout[n]) && !pcoin->IsSpent(n) && (txindex.vSpent.size() > n && !txindex.vSpent[n].IsNull()))
             {
                 printf(
-                    "FixSpentCoins found spent coin %s %s %s[%d], %s\n",
+                    "FixSpentCoins found spent coin %s CRYP %s[%d], %s\n",
                     FormatMoney(pcoin->vout[n].nValue).c_str(),
-                    GlobalData::CURRENCY_SHORTHAND.c_str(),
                     pcoin->GetHash().ToString().c_str(),
                     n,
                     fCheckOnly? "repair not attempted" : "repairing"
