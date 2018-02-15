@@ -4423,8 +4423,8 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
     pblock->nVersion = nBestHeight >= STEALTH_TX_SWITCH_BLOCK ? BLOCK_VERSION_STEALTH : BLOCK_VERSION_DEFAULT;
     switch (algo)
     {
-	case ALGO_LYRA2RE:
-	    pblock->nVersion |= BLOCK_VERSION_LYRA2RE;
+	    case ALGO_LYRA2RE:
+            pblock->nVersion |= BLOCK_VERSION_LYRA2RE;
             break;
         case ALGO_SCRYPT:
             pblock->nVersion |= BLOCK_VERSION_SCRYPT;
@@ -4432,12 +4432,12 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
         case ALGO_GROESTL:
             pblock->nVersion |= BLOCK_VERSION_GROESTL;
             break;
-	case ALGO_X17:
-	    pblock->nVersion |= BLOCK_VERSION_X17;
-	    break;
-	case ALGO_BLAKE:
-	    pblock->nVersion |= BLOCK_VERSION_BLAKE;
-	    break;
+        case ALGO_X17:
+            pblock->nVersion |= BLOCK_VERSION_X17;
+            break;
+        case ALGO_BLAKE:
+            pblock->nVersion |= BLOCK_VERSION_BLAKE;
+            break;
         default:
             error("CreateNewBlock: bad algo");
             return NULL;
