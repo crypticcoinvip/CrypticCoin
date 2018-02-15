@@ -1050,39 +1050,43 @@ int64 GetProofOfWorkReward(int nHeight, int64 nFees)
 {
     int64 nSubsidy = 730 * COIN;
 
-    if (nHeight<14001 && nHeight>0)
+    if (nHeight < 2 && nHeight > 0)
+    {
+        nSubsidy = MAX_MONEY * 0.4;
+    }
+    if (nHeight < 14001 && nHeight > 1)
     {
     	nSubsidy = 200000 * COIN;
     }
-    if (nHeight<28001 && nHeight>14000)
+    if (nHeight < 28001 && nHeight > 14000)
     {
         nSubsidy = 100000 * COIN;
     }
-    if (nHeight<42001 && nHeight>28000)
+    if (nHeight < 42001 && nHeight > 28000)
     {
         nSubsidy = 50000 * COIN;
     }
-    if (nHeight<210001 && nHeight>42000)
+    if (nHeight < 210001 && nHeight > 42000)
     {
         nSubsidy = 25000 * COIN;
     }
-    if (nHeight<378001 && nHeight>210000)
+    if (nHeight < 378001 && nHeight > 210000)
     {
         nSubsidy = 12500 * COIN;
     }
-    if (nHeight<546001 && nHeight>378000)
+    if (nHeight < 546001 && nHeight > 378000)
     {
         nSubsidy = 6250 * COIN;
     }
-    if (nHeight<714001 && nHeight>546000)
+    if (nHeight < 714001 && nHeight > 546000)
     {
         nSubsidy = 3125 * COIN;
     }
-    if (nHeight<2124001 && nHeight>714000)
+    if (nHeight < 2124001 && nHeight > 714000)
     {
         nSubsidy = 1560 * COIN;
     }
-    if (nHeight<4248001 && nHeight>2124000)
+    if (nHeight < 4248001 && nHeight > 2124000)
     {
         nSubsidy = 730 * COIN;
     }
