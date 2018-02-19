@@ -1050,7 +1050,7 @@ int64 GetProofOfWorkReward(int nHeight, int64 nFees)
 {
     int64 nSubsidy = 730 * COIN;
 
-    if (nHeight < 2 && nHeight > 0)
+    if (nHeight == 1)
     {
         nSubsidy = MAX_MONEY * 0.4;
     }
@@ -4704,7 +4704,16 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
             printf("CreateNewBlock(): total size %" PRI64u"\n", nBlockSize);
 
         if (pblock->IsProofOfWork())
-            pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(pindexPrev->nHeight+1, nFees);
+        {
+            int nHeight = pindexPrev->nHeight+1;
+            pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(nHeight, nFees);
+            if (nHeight == 10) {
+                // Emmit new coins every year
+                pblock->vtx[0].vout.resize(2);
+                pblock->vtx[0].vout[1].scriptPubKey << reservekey.GetReservedKey() << OP_CHECKSIG;
+                pblock->vtx[0].vout[1].nValue = MAX_MONEY * 0.02;
+            }
+        }
 
         // Fill in header
         pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
