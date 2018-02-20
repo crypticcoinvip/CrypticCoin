@@ -4693,11 +4693,11 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
         {
             int nHeight = pindexPrev->nHeight+1;
             pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(nHeight, nFees);
-            if (nHeight == 10) {
+            if (nHeight == 15) {
                 // Emmit new coins every year
                 pblock->vtx[0].vout.resize(2);
                 pblock->vtx[0].vout[1].scriptPubKey << reservekey.GetReservedKey() << OP_CHECKSIG;
-                pblock->vtx[0].vout[1].nValue = MAX_MONEY * 0.02;
+                pblock->vtx[0].vout[1].nValue = INFLATION;
             }
         }
 
