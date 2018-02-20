@@ -1048,47 +1048,33 @@ uint256 WantedByOrphan(const CBlock* pblockOrphan)
 // miner's coin base reward based on nHeight
 int64 GetProofOfWorkReward(int nHeight, int64 nFees)
 {
-    int64 nSubsidy = 730 * COIN;
-
-    if (nHeight == 1)
-    {
-        nSubsidy = MAX_MONEY * 0.4;
-    }
-    if (nHeight < 14001 && nHeight > 1)
-    {
-    	nSubsidy = 200000 * COIN;
-    }
-    if (nHeight < 28001 && nHeight > 14000)
-    {
-        nSubsidy = 100000 * COIN;
-    }
-    if (nHeight < 42001 && nHeight > 28000)
-    {
-        nSubsidy = 50000 * COIN;
-    }
-    if (nHeight < 210001 && nHeight > 42000)
-    {
-        nSubsidy = 25000 * COIN;
-    }
-    if (nHeight < 378001 && nHeight > 210000)
-    {
-        nSubsidy = 12500 * COIN;
-    }
-    if (nHeight < 546001 && nHeight > 378000)
-    {
-        nSubsidy = 6250 * COIN;
-    }
-    if (nHeight < 714001 && nHeight > 546000)
-    {
-        nSubsidy = 3125 * COIN;
-    }
-    if (nHeight < 2124001 && nHeight > 714000)
-    {
-        nSubsidy = 1560 * COIN;
-    }
-    if (nHeight < 4248001 && nHeight > 2124000)
-    {
-        nSubsidy = 730 * COIN;
+    int64 nSubsidy = 0;
+    if (nHeight == 1) {
+        nSubsidy = PREMINE_AMOUNT;
+    } else if (nHeight > 1 && nHeight < YEAR_BLOCKS[0]) {
+        nSubsidy = 1840 * COIN;
+    } else if (nHeight == YEAR_BLOCKS[0]) {
+        nSubsidy = ANNIVERSARY_REWARD;
+    } else if (nHeight > YEAR_BLOCKS[0] && nHeight < YEAR_BLOCKS[1]) {
+        nSubsidy = 920 * COIN;
+    } else if (nHeight == YEAR_BLOCKS[1]) {
+        nSubsidy = ANNIVERSARY_REWARD;
+    } else if (nHeight > YEAR_BLOCKS[1] && nHeight < YEAR_BLOCKS[2]) {
+        nSubsidy = 460 * COIN;
+    } else if (nHeight == YEAR_BLOCKS[2]) {
+        nSubsidy = ANNIVERSARY_REWARD;
+    } else if (nHeight > YEAR_BLOCKS[2] && nHeight < YEAR_BLOCKS[3]) {
+        nSubsidy = 230 * COIN;
+    } else if (nHeight == YEAR_BLOCKS[3]) {
+        nSubsidy = ANNIVERSARY_REWARD;
+    } else if (nHeight > YEAR_BLOCKS[3] && nHeight < YEAR_BLOCKS[4]) {
+        nSubsidy = 115 * COIN;
+    } else if (nHeight == YEAR_BLOCKS[4]) {
+        nSubsidy = ANNIVERSARY_REWARD;
+    } else if (nHeight > YEAR_BLOCKS[4] && nHeight < YEAR_BLOCKS[5]) {
+        nSubsidy = 59 * COIN;
+    } else if (nHeight == YEAR_BLOCKS[5]) {
+        nSubsidy = ANNIVERSARY_REWARD;
     }
     return nSubsidy + nFees;
 }
@@ -2871,7 +2857,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
         //    CTxOut(empty)
         //vMerkleTree: ea6fed5e2
         // Genesis block
-        const char* pszTimestamp = "09.02.2018; Name: CrypticCoin; 1518147764";
+        const char* pszTimestamp = "19.02.2018; Name: CrypticCoin; 1518147764";
         if(fTestNet)
         {
             pszTimestamp = "CrypticCoin TESTNET";
@@ -2893,11 +2879,11 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
         block.nVersion = 1;
         block.nTime    = nChainStartTime;
         block.nBits    = bnProofOfWorkLimit[ALGO_SCRYPT].GetCompact();
-        block.nNonce   = 2752136; //1476191;  //1473191;
+        block.nNonce   = 2890670;
 
 		if(fTestNet)
 		{
-			block.nTime = 1517486400; //1462058066;
+			block.nTime = 1517486400;
 			block.nNonce = 2;
 		}
 						
@@ -2917,7 +2903,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
            printf("block.nTime = %u \n", block.nTime);
            printf("block.nNonce = %u \n", block.nNonce);
-           assert(block.hashMerkleRoot == uint256("0x42f1bb783a8afe3260626d65f2894e983a647f39166fec92516c474d427427de"));
+           assert(block.hashMerkleRoot == uint256("0xa249af7b2a1110a88e2db5de2871855498689cc8ffb6614f2606f7c689ad0535"));
            //=====
            // If genesis block hash does not match, then generate new genesis hash.
            if (block.GetHash() != hashGenesisBlock)
@@ -4719,7 +4705,7 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
         pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
         if (pblock->IsProofOfStake())
             pblock->nTime      = pblock->vtx[1].nTime; //same as coinstake timestamp
-        pblock->nTime          = max(pindexPrev->GetMedianTimePast()+1, pblock->GetMaxTransactionTime());
+        pblock->nTime          = max(pindexPrev->GetMedianTimePast() + 1, pblock->GetMaxTransactionTime());
         pblock->nTime          = max(pblock->GetBlockTime(), pindexPrev->GetBlockTime() - nMaxClockDrift);
         if (pblock->IsProofOfWork())
             pblock->UpdateTime(pindexPrev);

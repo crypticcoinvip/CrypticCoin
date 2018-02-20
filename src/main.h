@@ -38,7 +38,11 @@ static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
 static const unsigned int MAX_INV_SZ = 50000;
 static const int64 MIN_TX_FEE = 10 * CENT;
 static const int64 MIN_RELAY_TX_FEE = 10 * CENT;
-static const int64 MAX_MONEY = 7600000000 * COIN; //
+static const int64 MAX_MONEY = 7598607351 * COIN; //
+static const int64 PREMINE_AMOUNT = 3039442976 * COIN;
+static const int64 INFLATION = 151972147 * COIN; // Money amount which will be produced in the end of a year
+static const int64 ANNIVERSARY_REWARD = 32904 * COIN; // Bonus for a miner who created anniversary block
+static const int64 YEAR_BLOCKS[] = { 1048320, 2096640, 3144960, 4193280, 5241600, 6289920 }; // Number of block which will be mined in one year, two, three and etc.
 static const int DISABLE_POS_BLOCK = 1;
 
 static const int64 MIN_TXOUT_AMOUNT = MIN_TX_FEE;
@@ -53,7 +57,7 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
-static const uint256 hashGenesisBlockOfficial("0x000003201729c2621caf1352ff8374472e2d2bf1762ae4dd3092189fe4cea9e0");
+static const uint256 hashGenesisBlockOfficial("0x00000bd90c2782ef5416e7ded163f5dd61392c81e690ddaec0e3e31f9e1349cf");
 //static const uint256 hashGenesisBlockOfficial("0x00000fc63692467faeb20cdb3b53200dc601d75bdfa1001463304cc790d77278");
 static const uint256 hashGenesisBlockTestNet("0x65b4e101cacf3e1e4f3a9237e3a74ffd1186e595d8b78fa8ea22c21ef5bf9347");
 
@@ -146,22 +150,22 @@ extern CBigNum bnProofOfWorkLimit[NUM_ALGOS];
 enum
 {
     // primary version
-    BLOCK_VERSION_DEFAULT        = 2,
-	BLOCK_VERSION_STEALTH        = 4,
+    BLOCK_VERSION_DEFAULT     = 2,
+	BLOCK_VERSION_STEALTH     = 4,
 
     // algo
-    BLOCK_VERSION_ALGO_BROKEN    = (10 << 11),
-    BLOCK_VERSION_ALGO           = (15 << 11),
-    BLOCK_VERSION_SCRYPT         = (1  << 11),
-    BLOCK_VERSION_GROESTL        = (2  << 11),
-    BLOCK_VERSION_X17		 = (3  << 11),
-    BLOCK_VERSION_BLAKE 	 = (4  << 11),
-    BLOCK_VERSION_LYRA2RE	 = (10 << 11),
+    BLOCK_VERSION_ALGO_BROKEN = (10 << 11),
+    BLOCK_VERSION_ALGO        = (15 << 11),
+    BLOCK_VERSION_SCRYPT      = (1  << 11),
+    BLOCK_VERSION_GROESTL     = (2  << 11),
+    BLOCK_VERSION_X17		  = (3  << 11),
+    BLOCK_VERSION_BLAKE 	  = (4  << 11),
+    BLOCK_VERSION_LYRA2RE	  = (10 << 11),
 };
 
 inline int GetAlgo(int nVersion)
 {
-    switch (nVersion & (nBestHeight >= 380000 ? BLOCK_VERSION_ALGO : BLOCK_VERSION_ALGO_BROKEN))
+    switch (nVersion & BLOCK_VERSION_ALGO)
     {
         case BLOCK_VERSION_SCRYPT:
             return ALGO_SCRYPT;
@@ -169,10 +173,10 @@ inline int GetAlgo(int nVersion)
             return ALGO_GROESTL;
         case BLOCK_VERSION_LYRA2RE:
             return ALGO_LYRA2RE;
-	case BLOCK_VERSION_X17:
-	    return ALGO_X17;
-	case BLOCK_VERSION_BLAKE:
-	    return ALGO_BLAKE;
+        case BLOCK_VERSION_X17:
+            return ALGO_X17;
+        case BLOCK_VERSION_BLAKE:
+            return ALGO_BLAKE;
     }
     return ALGO_SCRYPT;
 }
