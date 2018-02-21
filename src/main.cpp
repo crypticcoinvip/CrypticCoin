@@ -1722,7 +1722,9 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
             if (txdb.ReadTxIndex(hashTx, txindexOld)) {
                 BOOST_FOREACH(CDiskTxPos &pos, txindexOld.vSpent)
                     if (pos.IsNull())
-                        return false;
+                    {
+                        return error("connectBlock() : pos is null");
+                    }
             }
         }
 
@@ -1741,7 +1743,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
         {
             bool fInvalid;
             if (!tx.FetchInputs(txdb, mapQueuedChanges, true, false, mapInputs, fInvalid))
-                return false;
+                return error("connectBlock() : fetch inputs failed");
 
             if (fStrictPayToScriptHash)
             {
@@ -1761,7 +1763,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
                 nFees += nTxValueIn - nTxValueOut;
 
             if (!tx.ConnectInputs(txdb, mapInputs, mapQueuedChanges, posThisTx, pindex, true, false, fStrictPayToScriptHash))
-                return false;
+                return error("connectBlock() : connect inputs failed");
         }
 
         mapQueuedChanges[hashTx] = CTxIndex(posThisTx, tx.vout.size());
@@ -1785,12 +1787,34 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
     for (map<uint256, CTxIndex>::iterator mi = mapQueuedChanges.begin(); mi != mapQueuedChanges.end(); ++mi)
     {
         if (!txdb.UpdateTxIndex((*mi).first, (*mi).second))
-            return error("ConnectBlock() : UpdateTxIndex failed");
+            return error("ConnectBlock () : UpdateTxIndex failed");
     }
 
     //uint256 prevHash = 0;
-    if(vtx[0].GetValueOut() > GetProofOfWorkReward(pindex->nHeight, nFees))
-	return false;
+    {
+        int64 txValue = vtx[0].GetValueOut();
+        int64 powReward = GetProofOfWorkReward(pindex->nHeight, nFees);
+        bool isYearBlock = false;
+        for (unsigned int i = 0; i < 6; i++)
+        {
+            if (YEAR_BLOCKS[i] == pindex->nHeight || pindex->nHeight == 24)
+            {
+                isYearBlock = true;
+                break;
+            }
+        }
+
+        if (isYearBlock)
+        {
+            if (txValue > powReward + INFLATION)
+                return error("%s(): Transaction value (%d) is higher than expected (%d). Year block.", __func__, txValue, powReward + INFLATION);
+
+        }
+        else if (txValue > powReward)
+        {
+            return error("%s(): Transaction value (%d) is higher than expected (%d)", __func__, txValue, powReward);
+        }
+    }
 
     // Update block index on disk without changing it in memory.
     // The memory index structure will be changed after the db commits.
@@ -4693,7 +4717,7 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
         {
             int nHeight = pindexPrev->nHeight+1;
             pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(nHeight, nFees);
-            if (nHeight == 15) {
+            if (nHeight == 24) {
                 // Emmit new coins every year
                 pblock->vtx[0].vout.resize(2);
                 pblock->vtx[0].vout[1].scriptPubKey << reservekey.GetReservedKey() << OP_CHECKSIG;
