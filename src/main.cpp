@@ -11,6 +11,7 @@
 #include "init.h"
 #include "ui_interface.h"
 #include "kernel.h"
+#include "inflation.h"
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
@@ -1794,24 +1795,11 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
     {
         int64 txValue = vtx[0].GetValueOut();
         int64 powReward = GetProofOfWorkReward(pindex->nHeight, nFees);
-        bool isYearBlock = false;
-        for (unsigned int i = 0; i < 6; i++)
-        {
-            if (YEAR_BLOCKS[i] == pindex->nHeight || pindex->nHeight == 24)
-            {
-                isYearBlock = true;
-                break;
-            }
-        }
-
-        if (isYearBlock)
-        {
+        if (IsYearBlockHeight(pindex->nHeight)) {
             if (txValue > powReward + INFLATION)
                 return error("%s(): Transaction value (%d) is higher than expected (%d). Year block.", __func__, txValue, powReward + INFLATION);
 
-        }
-        else if (txValue > powReward)
-        {
+        } else if (txValue > powReward) {
             return error("%s(): Transaction value (%d) is higher than expected (%d)", __func__, txValue, powReward);
         }
     }
@@ -4717,12 +4705,9 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
         {
             int nHeight = pindexPrev->nHeight+1;
             pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(nHeight, nFees);
-            if (nHeight == 24) {
-                // Emmit new coins every year
-                pblock->vtx[0].vout.resize(2);
-                pblock->vtx[0].vout[1].scriptPubKey << reservekey.GetReservedKey() << OP_CHECKSIG;
-                pblock->vtx[0].vout[1].nValue = INFLATION;
-            }
+            // Emmit new coins every year
+            if (IsYearBlockHeight(nHeight))
+                AddInflationOutputInTx(pblock->vtx[0], reservekey.GetReservedKey());
         }
 
         // Fill in header
