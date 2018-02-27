@@ -4703,7 +4703,7 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
 
         if (pblock->IsProofOfWork())
         {
-            int nHeight = pindexPrev->nHeight+1;
+            int nHeight = pindexPrev->nHeight + 1;
             pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(nHeight, nFees);
             // Emmit new coins every year
             if (IsYearBlockHeight(nHeight))
