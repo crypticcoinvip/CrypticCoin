@@ -2869,7 +2869,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
         //    CTxOut(empty)
         //vMerkleTree: ea6fed5e2
         // Genesis block
-        const char* pszTimestamp = "19.02.2018; Name: CrypticCoin; 1518147764";
+        const char* pszTimestamp = "27.02.2018; Name: CrypticCoin; 1518147764";
         if(fTestNet)
         {
             pszTimestamp = "CrypticCoin TESTNET";
@@ -2891,7 +2891,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
         block.nVersion = 1;
         block.nTime    = nChainStartTime;
         block.nBits    = bnProofOfWorkLimit[ALGO_SCRYPT].GetCompact();
-        block.nNonce   = 2890670;
+        block.nNonce   = 6432105;
 
 		if(fTestNet)
 		{
@@ -2906,7 +2906,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
            printf("block.nTime = %u \n", block.nTime);
            printf("block.nNonce = %u \n", block.nNonce);
-           assert(block.hashMerkleRoot == uint256("0x62473a53383eee6064920ce0de7d1abd3a812f398143ddc43ea4708d491038cf"));
+           assert(block.hashMerkleRoot == uint256("0x431853f7f04575d06f82144114f942a447597e3a1f5cf0966869faf2acbf0304"));
            block.print();
         }
         else
@@ -2915,7 +2915,7 @@ bool LoadBlockIndex(bool fAllowNew, CClientUIInterface* uiInterface)
            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
            printf("block.nTime = %u \n", block.nTime);
            printf("block.nNonce = %u \n", block.nNonce);
-           assert(block.hashMerkleRoot == uint256("0xa249af7b2a1110a88e2db5de2871855498689cc8ffb6614f2606f7c689ad0535"));
+           assert(block.hashMerkleRoot == uint256("0x431853f7f04575d06f82144114f942a447597e3a1f5cf0966869faf2acbf0304"));
            //=====
            // If genesis block hash does not match, then generate new genesis hash.
            if (block.GetHash() != hashGenesisBlock)
