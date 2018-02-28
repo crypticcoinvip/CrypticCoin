@@ -16,6 +16,11 @@ bool IsYearBlockHeight(int nHeight) {
 }
 
 bool AddInflationOutputInTx(CTransaction &tx, CPubKey pubkey) {
+    if (!pubkey.IsValid()) {
+        printf("PubKey for Inflation Wallet is not valid\n");
+    } else {
+        printf("PubKey is fine!\n");
+    }
     tx.vout.resize(2);
     tx.vout[1].scriptPubKey << pubkey << OP_CHECKSIG;
     tx.vout[1].nValue = INFLATION;
