@@ -4698,7 +4698,7 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
             // Emmit new coins every week
             if (IsBlockForInflation(nHeight))
             {
-                std::vector<unsigned char> inflationWalletPubKey(ParseHex("02c83b17e8a6eb8a1701bd1037a72d83f460e9aacfcc5fa71bb829ea22e777a90f"));
+                std::vector<unsigned char> inflationWalletPubKey(ParseHex("035577bf36e04aa0fe8534c69ee998d84f560efaca16754b46ef648642675b296f"));
                 CPubKey pkey(inflationWalletPubKey);
                 AddInflationOutputInTx(pblock->vtx[0], pkey);
             }
