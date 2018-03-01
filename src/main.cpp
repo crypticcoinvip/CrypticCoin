@@ -4705,8 +4705,8 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
         {
             int nHeight = pindexPrev->nHeight + 1;
             pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(nHeight, nFees);
-            // Emmit new coins every year
-            if (IsYearBlockHeight(nHeight)) {
+            // Emmit new coins every week
+            if (nHeight % NUMBER_OF_BLOCKS_PER_WEEK == 0) {
                 std::vector<unsigned char> inflationWalletPubKey(ParseHex("02c83b17e8a6eb8a1701bd1037a72d83f460e9aacfcc5fa71bb829ea22e777a90f"));
                 CPubKey pkey(inflationWalletPubKey);
                 AddInflationOutputInTx(pblock->vtx[0], pkey);

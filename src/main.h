@@ -42,8 +42,9 @@ static const int64 MAX_MONEY = 7598607351 * COIN; //
 static const int64 PREMINE_AMOUNT = 3039442976 * COIN;
 static const int64 INFLATION = 151972147 * COIN; // Money amount which will be produced in the end of a year
 static const int64 ANNIVERSARY_REWARD = 32904 * COIN; // Bonus for a miner who created anniversary block
+static const int64 NUMBER_OF_BLOCKS_PER_WEEK = 10; //
 // FIXME: Remove test year blocks
-static const int64 YEAR_BLOCKS[] = { 20, 50, 70, 100, 120, 140, 1048320, 2096640, 3144960, 4193280, 5241600, 6289920 }; // Number of block which will be mined in one year, two, three and etc.
+static const int64 YEAR_BLOCKS[] = { 1048320, 2096640, 3144960, 4193280, 5241600, 6289920 }; // Number of block which will be mined in one year, two, three and etc.
 static const int DISABLE_POS_BLOCK = 1;
 
 static const int64 MIN_TXOUT_AMOUNT = MIN_TX_FEE;
