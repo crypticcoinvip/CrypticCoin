@@ -38,10 +38,10 @@ static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
 static const unsigned int MAX_INV_SZ = 50000;
 static const int64 MIN_TX_FEE = 10 * CENT;
 static const int64 MIN_RELAY_TX_FEE = 10 * CENT;
-static const int64 MAX_MONEY = 7_598_607_351 * COIN;
-static const int64 PREMINE_AMOUNT = 3_039_442_960 * COIN;
-static const int64 FREECO_AMOUNT = 379_930_378 * COIN;
-static const int64 AMB_FREECO_AMOUNT = 759_860_920 * COIN;
+static const int64 MAX_MONEY = 7598607351 * COIN;
+static const int64 PREMINE_AMOUNT = 3039442_960 * COIN;
+static const int64 FREECO_AMOUNT = 379930378 * COIN;
+static const int64 AMB_FREECO_AMOUNT = 759860920 * COIN;
 // FIXME: 10 is test value
 static const int64 NUMBER_OF_BLOCKS_PER_WEEK = 10;
 static const int64 INFLATION = 151_972_147 * COIN;
