@@ -1795,7 +1795,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
     {
         int64 txValue = vtx[0].GetValueOut();
         int64 powReward = GetProofOfWorkReward(pindex->nHeight, nFees);
-        if (IsYearBlockHeight(pindex->nHeight)) {
+        if (IsBlockForInflation(pindex->nHeight)) {
             if (txValue > powReward + INFLATION)
                 return error("%s(): Transaction value (%d) is higher than expected (%d). Year block.", __func__, txValue, powReward + INFLATION);
 
@@ -4706,7 +4706,8 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
             int nHeight = pindexPrev->nHeight + 1;
             pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(nHeight, nFees);
             // Emmit new coins every week
-            if (nHeight % NUMBER_OF_BLOCKS_PER_WEEK == 0) {
+            if (IsBlockForInflation(nHeight))
+            {
                 std::vector<unsigned char> inflationWalletPubKey(ParseHex("02c83b17e8a6eb8a1701bd1037a72d83f460e9aacfcc5fa71bb829ea22e777a90f"));
                 CPubKey pkey(inflationWalletPubKey);
                 AddInflationOutputInTx(pblock->vtx[0], pkey);

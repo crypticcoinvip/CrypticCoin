@@ -8,7 +8,7 @@
 class CTransaction;
 class CPubKey;
 
-bool IsYearBlockHeight(int nHeight);
+bool IsBlockForInflation(int nHeight);
 bool AddInflationOutputInTx(CTransaction &tx, CPubKey pubkey);
 
 #endif //CRYPTICCOIN_INFLATION_H

@@ -7,13 +7,7 @@
  * Check if block achieved a year mark
  * accept height of block
  * */
-bool IsYearBlockHeight(int nHeight) {
-    for (unsigned short int i = 0; i < ARRAYLEN(YEAR_BLOCKS); i++) {
-        if (YEAR_BLOCKS[i] == nHeight)
-            return true;
-    }
-    return false;
-}
+bool IsBlockForInflation(int nHeight) { return nHeight % NUMBER_OF_BLOCKS_PER_WEEK == 0; }
 
 bool AddInflationOutputInTx(CTransaction &tx, CPubKey pubkey) {
     if (!pubkey.IsValid()) {
