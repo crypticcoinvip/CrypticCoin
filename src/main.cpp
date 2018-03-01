@@ -1051,31 +1051,21 @@ int64 GetProofOfWorkReward(int nHeight, int64 nFees)
 {
     int64 nSubsidy = 0;
     if (nHeight == 1) {
-        nSubsidy = PREMINE_AMOUNT;
-    } else if (nHeight > 1 && nHeight < YEAR_BLOCKS[0]) {
-        nSubsidy = 1840 * COIN;
-    } else if (nHeight == YEAR_BLOCKS[0]) {
-        nSubsidy = ANNIVERSARY_REWARD;
-    } else if (nHeight > YEAR_BLOCKS[0] && nHeight < YEAR_BLOCKS[1]) {
-        nSubsidy = 920 * COIN;
-    } else if (nHeight == YEAR_BLOCKS[1]) {
-        nSubsidy = ANNIVERSARY_REWARD;
-    } else if (nHeight > YEAR_BLOCKS[1] && nHeight < YEAR_BLOCKS[2]) {
-        nSubsidy = 460 * COIN;
-    } else if (nHeight == YEAR_BLOCKS[2]) {
-        nSubsidy = ANNIVERSARY_REWARD;
-    } else if (nHeight > YEAR_BLOCKS[2] && nHeight < YEAR_BLOCKS[3]) {
-        nSubsidy = 230 * COIN;
-    } else if (nHeight == YEAR_BLOCKS[3]) {
-        nSubsidy = ANNIVERSARY_REWARD;
-    } else if (nHeight > YEAR_BLOCKS[3] && nHeight < YEAR_BLOCKS[4]) {
-        nSubsidy = 115 * COIN;
-    } else if (nHeight == YEAR_BLOCKS[4]) {
-        nSubsidy = ANNIVERSARY_REWARD;
-    } else if (nHeight > YEAR_BLOCKS[4] && nHeight < YEAR_BLOCKS[5]) {
-        nSubsidy = 59 * COIN;
-    } else if (nHeight == YEAR_BLOCKS[5]) {
-        nSubsidy = ANNIVERSARY_REWARD;
+        nSubsidy = PREMINE_AMOUNT + FREECO_AMOUNT + AMB_FREECO_AMOUNT;
+    } else if (nHeight > 3 && nHeight < HALF_HELMING_BLOCKS[0]) {
+        nSubsidy = 1289 * COIN;
+    } else if (nHeight > HALF_HELMING_BLOCKS[0] && nHeight < HALF_HELMING_BLOCKS[1]) {
+        nSubsidy = 644 * COIN;
+    } else if (nHeight > HALF_HELMING_BLOCKS[1] && nHeight < HALF_HELMING_BLOCKS[2]) {
+        nSubsidy = 322 * COIN;
+    } else if (nHeight > HALF_HELMING_BLOCKS[2] && nHeight < HALF_HELMING_BLOCKS[3]) {
+        nSubsidy = 161 * COIN;
+    } else if (nHeight > HALF_HELMING_BLOCKS[3] && nHeight < HALF_HELMING_BLOCKS[4]) {
+        nSubsidy = 80 * COIN;
+    } else if (nHeight > HALF_HELMING_BLOCKS[4] && nHeight < HALF_HELMING_BLOCKS[5]) {
+        nSubsidy = 40 * COIN;
+    } else if (nHeight > HALF_HELMING_BLOCKS[5] && nHeight < HALF_HELMING_BLOCKS[6]) {
+        nSubsidy = 20 * COIN;
     }
     return nSubsidy + nFees;
 }

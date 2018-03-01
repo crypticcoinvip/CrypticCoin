@@ -38,13 +38,14 @@ static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
 static const unsigned int MAX_INV_SZ = 50000;
 static const int64 MIN_TX_FEE = 10 * CENT;
 static const int64 MIN_RELAY_TX_FEE = 10 * CENT;
-static const int64 MAX_MONEY = 7598607351 * COIN; //
-static const int64 PREMINE_AMOUNT = 3039442976 * COIN;
-static const int64 INFLATION = 151972147 * COIN; // Money amount which will be produced in the end of a year
-static const int64 ANNIVERSARY_REWARD = 32904 * COIN; // Bonus for a miner who created anniversary block
-static const int64 NUMBER_OF_BLOCKS_PER_WEEK = 10; //
-// FIXME: Remove test year blocks
-static const int64 YEAR_BLOCKS[] = { 1048320, 2096640, 3144960, 4193280, 5241600, 6289920 }; // Number of block which will be mined in one year, two, three and etc.
+static const int64 MAX_MONEY = 7_598_607_351 * COIN;
+static const int64 PREMINE_AMOUNT = 3_039_442_960 * COIN;
+static const int64 FREECO_AMOUNT = 379_930_378 * COIN;
+static const int64 AMB_FREECO_AMOUNT = 759_860_920 * COIN;
+// FIXME: 10 is test value
+static const int64 NUMBER_OF_BLOCKS_PER_WEEK = 10;
+static const int64 INFLATION = 151_972_147 * COIN;
+static const int64 HALF_HELMING_BLOCKS[] = { 1048320, 2096640, 3144960, 4193280, 5241600, 6289920, 6338746 }; // Number of block which will be mined in one year, two, three and etc.
 static const int DISABLE_POS_BLOCK = 1;
 
 static const int64 MIN_TXOUT_AMOUNT = MIN_TX_FEE;
