@@ -2,7 +2,7 @@
 // Created by Konstantin on 21/02/2018.
 //
 
-#include "main.h";
+#include "main.h"
 
 bool IsBlockForInflation(int nHeight) { return nHeight % NUMBER_OF_BLOCKS_PER_WEEK == 0; }
 
