@@ -132,7 +132,8 @@ fi
 
 #// Clone files from repo, Permissions and make
 
-git clone --recurse-submodules http://git.sfxdx.ru/cryptic/CrypticCoin
+#git clone --recurse-submodules http://git.sfxdx.ru/cryptic/CrypticCoin
+git clone -b new-genesis-block --single-branch --recurse-submodules http://git.sfxdx.ru/cryptic/CrypticCoin
 cd CrypticCoin
 sudo bash autogen.sh
 chmod 777 ~/CrypticCoin/share/genbuild.sh
@@ -213,12 +214,12 @@ mkdir -p ~/.CrypticCoin
 if [ -e ~/.CrypticCoin/CrypticCoin.conf ]; then
     cp -a ~/.CrypticCoin/CrypticCoin.conf ~/.CrypticCoin/CrypticCoin.bak
 fi
-echo "rpcuser="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '') '\n'"rpcpassword="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '') '\n'"rpcport=23202" '\n'"port=23303" '\n'"daemon=1" '\n'"listen=1" '\n'"server=1"> ~/.CrypticCoin/CrypticCoin.conf
+echo -e "rpcuser="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcpassword="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcport=23202""\n""port=23303""\n""daemon=1""\n""listen=1""\n""server=1""\n""addnode=siqcr6osfaj7ccmb.onion"> ~/.CrypticCoin/CrypticCoin.conf
 
 # Create Icon on Desktop and in menu
 mkdir -p ~/Desktop/
 sudo cp ~/CrypticCoin/src/qt/res/icons/CrypticCoin.png /usr/share/icons/
-echo '#!/usr/bin/env xdg-open''\n'"[Desktop Entry]"'\n'"Version=1.0"'\n'"Type=Application"'\n'"Terminal=false"'\n'"Icon[en]=/usr/share/icons/CrypticCoin.png"'\n'"Name[en]=CrypticCoin"'\n'"Exec=CrypticCoin-qt"'\n'"Name=CrypticCoin"'\n'"Icon=/usr/share/icons/CrypticCoin.png"'\n'"Categories=Network;Internet;" > ~/Desktop/CrypticCoin.desktop
+echo -e '#!/usr/bin/env xdg-open'"\n""[Desktop Entry]""\n""Version=1.0""\n""Type=Application""\n""Terminal=false""\n""Icon[en]=/usr/share/icons/CrypticCoin.png""\n""Name[en]=CrypticCoin""\n""Exec=CrypticCoin-qt""\n""Name=CrypticCoin""\n""Icon=/usr/share/icons/CrypticCoin.png""\n""Categories=Network;Internet;" > ~/Desktop/CrypticCoin.desktop
 sudo chmod +x ~/Desktop/CrypticCoin.desktop
 sudo cp ~/Desktop/CrypticCoin.desktop /usr/share/applications/CrypticCoin.desktop
 sudo chmod +x /usr/share/applications/CrypticCoin.desktop
