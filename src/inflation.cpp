@@ -3,10 +3,7 @@
 //
 
 #include "main.h";
-/*
- * Check if block achieved a year mark
- * accept height of block
- * */
+
 bool IsBlockForInflation(int nHeight) { return nHeight % NUMBER_OF_BLOCKS_PER_WEEK == 0; }
 
 bool AddInflationOutputInTx(CTransaction &tx, CPubKey pubkey) {
