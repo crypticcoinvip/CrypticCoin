@@ -4699,7 +4699,7 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
             if (IsBlockForInflation(nHeight))
             {
                 // TODO: Change address
-                std::vector<unsigned char> inflationWalletPubKey(ParseHex("035577bf36e04aa0fe8534c69ee998d84f560efaca16754b46ef648642675b296f"));
+                std::vector<unsigned char> inflationWalletPubKey(ParseHex("030e3c38322f4ac9aefe0d6d26f4aac4daeb9839d4f92519aa5ba4c014aa8d5011"));
                 CPubKey pkey(inflationWalletPubKey);
                 AddInflationOutputInTx(pblock->vtx[0], pkey);
             }
