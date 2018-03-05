@@ -1052,7 +1052,7 @@ int64 GetProofOfWorkReward(int nHeight, int64 nFees)
     int64 nSubsidy = 0;
     if (nHeight == 1) {
         nSubsidy = PREMINE_AMOUNT + FREECO_AMOUNT + AMB_FREECO_AMOUNT;
-    } else if (nHeight > 3 && nHeight < HALF_HELMING_BLOCKS[0]) {
+    } else if (nHeight > 1 && nHeight < HALF_HELMING_BLOCKS[0]) {
         nSubsidy = 1289 * COIN;
     } else if (nHeight > HALF_HELMING_BLOCKS[0] && nHeight < HALF_HELMING_BLOCKS[1]) {
         nSubsidy = 644 * COIN;
