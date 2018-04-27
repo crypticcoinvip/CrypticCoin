@@ -11,7 +11,6 @@
 #include "init.h"
 #include "ui_interface.h"
 #include "kernel.h"
-#include "inflation.h"
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
@@ -1785,13 +1784,8 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
     {
         int64 txValue = vtx[0].GetValueOut();
         int64 powReward = GetProofOfWorkReward(pindex->nHeight, nFees);
-        if (IsBlockForInflation(pindex->nHeight)) {
-            if (txValue > powReward + INFLATION)
-                return error("%s(): Transaction value (%d) is higher than expected (%d). Year block.", __func__, txValue, powReward + INFLATION);
-
-        } else if (txValue > powReward) {
+        if (txValue > powReward)
             return error("%s(): Transaction value (%d) is higher than expected (%d)", __func__, txValue, powReward);
-        }
     }
 
     // Update block index on disk without changing it in memory.
@@ -4695,14 +4689,6 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
         {
             int nHeight = pindexPrev->nHeight + 1;
             pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(nHeight, nFees);
-            // Emmit new coins every week
-            if (IsBlockForInflation(nHeight))
-            {
-                // TODO: Change address
-                std::vector<unsigned char> inflationWalletPubKey(ParseHex("030e3c38322f4ac9aefe0d6d26f4aac4daeb9839d4f92519aa5ba4c014aa8d5011"));
-                CPubKey pkey(inflationWalletPubKey);
-                AddInflationOutputInTx(pblock->vtx[0], pkey);
-            }
         }
 
         // Fill in header

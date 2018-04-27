@@ -119,8 +119,7 @@ BITCOIN_CORE_H = \
   version.h \
   xxhash/xxhash.h \
   walletdb.h \
-  wallet.h \
-  inflation.h
+  wallet.h
 
 JSON_H = \
   json/json_spirit.h \
@@ -159,7 +158,6 @@ libbitcoin_server_a_SOURCES = \
   rpcnet.cpp \
   rpcrawtransaction.cpp \
   rpcsmessage.cpp \
-  inflation.cpp \
   $(JSON_H) \
   $(BITCOIN_CORE_H)
 
