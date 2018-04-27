@@ -18,7 +18,7 @@ packages:
 
 reference_datetime: "2013-06-01 00:00:00"
 remotes:
-- "url": "https://github.com/CrypticCoinTeam/osx-cross-depends.git"
+- "url": "https://github.com/NOTEXIST/CrypticCoinTeam/osx-cross-depends.git"
   "dir": "osx-cross-depends"
 files:
 - "10cc648683617cca8bcbeae507888099b41b530c.tar.gz"

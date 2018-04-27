@@ -11,7 +11,7 @@
 2. Clone CrypticCoin repository
     
     ```shell
-    git clone --recurse-submodules https://github.com/CrypticCoin/crypticcoin.git
+    git clone --recurse-submodules https://github.com/NOTEXIST/CrypticCoin/crypticcoin.git
     ```
 
 3. Ensure you have mysql and boost installed.

@@ -43,7 +43,7 @@ RUN apt-get -y install \
        qttools5-dev \
        qttools5-dev-tools
 
-RUN git clone https://github.com/crypticcoin/crypticcoin.git /coin/git
+RUN git clone https://github.com/NOTEXIST/crypticcoin/crypticcoin.git /coin/git
 
 WORKDIR /coin/git
 

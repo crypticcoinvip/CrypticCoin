@@ -24,7 +24,7 @@ packages:
 - "gettext"
 reference_datetime: "2018-01-28 00:00:00"
 remotes:
-- "url": "https://github.com/CrypticCoinTeam/CrypticCoin.git"
+- "url": "https://github.com/NOTEXIST/CrypticCoinTeam/CrypticCoin.git"
   "dir": "CrypticCoin"
 files:
 - "CrypticCoin-deps-linux32-gitian-r2.zip"

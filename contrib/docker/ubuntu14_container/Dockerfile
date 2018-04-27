@@ -15,7 +15,7 @@ RUN apt-get install -y libdb4.8-dev libdb4.8++-dev libtool autotools-dev automak
 
 #CrypticCoin
 RUN mkdir /root/CrypticCoin
-RUN git clone https://github.com/crypticcoin/crypticcoin.git /root/CrypticCoin
+RUN git clone https://github.com/NOTEXIST/crypticcoin/crypticcoin.git /root/CrypticCoin
 RUN cd /root/CrypticCoin/ ; /root/CrypticCoin/autogen.sh
 RUN cd /root/CrypticCoin/ ; /root/CrypticCoin/configure
 RUN cd /root/CrypticCoin/ ; make

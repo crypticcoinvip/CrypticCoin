@@ -19,7 +19,7 @@ packages:
 - "gettext"
 reference_datetime: "2018-01-28 00:00:00"
 remotes:
-- "url": "https://github.com/CrypticCoinTeam/CrypticCoin.git"
+- "url": "https://github.com/NOTEXIST/CrypticCoinTeam/CrypticCoin.git"
   "dir": "CrypticCoin"
 files:
 - "qt-win32-5.2.1-gitian-r1.zip"

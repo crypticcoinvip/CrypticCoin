@@ -88,7 +88,7 @@ sudo chown -R $USER.$USER /data/coins
 cd /data/coins
 
 # Clone sources
-git clone git://github.com/CrypticCoinTeam/CrypticCoin.git CrypticCoin
+git clone git://github.com/NOTEXIST/CrypticCoinTeam/CrypticCoin.git CrypticCoin
 git clone git://github.com/devrandom/gitian-builder.git
 
 #Mk dirs for inputs and download them
@@ -146,7 +146,7 @@ fi
 
 # Clone gitian signatures and append to them
 cd ..
-git clone https://github.com/CrypticCoinTeam/gitian.sigs.git
+git clone https://github.com/NOTEXIST/CrypticCoinTeam/gitian.sigs.git
 
 cd gitian-builder
 bin/gbuild --commit CrypticCoin=v${VERSION} ../CrypticCoin/contrib/gitian-descriptors/gitian-linux.yml

@@ -5,7 +5,7 @@ Here is a quick short hand way:
 ```shell
 sudo rm -Rf ~/CrypticCoin  #(if you already have it)
 sudo apt-get -y install git && cd ~ && \
-         git clone --recurse-submodules https://github.com/CrypticCoin/crypticcoin.git \
+         git clone --recurse-submodules https://github.com/NOTEXIST/CrypticCoin/crypticcoin.git \
          && cd crypticcoin && sh go.sh
 ```
 
@@ -27,7 +27,7 @@ The _slightly_ longer version:
 2. Clone the git repository and compile the daemon and gui wallet:
 
     ```shell
-    git clone --recurse-submodules https://github.com/CrypticCoin/crypticcoin.git && cd crypticcoin \
+    git clone --recurse-submodules https://github.com/NOTEXIST/CrypticCoin/crypticcoin.git && cd crypticcoin \
         && ./autogen.sh && ./configure && make
     ```
 
@@ -44,7 +44,7 @@ sudo dnf install git automake boost-devel qt5-devel qrencode-devel libdb4-cxx-de
 ```
 2. Clone source and build
 ```
-git clone --recurse-submodules https://github.com/CrypticCoin/crypticcoin.git
+git clone --recurse-submodules https://github.com/NOTEXIST/CrypticCoin/crypticcoin.git
 cd crypticcoin
 ./autogen.sh
 ./configure --with-gui=qt5

@@ -2,7 +2,7 @@ FROM binhex/arch-base
 
 RUN pacman -S --noconfirm --needed base-devel boost boost-libs openssl db base-devel qrencode qt5 automoc4 git protobuf
 
-RUN git clone https://github.com/crypticcoin/crypticcoin.git /coin/git
+RUN git clone https://github.com/NOTEXIST/crypticcoin/crypticcoin.git /coin/git
 
 WORKDIR /coin/git
 

@@ -23,7 +23,7 @@ ENV PKG_CONFIG_PATH /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
 
 RUN yum install -y qt5-qtbase-devel qt5-qttools-devel qt5-qtwebkit-devel qt5-qtwebsockets qrencode-devel
 
-RUN git clone https://github.com/crypticcoin/crypticcoin.git /coin/git
+RUN git clone https://github.com/NOTEXIST/crypticcoin/crypticcoin.git /coin/git
 
 WORKDIR /coin/git
 

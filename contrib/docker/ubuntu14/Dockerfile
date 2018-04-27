@@ -1,6 +1,6 @@
 # Dockerfile for CrypticCoin
 # http://CrypticCoin.io/
-# https://github.com/crypticcoin/crypticcoin.git
+# https://github.com/NOTEXIST/crypticcoin/crypticcoin.git
 
 FROM ubuntu:14.04
 
@@ -47,7 +47,7 @@ RUN apt-get update --yes > /dev/null && \
        qttools5-dev-tools \
       > /dev/null
 
-RUN git clone https://github.com/crypticcoin/crypticcoin.git /coin/git
+RUN git clone https://github.com/NOTEXIST/crypticcoin/crypticcoin.git /coin/git
 
 WORKDIR /coin/git
 

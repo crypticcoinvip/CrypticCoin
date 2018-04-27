@@ -45,7 +45,7 @@ To run CrypticCoin wallet on a Synology using this docker image:
 ---
 * Create a folder that will have the CrypticCoin wallet configuration. Open up 'Filestation', select 'home', then 'create folder'. I'll use 'CrypticCoin' as the name for the folder.
 
-* This folder should be visible to your computer, because you will need to create a configuration file in this folder. Follow the instructions at: [the CrypticCoin github page](https://github.com/CrypticCoincurrency/CrypticCoin) for more info. 
+* This folder should be visible to your computer, because you will need to create a configuration file in this folder. Follow the instructions at: [the CrypticCoin github page](https://github.com/NOTEXIST/CrypticCoincurrency/CrypticCoin) for more info.
 
     Be sure to create the CrypticCoin.conf in a folder called ".CrypticCoin". I have "home" mounted to my mac, so I see it as '/Volumes/home/CrypticCoin/.CrypticCoin/CrypticCoin.conf'. 
     
