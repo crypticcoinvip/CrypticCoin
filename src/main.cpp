@@ -2271,6 +2271,26 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
     return true;
 }
 
+bool CBlock::CheckPrevAlgo(CBlockIndex* pIndex)
+{
+    unsigned checkedBlocks = 0;
+    unsigned sameAlgoBlocks = 0;
+
+    while (pIndex && checkedBlocks != 2*SAME_ALGO_MAX_COUNT)
+    {
+        if (::GetAlgo(pIndex->nVersion) == GetAlgo())
+            ++sameAlgoBlocks;
+
+        ++checkedBlocks;
+        pIndex = pIndex->pprev;
+    }
+
+    if (sameAlgoBlocks > SAME_ALGO_MAX_COUNT)
+        return false;
+
+    return true;
+}
+
 bool CBlock::AcceptBlock()
 {
     // Check for duplicate
@@ -2284,6 +2304,9 @@ bool CBlock::AcceptBlock()
         return DoS(10, error("AcceptBlock() : prev block not found"));
     CBlockIndex* pindexPrev = (*mi).second;
     int nHeight = pindexPrev->nHeight+1;
+
+    if (!CheckPrevAlgo(pindexPrev))
+        return error("AcceptBlock() : too many blocks found using same algorithm");
 
     // Check proof-of-work or proof-of-stake
     if (nBits != GetNextTargetRequired(pindexPrev, IsProofOfStake(), GetAlgo()))
