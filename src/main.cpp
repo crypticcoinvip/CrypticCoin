@@ -1049,23 +1049,21 @@ uint256 WantedByOrphan(const CBlock* pblockOrphan)
 int64 GetProofOfWorkReward(int nHeight, int64 nFees)
 {
     int64 nSubsidy = 0;
-    if (nHeight == 1) {
-        nSubsidy = PREMINE_AMOUNT + FREECO_AMOUNT + AMB_FREECO_AMOUNT;
-    } else if (nHeight > 1 && nHeight < HALF_HELMING_BLOCKS[0]) {
-        nSubsidy = 1289 * COIN;
-    } else if (nHeight > HALF_HELMING_BLOCKS[0] && nHeight < HALF_HELMING_BLOCKS[1]) {
-        nSubsidy = 644 * COIN;
-    } else if (nHeight > HALF_HELMING_BLOCKS[1] && nHeight < HALF_HELMING_BLOCKS[2]) {
-        nSubsidy = 322 * COIN;
-    } else if (nHeight > HALF_HELMING_BLOCKS[2] && nHeight < HALF_HELMING_BLOCKS[3]) {
-        nSubsidy = 161 * COIN;
-    } else if (nHeight > HALF_HELMING_BLOCKS[3] && nHeight < HALF_HELMING_BLOCKS[4]) {
-        nSubsidy = 80 * COIN;
-    } else if (nHeight > HALF_HELMING_BLOCKS[4] && nHeight < HALF_HELMING_BLOCKS[5]) {
-        nSubsidy = 40 * COIN;
-    } else if (nHeight > HALF_HELMING_BLOCKS[5] && nHeight < HALF_HELMING_BLOCKS[6]) {
-        nSubsidy = 20 * COIN;
+
+    if (nHeight > 1 && nHeight <= LAST_BLOCK_WITH_REWARDS)
+    {
+        nSubsidy = 1655;
+        for (int count = 1; nHeight > HALF_HELMING_BLOCKS * count; count++)
+        {
+            nSubsidy = ceil(nSubsidy / 2.0);
+        }
+        nSubsidy *= COIN;
     }
+    else if (nHeight == 1)
+    {
+        nSubsidy = PREMINE_AMOUNT + FREECO_AMOUNT + AMB_FREECO_AMOUNT;
+    }
+
     return nSubsidy + nFees;
 }
 

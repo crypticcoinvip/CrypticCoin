@@ -29,7 +29,7 @@ class CInv;
 class CRequestTracker;
 class CNode;
 
-static const int SAME_ALGO_MAX_COUNT = 5;
+static const int SAME_ALGO_MAX_COUNT = 6;
 static const unsigned int MAX_BLOCK_SIZE = 1000000;
 static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/2;
 static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
@@ -37,11 +37,12 @@ static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
 static const unsigned int MAX_INV_SZ = 50000;
 static const int64 MIN_TX_FEE = 10 * CENT;
 static const int64 MIN_RELAY_TX_FEE = 10 * CENT;
-static const int64 MAX_MONEY = 7598607351 * COIN;
+static const int64 MAX_MONEY = 7598607361 * COIN;
 static const int64 PREMINE_AMOUNT = 3039442960 * COIN;
-static const int64 FREECO_AMOUNT = 379930378 * COIN;
-static const int64 AMB_FREECO_AMOUNT = 759860920 * COIN;
-static const int64 HALF_HELMING_BLOCKS[] = { 1048320, 2096640, 3144960, 4193280, 5241600, 6289920, 6338746 }; // Number of block which will be mined in one year, two, three and etc.
+static const int64 FREECO_AMOUNT = 379930370 * COIN;
+static const int64 AMB_FREECO_AMOUNT = 759860740 * COIN;
+static const int64 HALF_HELMING_BLOCKS = 1048320; // Number of block which will be mined in one year, two, three and etc.
+static const int64 LAST_BLOCK_WITH_REWARDS = 6361141;
 static const int DISABLE_POS_BLOCK = 1;
 
 static const int64 MIN_TXOUT_AMOUNT = MIN_TX_FEE;
