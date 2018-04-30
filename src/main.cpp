@@ -1248,12 +1248,7 @@ unsigned int GetNextTargetRequired_V1(const CBlockIndex* pindexLast, bool fProof
 
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake, int algo)
 {
-        if (pindexLast->nHeight < MULTI_ALGO_SWITCH_BLOCK)
-        {
-                return GetNextTargetRequired_V1(pindexLast, fProofOfStake, algo);
-        }
-        return DarkGravityWave3(pindexLast, nProofOfWorkTargetSpacing, algo);
-
+    return DarkGravityWave3(pindexLast, nProofOfWorkTargetSpacing, algo);
 }
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits, int algo)
@@ -2336,26 +2331,6 @@ bool CBlock::AcceptBlock()
         {
             strMiscWarning = _("WARNING: syncronized checkpoint violation detected, but skipped!");
         }
-    }
-
-    // Reject block.nVersion not BLOCK_VERSION_DEFAULT or BLOCK_VERSION_GROESTL or BLOCK_VERSION_SHA256D and is not genesis block
-    if (nVersion != (BLOCK_VERSION_LYRA2RE | BLOCK_VERSION_DEFAULT) &&
-        nVersion != (BLOCK_VERSION_SCRYPT  | BLOCK_VERSION_DEFAULT) &&
-        nVersion != (BLOCK_VERSION_GROESTL | BLOCK_VERSION_DEFAULT) &&
-		nVersion != (BLOCK_VERSION_X17     | BLOCK_VERSION_DEFAULT) &&
-        nVersion != (BLOCK_VERSION_BLAKE   | BLOCK_VERSION_DEFAULT) &&
-        nVersion != BLOCK_VERSION_DEFAULT && nHeight > MULTI_ALGO_SWITCH_BLOCK)
-    {
-        if (nHeight <= STEALTH_TX_SWITCH_BLOCK ||
-            (nVersion != (BLOCK_VERSION_LYRA2RE | BLOCK_VERSION_STEALTH) &&
-            nVersion != (BLOCK_VERSION_SCRYPT  | BLOCK_VERSION_STEALTH) &&
-            nVersion != (BLOCK_VERSION_GROESTL | BLOCK_VERSION_STEALTH) &&
-            nVersion != (BLOCK_VERSION_X17     | BLOCK_VERSION_STEALTH) &&
-            nVersion != (BLOCK_VERSION_BLAKE   | BLOCK_VERSION_STEALTH) &&
-            nVersion != BLOCK_VERSION_STEALTH))
-        {
-            return error("CheckBlock() : rejected nVersion");
-        }    
     }
 
     // Enforce rule that the coinbase starts with serialized block height
@@ -4429,7 +4404,7 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake, int algo)
     if (!pblock.get())
         return NULL;
 
-    pblock->nVersion = nBestHeight >= STEALTH_TX_SWITCH_BLOCK ? BLOCK_VERSION_STEALTH : BLOCK_VERSION_DEFAULT;
+    pblock->nVersion = BLOCK_VERSION_STEALTH;
     switch (algo)
     {
 	    case ALGO_LYRA2RE:

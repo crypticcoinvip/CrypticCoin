@@ -29,8 +29,6 @@ class CInv;
 class CRequestTracker;
 class CNode;
 
-static const int MULTI_ALGO_SWITCH_BLOCK = 1;
-static const int STEALTH_TX_SWITCH_BLOCK = 1;
 static const int SAME_ALGO_MAX_COUNT = 5;
 static const unsigned int MAX_BLOCK_SIZE = 1000000;
 static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/2;
@@ -151,7 +149,6 @@ extern CBigNum bnProofOfWorkLimit[NUM_ALGOS];
 enum
 {
     // primary version
-    BLOCK_VERSION_DEFAULT     = 2,
 	BLOCK_VERSION_STEALTH     = 4,
 
     // algo
@@ -964,7 +961,7 @@ public:
 
     void SetNull()
     {
-        nVersion = nBestHeight >= STEALTH_TX_SWITCH_BLOCK ? BLOCK_VERSION_STEALTH : BLOCK_VERSION_DEFAULT;
+        nVersion = BLOCK_VERSION_STEALTH;
         hashPrevBlock = 0;
         hashMerkleRoot = 0;
         nTime = 0;
