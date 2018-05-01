@@ -187,18 +187,6 @@ if [ -e ~/CrypticCoin/src/qt/CrypticCoin-qt ]; then
 #cp portaudio19.h portaudio.h
 #make
 #cd ~
-for i in 528 1000 1600 2000 3000
-do
-pactl load-module module-sine frequency=$i > /dev/null
-sleep 0.1
-done
-sleep 1
-pactl unload-module module-sine
-pactl upload-sample complet test2
-openssl rand -hex 4096 | padsp tee /dev/audio > /dev/null
-sleep 1.3
-pactl play-sample test2
-#espeak mission,complete
 sudo strip ~/CrypticCoin/src/CrypticCoind
 sudo strip ~/CrypticCoin/src/qt/CrypticCoin-qt
 sudo make install
@@ -214,7 +202,7 @@ mkdir -p ~/.CrypticCoin
 if [ -e ~/.CrypticCoin/CrypticCoin.conf ]; then
     cp -a ~/.CrypticCoin/CrypticCoin.conf ~/.CrypticCoin/CrypticCoin.bak
 fi
-echo -e "rpcuser="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcpassword="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcport=23202""\n""port=23303""\n""daemon=1""\n""listen=1""\n""server=1""\n""addnode=siqcr6osfaj7ccmb.onion"> ~/.CrypticCoin/CrypticCoin.conf
+echo -e "rpcuser="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcpassword="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcport=23202""\n""port=23303""\n""daemon=1""\n""listen=1""\n""server=1""\n""addnode=jhbkhdxegbeb5zbn.onion"> ~/.CrypticCoin/CrypticCoin.conf
 
 # Create Icon on Desktop and in menu
 mkdir -p ~/Desktop/
