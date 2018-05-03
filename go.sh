@@ -133,7 +133,7 @@ fi
 #// Clone files from repo, Permissions and make
 
 #git clone --recurse-submodules http://git.sfxdx.ru/cryptic/CrypticCoin
-git clone -b new-genesis-block --single-branch --recurse-submodules http://git.sfxdx.ru/cryptic/CrypticCoin
+git clone -b dev --single-branch --recurse-submodules http://git.sfxdx.ru/cryptic/CrypticCoin
 cd CrypticCoin
 sudo bash autogen.sh
 chmod 777 ~/CrypticCoin/share/genbuild.sh
