@@ -163,7 +163,7 @@ Threads
 
 - ThreadFlushWalletDB : Close the wallet.dat file if it hasn't been used in 500ms.
 
-- ThreadRPCServer : Remote procedure call handler, listens on port 8232 for connections and services them.
+- ThreadRPCServer : Remote procedure call handler, listens on port 23202 for connections and services them.
 
 - ZcashMiner : Generates zcash (if wallet is enabled).
 

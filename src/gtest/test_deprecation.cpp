@@ -151,7 +151,7 @@ TEST_F(DeprecationTest, AlertNotify) {
 
     // -alertnotify restricts the message to safe characters.
     auto expectedMsg = SanitizeString(strprintf(
-        "This version will be deprecated at block height %d, and will automatically shut down. You should upgrade to the latest version of Zcash. To disable deprecation for this version, set disabledeprecation to %s.",
+        "This version will be deprecated at block height %d, and will automatically shut down. You should upgrade to the latest version of CrypticCoin. To disable deprecation for this version, set disabledeprecation to %s.",
         DEPRECATION_HEIGHT,
         CLIENT_VERSION_STR));
 

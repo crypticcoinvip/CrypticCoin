@@ -43,7 +43,7 @@
 using namespace std;
 
 #if defined(NDEBUG)
-# error "Zcash cannot be compiled without assertions."
+# error "CrypticCoin cannot be compiled without assertions."
 #endif
 
 /**
@@ -98,7 +98,7 @@ static void CheckBlockIndex();
 /** Constant stuff for coinbase transactions we create: */
 CScript COINBASE_FLAGS;
 
-const string strMessageMagic = "Zcash Signed Message:\n";
+const string strMessageMagic = "CrypticCoin Signed Message:\n";
 
 // Internal stuff
 namespace {
@@ -2118,7 +2118,7 @@ bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, unsigne
 static CCheckQueue<CScriptCheck> scriptcheckqueue(128);
 
 void ThreadScriptCheck() {
-    RenameThread("zcash-scriptch");
+    RenameThread("crypticcoin-scriptch");
     scriptcheckqueue.Thread();
 }
 
@@ -3346,8 +3346,8 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
     }
 
     // Enforce BIP 34 rule that the coinbase starts with serialized block height.
-    // In Zcash this has been enforced since launch, except that the genesis
-    // block didn't include the height in the coinbase (see Zcash protocol spec
+    // In CrypticCoin this has been enforced since launch, except that the genesis
+    // block didn't include the height in the coinbase (see CrypticCoin protocol spec
     // section '6.8 Bitcoin Improvement Proposals').
     if (nHeight > 0)
     {
