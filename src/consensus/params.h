@@ -65,6 +65,10 @@ struct Params {
 
     bool fCoinbaseMustBeProtected;
 
+    int64_t PREMINE_AMOUNT = 3039442960;
+    int64_t FREECO_AMOUNT = 379930370;
+    int64_t AMB_FREECO_AMOUNT = 759860740;
+
     /** Needs to evenly divide MAX_SUBSIDY to avoid rounding errors. */
     int nSubsidySlowStartInterval;
     /**
