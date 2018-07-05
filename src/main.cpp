@@ -1542,10 +1542,10 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 
         nSubsidy >>= halvings;
     }
-    else if (nHeight == 1)
-    {
-        nSubsidy = consensusParams.PREMINE_AMOUNT + consensusParams.FREECO_AMOUNT + consensusParams.AMB_FREECO_AMOUNT;
-    }
+//    else if (nHeight == 2) // TODO: SS node rejected this rewards
+//    {
+//        nSubsidy = consensusParams.PREMINE_AMOUNT + consensusParams.FREECO_AMOUNT + consensusParams.AMB_FREECO_AMOUNT;
+//    }
 
     nSubsidy *= COIN;
     return nSubsidy;
