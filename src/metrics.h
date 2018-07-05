@@ -73,12 +73,10 @@ void ConnectMetricsScreen();
 void ThreadShowMetricsScreen();
 
 /**
- * Heart image: https://commons.wikimedia.org/wiki/File:Heart_coraz%C3%B3n.svg
- * License: CC BY-SA 3.0
+ * Heart image: https://crypticcoin.io/wp-content/uploads/2018/04/crypticcoin-ai.png
  *
  * Rendering options:
- * Zcash: img2txt -W 40 -H 20 -f utf8 -d none -g 0.7 Z-yellow.orange-logo.png
- * Heart: img2txt -W 40 -H 20 -f utf8 -d none 2000px-Heart_corazón.svg.png
+ * CrypticCoin: img2txt -W 40 -H 20 -f utf8 -d none -g 0.7 crypticcoin-ai.png > crypticcoin-ai.txt
  */
 const std::string METRICS_ART =
 "               [0;33;5;43;103m...........[0m              \n"
