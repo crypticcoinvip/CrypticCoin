@@ -86,65 +86,65 @@ TEST(founders_reward_test, create_testnet_2of3multisig) {
 #endif
 
 
-// Utility method to check the number of unique addresses from height 1 to maxHeight
-void checkNumberOfUniqueAddresses(int nUnique) {
-    int maxHeight = Params().GetConsensus().GetLastFoundersRewardBlockHeight();
-    std::set<std::string> addresses;
-    for (int i = 1; i <= maxHeight; i++) {
-        addresses.insert(Params().GetFoundersRewardAddressAtHeight(i));
-    }
-    ASSERT_TRUE(addresses.size() == nUnique);
-}
+//// Utility method to check the number of unique addresses from height 1 to maxHeight
+//void checkNumberOfUniqueAddresses(int nUnique) {
+//    int maxHeight = Params().GetConsensus().GetLastFoundersRewardBlockHeight();
+//    std::set<std::string> addresses;
+//    for (int i = 1; i <= maxHeight; i++) {
+//        addresses.insert(Params().GetFoundersRewardAddressAtHeight(i));
+//    }
+//    ASSERT_TRUE(addresses.size() == nUnique);
+//}
 
 
-TEST(founders_reward_test, general) {
-    SelectParams(CBaseChainParams::TESTNET);
-
-    CChainParams params = Params();
-    
-    // Fourth testnet reward:
-    // address = t2ENg7hHVqqs9JwU5cgjvSbxnT2a9USNfhy
-    // script.ToString() = OP_HASH160 55d64928e69829d9376c776550b6cc710d427153 OP_EQUAL
-    // HexStr(script) = a91455d64928e69829d9376c776550b6cc710d42715387
-    EXPECT_EQ(params.GetFoundersRewardScriptAtHeight(1), ParseHex("a914ef775f1f997f122a062fff1a2d7443abd1f9c64287"));
-    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(1), "t2UNzUUx8mWBCRYPRezvA363EYXyEpHokyi");
-    EXPECT_EQ(params.GetFoundersRewardScriptAtHeight(53126), ParseHex("a914ac67f4c072668138d88a86ff21b27207b283212f87"));
-    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(53126), "t2NGQjYMQhFndDHguvUw4wZdNdsssA6K7x2");
-    EXPECT_EQ(params.GetFoundersRewardScriptAtHeight(53127), ParseHex("a91455d64928e69829d9376c776550b6cc710d42715387"));
-    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(53127), "t2ENg7hHVqqs9JwU5cgjvSbxnT2a9USNfhy");
-
-    int maxHeight = params.GetConsensus().GetLastFoundersRewardBlockHeight();
-    
-    // If the block height parameter is out of bounds, there is an assert.
-    EXPECT_DEATH(params.GetFoundersRewardScriptAtHeight(0), "nHeight");
-    EXPECT_DEATH(params.GetFoundersRewardScriptAtHeight(maxHeight+1), "nHeight");
-    EXPECT_DEATH(params.GetFoundersRewardAddressAtHeight(0), "nHeight");
-    EXPECT_DEATH(params.GetFoundersRewardAddressAtHeight(maxHeight+1), "nHeight"); 
-}
-
-
-#define NUM_MAINNET_FOUNDER_ADDRESSES 48
-
-TEST(founders_reward_test, mainnet) {
-    SelectParams(CBaseChainParams::MAIN);
-    checkNumberOfUniqueAddresses(NUM_MAINNET_FOUNDER_ADDRESSES);
-}
+//TEST(founders_reward_test, general) {
+//    SelectParams(CBaseChainParams::TESTNET);
+//
+//    CChainParams params = Params();
+//
+//    // Fourth testnet reward:
+//    // address = t2ENg7hHVqqs9JwU5cgjvSbxnT2a9USNfhy
+//    // script.ToString() = OP_HASH160 55d64928e69829d9376c776550b6cc710d427153 OP_EQUAL
+//    // HexStr(script) = a91455d64928e69829d9376c776550b6cc710d42715387
+//    EXPECT_EQ(params.GetFoundersRewardScriptAtHeight(1), ParseHex("a914ef775f1f997f122a062fff1a2d7443abd1f9c64287"));
+//    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(1), "t2UNzUUx8mWBCRYPRezvA363EYXyEpHokyi");
+//    EXPECT_EQ(params.GetFoundersRewardScriptAtHeight(53126), ParseHex("a914ac67f4c072668138d88a86ff21b27207b283212f87"));
+//    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(53126), "t2NGQjYMQhFndDHguvUw4wZdNdsssA6K7x2");
+//    EXPECT_EQ(params.GetFoundersRewardScriptAtHeight(53127), ParseHex("a91455d64928e69829d9376c776550b6cc710d42715387"));
+//    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(53127), "t2ENg7hHVqqs9JwU5cgjvSbxnT2a9USNfhy");
+//
+//    int maxHeight = params.GetConsensus().GetLastFoundersRewardBlockHeight();
+//
+//    // If the block height parameter is out of bounds, there is an assert.
+//    EXPECT_DEATH(params.GetFoundersRewardScriptAtHeight(0), "nHeight");
+//    EXPECT_DEATH(params.GetFoundersRewardScriptAtHeight(maxHeight+1), "nHeight");
+//    EXPECT_DEATH(params.GetFoundersRewardAddressAtHeight(0), "nHeight");
+//    EXPECT_DEATH(params.GetFoundersRewardAddressAtHeight(maxHeight+1), "nHeight");
+//}
 
 
-#define NUM_TESTNET_FOUNDER_ADDRESSES 48
-
-TEST(founders_reward_test, testnet) {
-    SelectParams(CBaseChainParams::TESTNET);
-    checkNumberOfUniqueAddresses(NUM_TESTNET_FOUNDER_ADDRESSES);
-}
-
-
-#define NUM_REGTEST_FOUNDER_ADDRESSES 1
-
-TEST(founders_reward_test, regtest) {
-    SelectParams(CBaseChainParams::REGTEST);
-    checkNumberOfUniqueAddresses(NUM_REGTEST_FOUNDER_ADDRESSES);
-}
+//#define NUM_MAINNET_FOUNDER_ADDRESSES 48
+//
+//TEST(founders_reward_test, mainnet) {
+//    SelectParams(CBaseChainParams::MAIN);
+//    checkNumberOfUniqueAddresses(NUM_MAINNET_FOUNDER_ADDRESSES);
+//}
+//
+//
+//#define NUM_TESTNET_FOUNDER_ADDRESSES 48
+//
+//TEST(founders_reward_test, testnet) {
+//    SelectParams(CBaseChainParams::TESTNET);
+//    checkNumberOfUniqueAddresses(NUM_TESTNET_FOUNDER_ADDRESSES);
+//}
+//
+//
+//#define NUM_REGTEST_FOUNDER_ADDRESSES 1
+//
+//TEST(founders_reward_test, regtest) {
+//    SelectParams(CBaseChainParams::REGTEST);
+//    checkNumberOfUniqueAddresses(NUM_REGTEST_FOUNDER_ADDRESSES);
+//}
 
 
 
@@ -165,31 +165,31 @@ TEST(founders_reward_test, slow_start_subsidy) {
 }
 
 
-// For use with mainnet and testnet which each have 48 addresses.
-// Verify the number of rewards each individual address receives.
-void verifyNumberOfRewards() {
-    CChainParams params = Params();
-    int maxHeight = params.GetConsensus().GetLastFoundersRewardBlockHeight();
-    std::multiset<std::string> ms;
-    for (int nHeight = 1; nHeight <= maxHeight; nHeight++) {
-        ms.insert(params.GetFoundersRewardAddressAtHeight(nHeight));
-    }
+//// For use with mainnet and testnet which each have 48 addresses.
+//// Verify the number of rewards each individual address receives.
+//void verifyNumberOfRewards() {
+//    CChainParams params = Params();
+//    int maxHeight = params.GetConsensus().GetLastFoundersRewardBlockHeight();
+//    std::multiset<std::string> ms;
+//    for (int nHeight = 1; nHeight <= maxHeight; nHeight++) {
+//        ms.insert(params.GetFoundersRewardAddressAtHeight(nHeight));
+//    }
+//
+//    ASSERT_TRUE(ms.count(params.GetFoundersRewardAddressAtIndex(0)) == 17708);
+//    for (int i = 1; i <= 46; i++) {
+//        ASSERT_TRUE(ms.count(params.GetFoundersRewardAddressAtIndex(i)) == 17709);
+//    }
+//    ASSERT_TRUE(ms.count(params.GetFoundersRewardAddressAtIndex(47)) == 17677);
+//}
 
-    ASSERT_TRUE(ms.count(params.GetFoundersRewardAddressAtIndex(0)) == 17708);
-    for (int i = 1; i <= 46; i++) {
-        ASSERT_TRUE(ms.count(params.GetFoundersRewardAddressAtIndex(i)) == 17709);
-    }
-    ASSERT_TRUE(ms.count(params.GetFoundersRewardAddressAtIndex(47)) == 17677);
-}
-
-// Verify the number of rewards going to each mainnet address
-TEST(founders_reward_test, per_address_reward_mainnet) {
-    SelectParams(CBaseChainParams::MAIN);
-    verifyNumberOfRewards();
-}
-
-// Verify the number of rewards going to each testnet address
-TEST(founders_reward_test, per_address_reward_testnet) {
-    SelectParams(CBaseChainParams::TESTNET);
-    verifyNumberOfRewards();
-}
+//// Verify the number of rewards going to each mainnet address
+//TEST(founders_reward_test, per_address_reward_mainnet) {
+//    SelectParams(CBaseChainParams::MAIN);
+//    verifyNumberOfRewards();
+//}
+//
+//// Verify the number of rewards going to each testnet address
+//TEST(founders_reward_test, per_address_reward_testnet) {
+//    SelectParams(CBaseChainParams::TESTNET);
+//    verifyNumberOfRewards();
+//}
