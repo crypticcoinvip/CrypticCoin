@@ -85,7 +85,16 @@ UniValue getinfo(const UniValue& params, bool fHelp)
 #ifdef ENABLE_WALLET
     if (pwalletMain) {
         obj.push_back(Pair("walletversion", pwalletMain->GetVersion()));
-        obj.push_back(Pair("balance",       ValueFromAmount(pwalletMain->GetBalance())));
+        int nMinDepth = 1;
+        bool fIncludeWatchonly = false;
+        CAmount nBalance = pwalletMain->GetBalance();
+        CAmount nPrivateBalance = getBalanceZaddr("", nMinDepth, !fIncludeWatchonly);
+        CAmount nTotalBalance = nBalance + nPrivateBalance;
+        UniValue balance(UniValue::VOBJ);
+        balance.push_back(Pair("transparent", ValueFromAmount(nBalance)));
+        balance.push_back(Pair("private", ValueFromAmount(nPrivateBalance)));
+        balance.push_back(Pair("total", ValueFromAmount(nTotalBalance)));            
+        obj.push_back(Pair("balance", balance));
     }
 #endif
     obj.push_back(Pair("blocks",        (int)chainActive.Height()));
