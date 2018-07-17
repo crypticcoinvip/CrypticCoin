@@ -457,6 +457,16 @@ zcashd_LDADD += \
   $(EVENT_PTHREADS_LIBS) \
   $(EVENT_LIBS) \
   $(LIBBITCOIN_CRYPTO) \
+  ../depends/x86_64-unknown-linux-gnu/lib/libtor.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libor.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libor-ctime.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libor-crypto.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libor-event.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libor-trunnel.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libcurve25519_donna.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libed25519_donna.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libed25519_ref10.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libkeccak-tiny.a \
   $(LIBZCASH_LIBS)
 
 if ENABLE_PROTON
