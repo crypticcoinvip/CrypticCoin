@@ -452,8 +452,21 @@ endif
 zcashd_LDADD += \
   $(BOOST_LIBS) \
   $(BDB_LIBS) \
-  $(SSL_LIBS) \
-  $(CRYPTO_LIBS) \
+  $(TOR_PREFIX)/lib/libtor.a \
+  $(TOR_PREFIX)/lib/libor.a \
+  $(TOR_PREFIX)/lib/libor-ctime.a \
+  $(TOR_PREFIX)/lib/libor-crypto.a \
+  $(TOR_PREFIX)/lib/libor-event.a \
+  $(TOR_PREFIX)/lib/libor-trunnel.a \
+  $(TOR_PREFIX)/lib/libcurve25519_donna.a \
+  $(TOR_PREFIX)/lib/libed25519_donna.a \
+  $(TOR_PREFIX)/lib/libed25519_ref10.a \
+  $(TOR_PREFIX)/lib/libkeccak-tiny.a \
+  $(TOR_PREFIX)/lib/libcrypto.a \
+  $(TOR_PREFIX)/lib/libssl.a \
+  $(TOR_PREFIX)/lib/libcap.a \
+  $(TOR_PREFIX)/lib/libseccomp.a \
+  $(TOR_PREFIX)/lib/libz.a \
   $(EVENT_PTHREADS_LIBS) \
   $(EVENT_LIBS) \
   $(LIBBITCOIN_CRYPTO) \
@@ -604,6 +617,6 @@ endif
 	$(AM_V_GEN) $(PROTOC) --cpp_out=$(@D) --proto_path=$(abspath $(<D) $<)
 
 if ENABLE_TESTS
-include Makefile.test.include
-include Makefile.gtest.include
+	include Makefile.test.include
+	include Makefile.gtest.include
 endif

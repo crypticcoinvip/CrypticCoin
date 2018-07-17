@@ -752,8 +752,10 @@ AX_OPENMP(
 # build.sh just uses --prefix
 if test x$depends_prefix != x; then
   LIBSNARK_DEPINST="$depends_prefix"
+  TOR_PREFIX="$depends_prefix"
 else
   LIBSNARK_DEPINST="$prefix"
+  TOR_PREFIX="$prefix"
 fi
 
 # Additional Zcash flags
@@ -894,6 +896,7 @@ AC_SUBST(ZMQ_LIBS)
 AC_SUBST(GMP_LIBS)
 AC_SUBST(GMPXX_LIBS)
 AC_SUBST(LIBSNARK_DEPINST)
+AC_SUBST(TOR_PREFIX)
 AC_SUBST(LIBZCASH_LIBS)
 AC_SUBST(PROTON_LIBS)
 AC_CONFIG_FILES([Makefile src/Makefile doc/man/Makefile src/test/buildenv.py])
