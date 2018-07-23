@@ -11,7 +11,7 @@ endef
 
 define $(package)_preprocess_cmds
 	cd $($(package)_build_subdir) && \
-	./configure $($(package)_config_opts) 
+	./configure $($(package)_config_opts) --libdir=$(host_prefix)/lib --includedir=$(host_prefix)/include
 endef
 
 define $(package)_build_cmds
@@ -20,13 +20,5 @@ endef
 
 define $(package)_stage_cmds
   $(MAKE) DESTDIR=$($(package)_staging_dir) install
-#   mkdir -p $($(package)_staging_dir)/lib/ && \
-#   cp -rf $($(package)_build_subdir)/libcap/libcap.a $($(package)_staging_dir)/lib/ && \
-#   cp -rf $($(package)_build_subdir)/libcap/include $($(package)_staging_dir) && \
-#   ls -la $($(package)_staging_dir)/lib
-  #$(MAKE) DESTDIR=$($(package)_staging_dir) install
-  #cp $($(package)_build_subdir)/libcap/include $($(package)_staging_dir)
 endef
 
-define $(package)_postprocess_cmds
-endef
