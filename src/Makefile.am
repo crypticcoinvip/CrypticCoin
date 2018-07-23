@@ -452,11 +452,6 @@ endif
 zcashd_LDADD += \
   $(BOOST_LIBS) \
   $(BDB_LIBS) \
-  $(SSL_LIBS) \
-  $(CRYPTO_LIBS) \
-  $(EVENT_PTHREADS_LIBS) \
-  $(EVENT_LIBS) \
-  $(LIBBITCOIN_CRYPTO) \
   ../depends/x86_64-unknown-linux-gnu/lib/libtor.a \
   ../depends/x86_64-unknown-linux-gnu/lib/libor.a \
   ../depends/x86_64-unknown-linux-gnu/lib/libor-ctime.a \
@@ -467,6 +462,14 @@ zcashd_LDADD += \
   ../depends/x86_64-unknown-linux-gnu/lib/libed25519_donna.a \
   ../depends/x86_64-unknown-linux-gnu/lib/libed25519_ref10.a \
   ../depends/x86_64-unknown-linux-gnu/lib/libkeccak-tiny.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libcrypto.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libssl.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libcap.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libseccomp.a \
+  ../depends/x86_64-unknown-linux-gnu/lib/libz.a \
+  $(EVENT_PTHREADS_LIBS) \
+  $(EVENT_LIBS) \
+  $(LIBBITCOIN_CRYPTO) \
   $(LIBZCASH_LIBS)
 
 if ENABLE_PROTON
@@ -613,7 +616,7 @@ endif
 	@test -f $(PROTOC)
 	$(AM_V_GEN) $(PROTOC) --cpp_out=$(@D) --proto_path=$(abspath $(<D) $<)
 
-if ENABLE_TESTS
-include Makefile.test.include
-include Makefile.gtest.include
-endif
+# if ENABLE_TESTS
+# include Makefile.test.include
+# include Makefile.gtest.include
+# endif
