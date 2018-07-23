@@ -5,7 +5,7 @@ $(package)_file_name=$(package)2_$($(package)_version).orig.tar.xz
 $(package)_sha256_hash=693c8ac51e983ee678205571ef272439d83afe62dd8e424ea14ad9790bc35162
 
 define $(package)_build_cmds
-  $(MAKE)
+  $(MAKE) -j$(nproc)
 endef
 
 define $(package)_stage_cmds
