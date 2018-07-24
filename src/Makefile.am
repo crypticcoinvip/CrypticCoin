@@ -452,21 +452,21 @@ endif
 zcashd_LDADD += \
   $(BOOST_LIBS) \
   $(BDB_LIBS) \
-  ../depends/x86_64-unknown-linux-gnu/lib/libtor.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libor.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libor-ctime.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libor-crypto.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libor-event.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libor-trunnel.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libcurve25519_donna.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libed25519_donna.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libed25519_ref10.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libkeccak-tiny.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libcrypto.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libssl.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libcap.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libseccomp.a \
-  ../depends/x86_64-unknown-linux-gnu/lib/libz.a \
+  $(TOR_PREFIX)/lib/libtor.a \
+  $(TOR_PREFIX)/lib/libor.a \
+  $(TOR_PREFIX)/lib/libor-ctime.a \
+  $(TOR_PREFIX)/lib/libor-crypto.a \
+  $(TOR_PREFIX)/lib/libor-event.a \
+  $(TOR_PREFIX)/lib/libor-trunnel.a \
+  $(TOR_PREFIX)/lib/libcurve25519_donna.a \
+  $(TOR_PREFIX)/lib/libed25519_donna.a \
+  $(TOR_PREFIX)/lib/libed25519_ref10.a \
+  $(TOR_PREFIX)/lib/libkeccak-tiny.a \
+  $(TOR_PREFIX)/lib/libcrypto.a \
+  $(TOR_PREFIX)/lib/libssl.a \
+  $(TOR_PREFIX)/lib/libcap.a \
+  $(TOR_PREFIX)/lib/libseccomp.a \
+  $(TOR_PREFIX)/lib/libz.a \
   $(EVENT_PTHREADS_LIBS) \
   $(EVENT_LIBS) \
   $(LIBBITCOIN_CRYPTO) \
@@ -616,7 +616,7 @@ endif
 	@test -f $(PROTOC)
 	$(AM_V_GEN) $(PROTOC) --cpp_out=$(@D) --proto_path=$(abspath $(<D) $<)
 
-# if ENABLE_TESTS
-# include Makefile.test.include
-# include Makefile.gtest.include
-# endif
+if ENABLE_TESTS
+	include Makefile.test.include
+	include Makefile.gtest.include
+endif
