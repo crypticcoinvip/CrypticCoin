@@ -88,12 +88,14 @@ UniValue getinfo(const UniValue& params, bool fHelp)
         int nMinDepth = 1;
         bool fIncludeWatchonly = false;
         CAmount nBalance = pwalletMain->GetBalance();
+        CAmount nCoinbase = pwalletMain->GetCoinbaseBalance();
         CAmount nPrivateBalance = getBalanceZaddr("", nMinDepth, !fIncludeWatchonly);
         CAmount nTotalBalance = nBalance + nPrivateBalance;
         UniValue balance(UniValue::VOBJ);
         balance.push_back(Pair("transparent", ValueFromAmount(nBalance)));
+        balance.push_back(Pair("coinbase", ValueFromAmount(nCoinbase)));
         balance.push_back(Pair("private", ValueFromAmount(nPrivateBalance)));
-        balance.push_back(Pair("total", ValueFromAmount(nTotalBalance)));            
+        balance.push_back(Pair("total", ValueFromAmount(nTotalBalance)));
         obj.push_back(Pair("balance", balance));
     }
 #endif
