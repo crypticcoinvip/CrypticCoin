@@ -104,6 +104,7 @@ enum BindFlags {
 
 static const char* FEE_ESTIMATES_FILENAME="fee_estimates.dat";
 CClientUIInterface uiInterface; // Declared but not defined in ui_interface.h
+unsigned short const onion_port = 9089;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -1236,7 +1237,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     std::string proxyArg = GetArg("-proxy", "");
     SetLimited(NET_TOR);
     if (proxyArg != "" && proxyArg != "0") {
-        proxyType addrProxy = proxyType(CService(proxyArg, 9050), proxyRandomize);
+        proxyType addrProxy = proxyType(CService(proxyArg, onion_port), proxyRandomize);
         if (!addrProxy.IsValid())
             return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
 
@@ -1254,8 +1255,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (onionArg != "") {
         if (onionArg == "0") { // Handle -noonion/-onion=0
             SetLimited(NET_TOR); // set onions as unreachable
+
+            proxyType addrOnion = CService("127.0.0.1", onion_port);
+
+            SetProxy(NET_TOR, addrOnion);
         } else {
-            proxyType addrOnion = proxyType(CService(onionArg, 9050), proxyRandomize);
+            proxyType addrOnion = proxyType(CService(onionArg, onion_port), proxyRandomize);
             if (!addrOnion.IsValid())
                 return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
             SetProxy(NET_TOR, addrOnion);
@@ -1296,7 +1301,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             return InitError(_("Failed to listen on any port. Use -listen=0 if you want this."));
     }
 
-    threadGroup.create_thread(&StartTor);
+    if (!(mapArgs.count("-onion") && mapArgs["-onion"] != "0")) {
+        threadGroup.create_thread(&StartTor);
+    }
 
     if (mapArgs.count("-externalip")) {
         BOOST_FOREACH(const std::string& strAddr, mapMultiArgs["-externalip"]) {
@@ -1305,6 +1312,26 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr));
             AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
         }
+    }
+    else
+    {
+        string automatic_onion;
+        boost::filesystem::path hostname_path = GetDataDir() / "tor" / "onion" / "hostname";
+
+        int attempts = 0;
+        while (1) {
+            if (boost::filesystem::exists(hostname_path))
+                break;
+            ++attempts;
+            boost::this_thread::sleep(boost::posix_time::seconds(2));
+            if (attempts > 8)
+                return InitError(_("Timed out waiting for onion hostname."));
+            LogPrintf("No onion hostname yet, will retry in 2 seconds... (%d/8)\n", attempts);
+        }
+
+        ifstream file(hostname_path.string().c_str());
+        file >> automatic_onion;
+        AddLocal(CService(automatic_onion, GetListenPort(), fNameLookup), LOCAL_MANUAL);
     }
 
     BOOST_FOREACH(const std::string& strDest, mapMultiArgs["-seednode"])

@@ -2247,7 +2247,7 @@ static void run_tor() {
     argv.push_back("--Log");
     argv.push_back("notice file " + log_file.string());
     argv.push_back("--SocksPort");
-    argv.push_back("9050");
+    argv.push_back("9089");
     argv.push_back("--ignore-missing-torrc");
     argv.push_back("-f");
     argv.push_back((tor_dir / "torrc").string());
