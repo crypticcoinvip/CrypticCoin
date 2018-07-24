@@ -528,7 +528,7 @@ void TorController::auth_cb(TorControlConnection& conn, const TorControlReply& r
         // Now that we know Tor is running setup the proxy for onion addresses
         // if -onion isn't set to something else.
         if (GetArg("-onion", "") == "") {
-            proxyType addrOnion = proxyType(CService("127.0.0.1", 9050), true);
+            proxyType addrOnion = proxyType(CService("127.0.0.1", 9089), true);
             SetProxy(NET_TOR, addrOnion);
             SetLimited(NET_TOR, false);
         }
