@@ -33,6 +33,7 @@ enum Network
     NET_IPV4,
     NET_IPV6,
     NET_TOR,
+    NET_I2P,
 
     NET_MAX,
 };
@@ -74,6 +75,7 @@ class CNetAddr
         bool IsRFC6052() const; // IPv6 well-known prefix (64:FF9B::/96)
         bool IsRFC6145() const; // IPv6 IPv4-translated address (::FFFF:0:0:0/96)
         bool IsTor() const;
+        bool IsI2P() const;
         bool IsLocal() const;
         bool IsRoutable() const;
         bool IsValid() const;
