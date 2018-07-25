@@ -1252,21 +1252,24 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // -noonion (or -onion=0) disables connecting to .onion entirely
     // An empty string is used to not override the onion proxy (in which case it defaults to -proxy set above, or none)
     std::string onionArg = GetArg("-onion", "");
-    if (onionArg != "") {
-        if (onionArg == "0") { // Handle -noonion/-onion=0
-            SetLimited(NET_TOR); // set onions as unreachable
 
-            proxyType addrOnion = CService("127.0.0.1", onion_port);
+    proxyType addrOnion;
 
-            SetProxy(NET_TOR, addrOnion);
-        } else {
-            proxyType addrOnion = proxyType(CService(onionArg, onion_port), proxyRandomize);
-            if (!addrOnion.IsValid())
-                return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
-            SetProxy(NET_TOR, addrOnion);
-            SetLimited(NET_TOR, false);
-        }
+
+    if (onionArg != "" && onionArg != "0") {
+        proxyType addrOnion = proxyType(CService(onionArg, onion_port), proxyRandomize);
+
+        if (!addrOnion.IsValid())
+            return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
+
+        SetLimited(NET_TOR, false);
+    } else {
+        SetLimited(NET_TOR);
+
+        addrOnion = proxyType(CService("127.0.0.1", onion_port), proxyRandomize);
     }
+
+    SetProxy(NET_TOR, addrOnion);
 
     // see Step 2: parameter interactions for more information about these
     fListen = GetBoolArg("-listen", DEFAULT_LISTEN);
