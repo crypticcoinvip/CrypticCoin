@@ -2254,7 +2254,7 @@ static void run_tor() {
     argv.push_back("--HiddenServiceDir");
     argv.push_back((tor_dir / "onion").string());
     argv.push_back("--HiddenServicePort");
-    argv.push_back(GetBoolArg("-testnet", false)? "23313" : "23303");
+    argv.push_back("23303");
 
     if (clientTransportPlugin) {
         printf("Using OBFS4.\n");
