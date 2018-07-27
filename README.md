@@ -60,6 +60,9 @@ $ sudo update-alternatives --config x86_64-w64-mingw32-g++
 (configure to use POSIX variant)
 $ HOST=x86_64-w64-mingw32 ./zcutil/build.sh
 
+## Mac
+LIBTOOLIZE=glibtoolize ./zcutil/build.sh
+
 License
 -------
 
