@@ -5,7 +5,7 @@ TOR SUPPORT IN ZCASH
 
 It is possible to run Zcash as a Tor hidden service, and connect to such services.
 
-The following directions assume you have a Tor proxy running on port 9050. Many distributions default to having a SOCKS proxy listening on port 9050, but others may not. In particular, the Tor Browser Bundle defaults to listening on port 9150. See [Tor Project FAQ:TBBSocksPort](https://www.torproject.org/docs/faq.html.en#TBBSocksPort) for how to properly
+The following directions assume you have a Tor proxy running on port 9089. Many distributions default to having a SOCKS proxy listening on port 9089, but others may not. In particular, the Tor Browser Bundle defaults to listening on port 9150. See [Tor Project FAQ:TBBSocksPort](https://www.torproject.org/docs/faq.html.en#TBBSocksPort) for how to properly
 configure Tor.
 
 
@@ -33,7 +33,7 @@ outgoing connections be anonymized, but more is possible.
 
 In a typical situation, this suffices to run behind a Tor proxy:
 
-	./zcashd -proxy=127.0.0.1:9050
+	./zcashd -proxy=127.0.0.1:9089
 
 
 2. Run a Zcash hidden server
@@ -70,7 +70,7 @@ your zcashd's P2P listen port (23303 by default).
 
 In a typical situation, where you're only reachable via Tor, this should suffice:
 
-	./zcashd -proxy=127.0.0.1:9050 -externalip=zctestseie6wxgio.onion -listen
+	./zcashd -proxy=127.0.0.1:9089 -externalip=zctestseie6wxgio.onion -listen
 
 (obviously, replace the Onion address with your own). It should be noted that you still
 listen on all devices and another node could establish a clearnet connection, when knowing
@@ -88,7 +88,7 @@ and open port 23303 on your firewall (or use -upnp).
 If you only want to use Tor to reach onion addresses, but not use it as a proxy
 for normal IPv4/IPv6 communication, use:
 
-	./zcashd -onion=127.0.0.1:9050 -externalip=zctestseie6wxgio.onion -discover
+	./zcashd -onion=127.0.0.1:9089 -externalip=zctestseie6wxgio.onion -discover
 
 
 3. Automatically listen on Tor
@@ -127,7 +127,7 @@ Tor configuration.
 To test your set-up, you might want to try connecting via Tor on a different computer to just a
 a single Zcash hidden server. Launch zcashd as follows:
 
-	./zcashd -onion=127.0.0.1:9050 -connect=zctestseie6wxgio.onion
+	./zcashd -onion=127.0.0.1:9089 -connect=zctestseie6wxgio.onion
 
 Now use zcash-cli to verify there is only a single peer connection.
 
@@ -146,4 +146,4 @@ Now use zcash-cli to verify there is only a single peer connection.
 
 To connect to multiple Tor nodes, use:
 
-	./zcashd -onion=127.0.0.1:9050 -addnode=zctestseie6wxgio.onion -dnsseed=0 -onlynet=onion
+	./zcashd -onion=127.0.0.1:9089 -addnode=zctestseie6wxgio.onion -dnsseed=0 -onlynet=onion
