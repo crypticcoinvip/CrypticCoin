@@ -48,8 +48,17 @@ Participation in the Zcash project is subject to a
 Building
 --------
 
+## Linux
 Build Zcash along with most dependencies from source by running
 ./zcutil/build.sh. Currently only Linux is officially supported.
+
+## Windows
+$ sudo apt install mingw-w64
+$ sudo update-alternatives --config x86_64-w64-mingw32-gcc
+(configure to use POSIX variant)
+$ sudo update-alternatives --config x86_64-w64-mingw32-g++
+(configure to use POSIX variant)
+$ HOST=x86_64-w64-mingw32 ./zcutil/build.sh
 
 License
 -------
