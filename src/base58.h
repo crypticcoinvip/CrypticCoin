@@ -114,7 +114,7 @@ protected:
 public:
     CZCPaymentAddress() {}
 
-    CZCPaymentAddress(const std::string& strAddress) { SetString(strAddress.c_str(), 2); }
+    CZCPaymentAddress(const std::string& strAddress) { SetString(strAddress.c_str(), 3); }
     CZCPaymentAddress(const libcrypticcoin::PaymentAddress& addr) { Set(addr); }
 };
 
@@ -125,7 +125,7 @@ protected:
 public:
     CZCViewingKey() {}
 
-    CZCViewingKey(const std::string& strViewingKey) { SetString(strViewingKey.c_str(), 3); }
+    CZCViewingKey(const std::string& strViewingKey) { SetString(strViewingKey.c_str(), 4); }
     CZCViewingKey(const libcrypticcoin::ViewingKey& vk) { Set(vk); }
 };
 
@@ -136,7 +136,7 @@ protected:
 public:
     CZCSpendingKey() {}
 
-    CZCSpendingKey(const std::string& strAddress) { SetString(strAddress.c_str(), 2); }
+    CZCSpendingKey(const std::string& strAddress) { SetString(strAddress.c_str(), 4); }
     CZCSpendingKey(const libcrypticcoin::SpendingKey& addr) { Set(addr); }
 };
 

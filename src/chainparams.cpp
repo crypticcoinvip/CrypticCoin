@@ -135,21 +135,21 @@ public:
 //        vSeeds.push_back(CDNSSeedData("str4d.xyz", "dnsseed.str4d.xyz")); // @str4d
 //        vSeeds.push_back(CDNSSeedData("znodes.org", "dnsseed.znodes.org")); // @bitcartel
 
-        // guarantees the first 2 characters, when base58 encoded, are "t1"
-        base58Prefixes[PUBKEY_ADDRESS]     = {0x1C,0xB8};
-        // guarantees the first 2 characters, when base58 encoded, are "t3"
-        base58Prefixes[SCRIPT_ADDRESS]     = {0x1C,0xBD};
+        // guarantees the first 2 characters, when base58 encoded, are "c1"
+        base58Prefixes[PUBKEY_ADDRESS]     = {0x13,0xB6};
+        // guarantees the first 2 characters, when base58 encoded, are "c3"
+        base58Prefixes[SCRIPT_ADDRESS]     = {0x13,0xBB};
         // the first character, when base58 encoded, is "5" or "K" or "L" (as in Bitcoin)
         base58Prefixes[SECRET_KEY]         = {0x80};
         // do not rely on these BIP32 prefixes; they are not specified and may change
         base58Prefixes[EXT_PUBLIC_KEY]     = {0x04,0x88,0xB2,0x1E};
         base58Prefixes[EXT_SECRET_KEY]     = {0x04,0x88,0xAD,0xE4};
-        // guarantees the first 2 characters, when base58 encoded, are "zc"
-        base58Prefixes[ZCPAYMENT_ADDRRESS] = {0x16,0x9A};
-        // guarantees the first 4 characters, when base58 encoded, are "ZiVK"
-        base58Prefixes[ZCVIEWING_KEY]      = {0xA8,0xAB,0xD3};
-        // guarantees the first 2 characters, when base58 encoded, are "SK"
-        base58Prefixes[ZCSPENDING_KEY]     = {0xAB,0x36};
+        // guarantees the first 2 characters, when base58 encoded, are "cc"
+        base58Prefixes[ZCPAYMENT_ADDRRESS] = {0xB7,0xA1,0x00};
+        // guarantees the first 4 characters, when base58 encoded, are "CCVK"
+        base58Prefixes[ZCVIEWING_KEY]      = {0x0D,0x14,0x51,0x40};
+        // guarantees the first 4 characters, when base58 encoded, are "CCSK"
+        base58Prefixes[ZCSPENDING_KEY]     = {0x03,0xE2,0xA8,0x58};
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
