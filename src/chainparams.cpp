@@ -105,7 +105,7 @@ public:
         consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 347500;
 
         /**
-         * The message start string should be awesome! ⓩ❤
+         * The message start string should be awesome! Ⓒ
          */
         pchMessageStart[0] = 0x24;
         pchMessageStart[1] = 0xe9;
