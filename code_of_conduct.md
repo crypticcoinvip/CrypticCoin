@@ -41,7 +41,7 @@ is deemed necessary and appropriate to the circumstances. Maintainers are
 obligated to maintain confidentiality with regard to the reporter of an
 incident.
 
-You may send reports to [our Conduct email](mailto:conduct@z.cash).
+You may send reports to [our Conduct email](mailto:info@crypticcoin.io).
 
 If you wish to contact specific maintainers directly, the following have made
 themselves available for conduct issues:

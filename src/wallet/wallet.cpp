@@ -18,7 +18,7 @@
 #include "script/sign.h"
 #include "timedata.h"
 #include "utilmoneystr.h"
-#include "zcash/Note.hpp"
+#include "crypticcoin/Note.hpp"
 #include "crypter.h"
 
 #include <assert.h>
@@ -28,7 +28,7 @@
 #include <boost/thread.hpp>
 
 using namespace std;
-using namespace libzcash;
+using namespace libcrypticcoin;
 
 /**
  * Settings
@@ -101,7 +101,7 @@ CZCPaymentAddress CWallet::GenerateNewZKey()
 }
 
 // Add spending key to keystore and persist to disk
-bool CWallet::AddZKey(const libzcash::SpendingKey &key)
+bool CWallet::AddZKey(const libcrypticcoin::SpendingKey &key)
 {
     AssertLockHeld(cs_wallet); // mapZKeyMetadata
     auto addr = key.address();
@@ -195,8 +195,8 @@ bool CWallet::AddCryptedKey(const CPubKey &vchPubKey,
 }
 
 
-bool CWallet::AddCryptedSpendingKey(const libzcash::PaymentAddress &address,
-                                    const libzcash::ReceivingKey &rk,
+bool CWallet::AddCryptedSpendingKey(const libcrypticcoin::PaymentAddress &address,
+                                    const libcrypticcoin::ReceivingKey &rk,
                                     const std::vector<unsigned char> &vchCryptedSecret)
 {
     if (!CCryptoKeyStore::AddCryptedSpendingKey(address, rk, vchCryptedSecret))
@@ -242,17 +242,17 @@ bool CWallet::LoadCryptedKey(const CPubKey &vchPubKey, const std::vector<unsigne
     return CCryptoKeyStore::AddCryptedKey(vchPubKey, vchCryptedSecret);
 }
 
-bool CWallet::LoadCryptedZKey(const libzcash::PaymentAddress &addr, const libzcash::ReceivingKey &rk, const std::vector<unsigned char> &vchCryptedSecret)
+bool CWallet::LoadCryptedZKey(const libcrypticcoin::PaymentAddress &addr, const libcrypticcoin::ReceivingKey &rk, const std::vector<unsigned char> &vchCryptedSecret)
 {
     return CCryptoKeyStore::AddCryptedSpendingKey(addr, rk, vchCryptedSecret);
 }
 
-bool CWallet::LoadZKey(const libzcash::SpendingKey &key)
+bool CWallet::LoadZKey(const libcrypticcoin::SpendingKey &key)
 {
     return CCryptoKeyStore::AddSpendingKey(key);
 }
 
-bool CWallet::AddViewingKey(const libzcash::ViewingKey &vk)
+bool CWallet::AddViewingKey(const libcrypticcoin::ViewingKey &vk)
 {
     if (!CCryptoKeyStore::AddViewingKey(vk)) {
         return false;
@@ -264,7 +264,7 @@ bool CWallet::AddViewingKey(const libzcash::ViewingKey &vk)
     return CWalletDB(strWalletFile).WriteViewingKey(vk);
 }
 
-bool CWallet::RemoveViewingKey(const libzcash::ViewingKey &vk)
+bool CWallet::RemoveViewingKey(const libcrypticcoin::ViewingKey &vk)
 {
     AssertLockHeld(cs_wallet);
     if (!CCryptoKeyStore::RemoveViewingKey(vk)) {
@@ -279,7 +279,7 @@ bool CWallet::RemoveViewingKey(const libzcash::ViewingKey &vk)
     return true;
 }
 
-bool CWallet::LoadViewingKey(const libzcash::ViewingKey &vk)
+bool CWallet::LoadViewingKey(const libcrypticcoin::ViewingKey &vk)
 {
     return CCryptoKeyStore::AddViewingKey(vk);
 }
@@ -1002,7 +1002,7 @@ bool CWallet::UpdateNullifierNoteMap()
                     if (GetNoteDecryptor(item.second.address, dec)) {
                         auto i = item.first.js;
                         auto hSig = wtxItem.second.vjoinsplit[i].h_sig(
-                            *pzcashParams, wtxItem.second.joinSplitPubKey);
+                            *pcrypticcoinParams, wtxItem.second.joinSplitPubKey);
                         item.second.nullifier = GetNoteNullifier(
                             wtxItem.second.vjoinsplit[i],
                             item.second.address,
@@ -1258,13 +1258,13 @@ void CWallet::EraseFromWallet(const uint256 &hash)
  * Throws std::runtime_error if the decryptor doesn't match this note
  */
 boost::optional<uint256> CWallet::GetNoteNullifier(const JSDescription& jsdesc,
-                                                   const libzcash::PaymentAddress& address,
+                                                   const libcrypticcoin::PaymentAddress& address,
                                                    const ZCNoteDecryption& dec,
                                                    const uint256& hSig,
                                                    uint8_t n) const
 {
     boost::optional<uint256> ret;
-    auto note_pt = libzcash::NotePlaintext::decrypt(
+    auto note_pt = libcrypticcoin::NotePlaintext::decrypt(
         dec,
         jsdesc.ciphertexts[n],
         jsdesc.ephemeralKey,
@@ -1274,7 +1274,7 @@ boost::optional<uint256> CWallet::GetNoteNullifier(const JSDescription& jsdesc,
     // SpendingKeys are only available if:
     // - We have them (this isn't a viewing key)
     // - The wallet is unlocked
-    libzcash::SpendingKey key;
+    libcrypticcoin::SpendingKey key;
     if (GetSpendingKey(address, key)) {
         ret = note.nullifier(key);
     }
@@ -1296,7 +1296,7 @@ mapNoteData_t CWallet::FindMyNotes(const CTransaction& tx) const
 
     mapNoteData_t noteData;
     for (size_t i = 0; i < tx.vjoinsplit.size(); i++) {
-        auto hSig = tx.vjoinsplit[i].h_sig(*pzcashParams, tx.joinSplitPubKey);
+        auto hSig = tx.vjoinsplit[i].h_sig(*pcrypticcoinParams, tx.joinSplitPubKey);
         for (uint8_t j = 0; j < tx.vjoinsplit[i].ciphertexts.size(); j++) {
             for (const NoteDecryptorMap::value_type& item : mapNoteDecryptors) {
                 try {
@@ -3799,7 +3799,7 @@ void CWallet::GetFilteredNotes(
             }
 
             // determine amount of funds in the note
-            auto hSig = wtx.vjoinsplit[i].h_sig(*pzcashParams, wtx.joinSplitPubKey);
+            auto hSig = wtx.vjoinsplit[i].h_sig(*pcrypticcoinParams, wtx.joinSplitPubKey);
             try {
                 NotePlaintext plaintext = NotePlaintext::decrypt(
                         decryptor,
@@ -3875,7 +3875,7 @@ void CWallet::GetUnspentFilteredNotes(
             }
 
             // determine amount of funds in the note
-            auto hSig = wtx.vjoinsplit[i].h_sig(*pzcashParams, wtx.joinSplitPubKey);
+            auto hSig = wtx.vjoinsplit[i].h_sig(*pcrypticcoinParams, wtx.joinSplitPubKey);
             try {
                 NotePlaintext plaintext = NotePlaintext::decrypt(
                         decryptor,

@@ -1,17 +1,17 @@
-Zcash 1.1.0
+Crypticcoin 1.1.0
 =============
 
-What is Zcash?
+What is Crypticcoin?
 --------------
 
-[Zcash](https://z.cash/) is an implementation of the "Zerocash" protocol.
+[Crypticcoin](https://z.cash/) is an implementation of the "Zerocash" protocol.
 Based on Bitcoin's code, it intends to offer a far higher standard of privacy
 through a sophisticated zero-knowledge proving scheme that preserves
 confidentiality of transaction metadata. Technical details are available
-in our [Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
+in our [Protocol Specification](https://github.com/crypticcoin/zips/raw/master/protocol/protocol.pdf).
 
-This software is the Zcash client. It downloads and stores the entire history
-of Zcash transactions; depending on the speed of your computer and network
+This software is the Crypticcoin client. It downloads and stores the entire history
+of Crypticcoin transactions; depending on the speed of your computer and network
 connection, the synchronization process could take a day or more once the
 blockchain has reached a significant size.
 
@@ -21,7 +21,7 @@ Security Warnings
 See important security warnings on the
 [Security Information page](https://z.cash/support/security/).
 
-**Zcash is experimental and a work-in-progress.** Use at your own risk.
+**Crypticcoin is experimental and a work-in-progress.** Use at your own risk.
 
 Deprecation Policy
 ------------------
@@ -33,23 +33,23 @@ height and can be explicitly disabled.
 
 Where do I begin?
 -----------------
-We have a guide for joining the main Zcash network:
-https://github.com/zcash/zcash/wiki/1.0-User-Guide
+We have a guide for joining the main Crypticcoin network:
+https://github.com/crypticcoin/crypticcoin/wiki/1.0-User-Guide
 
 ### Need Help?
 
-* See the documentation at the [Zcash Wiki](https://github.com/zcash/zcash/wiki)
+* See the documentation at the [Crypticcoin Wiki](https://github.com/crypticcoin/crypticcoin/wiki)
   for help and more information.
-* Ask for help on the [Zcash](https://forum.z.cash/) forum.
+* Ask for help on the [Crypticcoin](https://forum.crypticcoin.io/) forum.
 
-Participation in the Zcash project is subject to a
+Participation in the Crypticcoin project is subject to a
 [Code of Conduct](code_of_conduct.md).
 
 Building
 --------
 
 ## Linux
-Build Zcash along with most dependencies from source by running
+Build Crypticcoin along with most dependencies from source by running
 ./zcutil/build.sh. Currently only Linux is officially supported.
 
 ## Windows

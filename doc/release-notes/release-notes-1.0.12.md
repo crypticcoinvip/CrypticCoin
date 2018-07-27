@@ -14,7 +14,7 @@ Bjorn Hjortsberg (2):
 Jack Grigg (26):
       ci-workers: Enable pipelining, and use root to set admin and host details
       Variable overrides for Arch Linux
-      Rationalize currency unit to "ZEC"
+      Rationalize currency unit to "CRYP"
       ci-workers: Fail if Python is not version 2.7
       ci-workers: Variable overrides and process tweaks for CentOS 7
       Add build progress to the release script if progressbar module is available
@@ -57,7 +57,7 @@ Simon Liu (5):
       Set up a clean chain.     Delete redundant method wait_until_miner_sees() via use of sync_all().
       Implement RPC shield_coinbase #2448.
       Update which lock to synchronize on when calling GetBestAnchor().
-      Closes #2637. Make z_shieldcoinbase an experimental feature where it     can be enabled with: zcashd -experimentalfeatures -zshieldcoinbase.
+      Closes #2637. Make z_shieldcoinbase an experimental feature where it     can be enabled with: crypticcoind -experimentalfeatures -zshieldcoinbase.
 
 kpcyrd (2):
       Fetch params from ipfs if possible

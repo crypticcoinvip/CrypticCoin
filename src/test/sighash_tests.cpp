@@ -147,7 +147,7 @@ void static RandomTransaction(CMutableTransaction &tx, bool fSingle, uint32_t co
             jsdesc.randomSeed = GetRandHash();
             randombytes_buf(jsdesc.ciphertexts[0].begin(), jsdesc.ciphertexts[0].size());
             randombytes_buf(jsdesc.ciphertexts[1].begin(), jsdesc.ciphertexts[1].size());
-            jsdesc.proof = libzcash::ZCProof::random_invalid();
+            jsdesc.proof = libcrypticcoin::ZCProof::random_invalid();
             jsdesc.macs[0] = GetRandHash();
             jsdesc.macs[1] = GetRandHash();
 

@@ -7,7 +7,7 @@
 #include "main.h"
 #include "test/test_bitcoin.h"
 #include "utiltime.h"
-#include "zcash/Proof.hpp"
+#include "crypticcoin/Proof.hpp"
 
 #include <cstdio>
 
@@ -57,7 +57,7 @@ BOOST_AUTO_TEST_CASE(May15)
 
         // After May 15'th, big blocks are OK:
         forkingBlock.nTime = tMay15; // Invalidates PoW
-        auto verifier = libzcash::ProofVerifier::Strict();
+        auto verifier = libcrypticcoin::ProofVerifier::Strict();
         BOOST_CHECK(CheckBlock(forkingBlock, state, verifier, false, false));
     }
 

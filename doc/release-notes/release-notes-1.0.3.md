@@ -7,7 +7,7 @@ Jack Grigg (5):
 
 Jay Graber (4):
       Document z_sendmany error code messages in payment-api.md
-      s/Bitcoin/Zcash in JSONRPCError
+      s/Bitcoin/Crypticcoin in JSONRPCError
       Change format of z_sendmany error code documentation.
       Release-notes.py script to generate release notes and add contributors to authors.md
 
@@ -23,7 +23,7 @@ Sean Bowe (7):
 Simon (8):
       Closes #1833.  Format currency amounts in z_sendmany error message.
       Closes #1680, temporary fix for rpc deadlock inherited from upstream.
-      Set default minrelaytxfee to 1000 zatoshis to match upstream.
+      Set default minrelaytxfee to 1000 cryptoshis to match upstream.
       Mempool will accept tx with joinsplits and the default z_sendmany fee.
       Track the correct change witness across chained joinsplits
       Closes #1854. z_sendmany selects more utxos to avoid dust change output.

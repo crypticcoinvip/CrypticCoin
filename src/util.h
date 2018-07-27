@@ -128,9 +128,9 @@ boost::filesystem::path GetConfigFile();
 boost::filesystem::path GetPidFile();
 void CreatePidFile(const boost::filesystem::path &path, pid_t pid);
 #endif
-class missing_zcash_conf : public std::runtime_error {
+class missing_crypticcoin_conf : public std::runtime_error {
 public:
-    missing_zcash_conf() : std::runtime_error("Missing CrypticCoin.conf") { }
+    missing_crypticcoin_conf() : std::runtime_error("Missing CrypticCoin.conf") { }
 };
 void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet, std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet);
 #ifdef WIN32

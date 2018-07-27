@@ -357,26 +357,26 @@ DATA_TYPE CZCEncoding<DATA_TYPE, PREFIX, SER_SIZE>::Get() const
     return ret;
 }
 
-// Explicit instantiations for libzcash::PaymentAddress
-template bool CZCEncoding<libzcash::PaymentAddress,
+// Explicit instantiations for libcrypticcoin::PaymentAddress
+template bool CZCEncoding<libcrypticcoin::PaymentAddress,
                           CChainParams::ZCPAYMENT_ADDRRESS,
-                          libzcash::SerializedPaymentAddressSize>::Set(const libzcash::PaymentAddress& addr);
-template libzcash::PaymentAddress CZCEncoding<libzcash::PaymentAddress,
+                          libcrypticcoin::SerializedPaymentAddressSize>::Set(const libcrypticcoin::PaymentAddress& addr);
+template libcrypticcoin::PaymentAddress CZCEncoding<libcrypticcoin::PaymentAddress,
                                               CChainParams::ZCPAYMENT_ADDRRESS,
-                                              libzcash::SerializedPaymentAddressSize>::Get() const;
+                                              libcrypticcoin::SerializedPaymentAddressSize>::Get() const;
 
-// Explicit instantiations for libzcash::ViewingKey
-template bool CZCEncoding<libzcash::ViewingKey,
+// Explicit instantiations for libcrypticcoin::ViewingKey
+template bool CZCEncoding<libcrypticcoin::ViewingKey,
                           CChainParams::ZCVIEWING_KEY,
-                          libzcash::SerializedViewingKeySize>::Set(const libzcash::ViewingKey& vk);
-template libzcash::ViewingKey CZCEncoding<libzcash::ViewingKey,
+                          libcrypticcoin::SerializedViewingKeySize>::Set(const libcrypticcoin::ViewingKey& vk);
+template libcrypticcoin::ViewingKey CZCEncoding<libcrypticcoin::ViewingKey,
                                           CChainParams::ZCVIEWING_KEY,
-                                          libzcash::SerializedViewingKeySize>::Get() const;
+                                          libcrypticcoin::SerializedViewingKeySize>::Get() const;
 
-// Explicit instantiations for libzcash::SpendingKey
-template bool CZCEncoding<libzcash::SpendingKey,
+// Explicit instantiations for libcrypticcoin::SpendingKey
+template bool CZCEncoding<libcrypticcoin::SpendingKey,
                           CChainParams::ZCSPENDING_KEY,
-                          libzcash::SerializedSpendingKeySize>::Set(const libzcash::SpendingKey& sk);
-template libzcash::SpendingKey CZCEncoding<libzcash::SpendingKey,
+                          libcrypticcoin::SerializedSpendingKeySize>::Set(const libcrypticcoin::SpendingKey& sk);
+template libcrypticcoin::SpendingKey CZCEncoding<libcrypticcoin::SpendingKey,
                                            CChainParams::ZCSPENDING_KEY,
-                                           libzcash::SerializedSpendingKeySize>::Get() const;
+                                           libcrypticcoin::SerializedSpendingKeySize>::Get() const;
