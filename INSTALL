@@ -1,5 +1,5 @@
-Building Zcash
+Building Crypticcoin
 
-See the Zcash github wiki (https://github.com/zcash/zcash/wiki) for instructions on building zcashd,
+See the Crypticcoin github wiki (https://github.com/crypticcoin/crypticcoin/wiki) for instructions on building crypticcoind,
 the intended-for-services, no-graphical-interface, reference
-implementation of Zcash.
+implementation of Crypticcoin.

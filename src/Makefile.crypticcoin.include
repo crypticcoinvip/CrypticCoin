@@ -1,0 +1,28 @@
+noinst_PROGRAMS += \
+  crypticcoin/GenerateParams \
+  crypticcoin/CreateJoinSplit
+
+# tool for generating our public parameters
+crypticcoin_GenerateParams_SOURCES = crypticcoin/GenerateParams.cpp
+crypticcoin_GenerateParams_CPPFLAGS = $(AM_CPPFLAGS)
+crypticcoin_GenerateParams_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+crypticcoin_GenerateParams_LDADD = \
+  $(BOOST_LIBS) \
+  $(LIBCRYPTICCOIN) \
+  $(LIBSNARK) \
+  $(LIBBITCOIN_UTIL) \
+  $(LIBBITCOIN_CRYPTO) \
+  $(LIBCRYPTICCOIN_LIBS)
+
+# tool for profiling the creation of joinsplits
+crypticcoin_CreateJoinSplit_SOURCES = crypticcoin/CreateJoinSplit.cpp
+crypticcoin_CreateJoinSplit_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
+crypticcoin_CreateJoinSplit_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+crypticcoin_CreateJoinSplit_LDADD = \
+  $(LIBBITCOIN_COMMON) \
+  $(LIBCRYPTICCOIN) \
+  $(LIBSNARK) \
+  $(LIBBITCOIN_UTIL) \
+  $(LIBBITCOIN_CRYPTO) \
+  $(BOOST_LIBS) \
+  $(LIBCRYPTICCOIN_LIBS)

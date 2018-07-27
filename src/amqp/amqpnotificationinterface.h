@@ -1,9 +1,9 @@
-// Copyright (c) 2017 The Zcash developers
+// Copyright (c) 2017 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef ZCASH_AMQP_AMQPNOTIFICATIONINTERFACE_H
-#define ZCASH_AMQP_AMQPNOTIFICATIONINTERFACE_H
+#ifndef CRYPTICCOIN_AMQP_AMQPNOTIFICATIONINTERFACE_H
+#define CRYPTICCOIN_AMQP_AMQPNOTIFICATIONINTERFACE_H
 
 #include "validationinterface.h"
 #include <string>
@@ -33,4 +33,4 @@ private:
     std::list<AMQPAbstractNotifier*> notifiers;
 };
 
-#endif // ZCASH_AMQP_AMQPNOTIFICATIONINTERFACE_H
+#endif // CRYPTICCOIN_AMQP_AMQPNOTIFICATIONINTERFACE_H

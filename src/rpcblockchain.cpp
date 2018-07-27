@@ -542,7 +542,7 @@ UniValue gettxout(const UniValue& params, bool fHelp)
             "     \"reqSigs\" : n,          (numeric) Number of required signatures\n"
             "     \"type\" : \"pubkeyhash\", (string) The type, eg pubkeyhash\n"
             "     \"addresses\" : [          (array of string) array of CrypticCoin addresses\n"
-            "        \"zcashaddress\"        (string) CrypticCoin address\n"
+            "        \"crypticcoinaddress\"        (string) CrypticCoin address\n"
             "        ,...\n"
             "     ]\n"
             "  },\n"

@@ -26,9 +26,9 @@ rust_crates := \
   crate_winapi_x86_64_pc_windows_gnu
 rust_packages := rust $(rust_crates) librustzcash
 proton_packages := proton
-zcash_packages := libgmp libsodium
+crypticcoin_packages := libgmp libsodium
 tor_packages := openssl libevent libcap libseccomp zlib
-packages := boost zeromq $(tor_packages) tor $(zcash_packages) googletest
+packages := boost zeromq $(tor_packages) tor $(crypticcoin_packages) googletest
 native_packages := native_ccache
 
 wallet_packages=bdb

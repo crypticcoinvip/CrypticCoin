@@ -21,7 +21,7 @@
 #include "wallet/crypter.h"
 #include "wallet/wallet_ismine.h"
 #include "wallet/walletdb.h"
-#include "zcash/Address.hpp"
+#include "crypticcoin/Address.hpp"
 #include "base58.h"
 
 #include <algorithm>
@@ -198,7 +198,7 @@ public:
 class CNoteData
 {
 public:
-    libzcash::PaymentAddress address;
+    libcrypticcoin::PaymentAddress address;
 
     /**
      * Cached note nullifier. May not be set if the wallet was not unlocked when
@@ -232,9 +232,9 @@ public:
     int witnessHeight;
 
     CNoteData() : address(), nullifier(), witnessHeight {-1} { }
-    CNoteData(libzcash::PaymentAddress a) :
+    CNoteData(libcrypticcoin::PaymentAddress a) :
             address {a}, nullifier(), witnessHeight {-1} { }
-    CNoteData(libzcash::PaymentAddress a, uint256 n) :
+    CNoteData(libcrypticcoin::PaymentAddress a, uint256 n) :
             address {a}, nullifier {n}, witnessHeight {-1} { }
 
     ADD_SERIALIZE_METHODS;
@@ -267,15 +267,15 @@ typedef std::map<JSOutPoint, CNoteData> mapNoteData_t;
 struct CNotePlaintextEntry
 {
     JSOutPoint jsop;
-    libzcash::PaymentAddress address;
-    libzcash::NotePlaintext plaintext;
+    libcrypticcoin::PaymentAddress address;
+    libcrypticcoin::NotePlaintext plaintext;
 };
 
 /** Decrypted note, location in a transaction, and confirmation height. */
 struct CUnspentNotePlaintextEntry {
     JSOutPoint jsop;
-    libzcash::PaymentAddress address;
-    libzcash::NotePlaintext plaintext;
+    libcrypticcoin::PaymentAddress address;
+    libcrypticcoin::NotePlaintext plaintext;
     int nHeight;
 };
 
@@ -783,7 +783,7 @@ public:
 
     std::set<int64_t> setKeyPool;
     std::map<CKeyID, CKeyMetadata> mapKeyMetadata;
-    std::map<libzcash::PaymentAddress, CKeyMetadata> mapZKeyMetadata;
+    std::map<libcrypticcoin::PaymentAddress, CKeyMetadata> mapZKeyMetadata;
 
     typedef std::map<unsigned int, CMasterKey> MasterKeyMap;
     MasterKeyMap mapMasterKeys;
@@ -960,21 +960,21 @@ public:
     //! Generates a new zaddr
     CZCPaymentAddress GenerateNewZKey();
     //! Adds spending key to the store, and saves it to disk
-    bool AddZKey(const libzcash::SpendingKey &key);
+    bool AddZKey(const libcrypticcoin::SpendingKey &key);
     //! Adds spending key to the store, without saving it to disk (used by LoadWallet)
-    bool LoadZKey(const libzcash::SpendingKey &key);
+    bool LoadZKey(const libcrypticcoin::SpendingKey &key);
     //! Load spending key metadata (used by LoadWallet)
-    bool LoadZKeyMetadata(const libzcash::PaymentAddress &addr, const CKeyMetadata &meta);
+    bool LoadZKeyMetadata(const libcrypticcoin::PaymentAddress &addr, const CKeyMetadata &meta);
     //! Adds an encrypted spending key to the store, without saving it to disk (used by LoadWallet)
-    bool LoadCryptedZKey(const libzcash::PaymentAddress &addr, const libzcash::ReceivingKey &rk, const std::vector<unsigned char> &vchCryptedSecret);
+    bool LoadCryptedZKey(const libcrypticcoin::PaymentAddress &addr, const libcrypticcoin::ReceivingKey &rk, const std::vector<unsigned char> &vchCryptedSecret);
     //! Adds an encrypted spending key to the store, and saves it to disk (virtual method, declared in crypter.h)
-    bool AddCryptedSpendingKey(const libzcash::PaymentAddress &address, const libzcash::ReceivingKey &rk, const std::vector<unsigned char> &vchCryptedSecret);
+    bool AddCryptedSpendingKey(const libcrypticcoin::PaymentAddress &address, const libcrypticcoin::ReceivingKey &rk, const std::vector<unsigned char> &vchCryptedSecret);
 
     //! Adds a viewing key to the store, and saves it to disk.
-    bool AddViewingKey(const libzcash::ViewingKey &vk);
-    bool RemoveViewingKey(const libzcash::ViewingKey &vk);
+    bool AddViewingKey(const libcrypticcoin::ViewingKey &vk);
+    bool RemoveViewingKey(const libcrypticcoin::ViewingKey &vk);
     //! Adds a viewing key to the store, without saving it to disk (used by LoadWallet)
-    bool LoadViewingKey(const libzcash::ViewingKey &dest);
+    bool LoadViewingKey(const libcrypticcoin::ViewingKey &dest);
 
     /** 
      * Increment the next transaction order id
@@ -1038,7 +1038,7 @@ public:
 
     boost::optional<uint256> GetNoteNullifier(
         const JSDescription& jsdesc,
-        const libzcash::PaymentAddress& address,
+        const libcrypticcoin::PaymentAddress& address,
         const ZCNoteDecryption& dec,
         const uint256& hSig,
         uint8_t n) const;
@@ -1146,14 +1146,14 @@ public:
 
     /* Find notes filtered by payment addresses, min depth, ability to spend */
     void GetFilteredNotes(std::vector<CNotePlaintextEntry>& outEntries,
-                          std::set<libzcash::PaymentAddress>& filterAddresses,
+                          std::set<libcrypticcoin::PaymentAddress>& filterAddresses,
                           int minDepth=1,
                           bool ignoreSpent=true,
                           bool ignoreUnspendable=true);
     
     /* Find unspent notes filtered by payment address, min depth and max depth */
     void GetUnspentFilteredNotes(std::vector<CUnspentNotePlaintextEntry>& outEntries,
-                                 std::set<libzcash::PaymentAddress>& filterAddresses,
+                                 std::set<libcrypticcoin::PaymentAddress>& filterAddresses,
                                  int minDepth=1,
                                  int maxDepth=INT_MAX,
                                  bool requireSpendingKey=true);
