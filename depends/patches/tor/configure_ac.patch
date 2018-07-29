@@ -1,6 +1,6 @@
 --- ./configure.ac
 +++ ./configure.ac
-@@ -735,11 +735,11 @@ AC_ARG_WITH(ssl-dir,
+@@ -769,11 +769,11 @@ AC_ARG_WITH(ssl-dir,
    ])
  
  AC_MSG_NOTICE([Now, we'll look for OpenSSL >= 1.0.1])
@@ -9,7 +9,7 @@
      [#include <openssl/ssl.h>],
      [struct ssl_method_st; const struct ssl_method_st *TLSv1_1_method(void);],
      [TLSv1_1_method();], [],
--    [/usr/local/opt/openssl /usr/local/openssl /usr/lib/openssl /usr/local/ssl /usr/lib/ssl /usr/local /usr/athena /opt/openssl])
+-    [/usr/local/opt/openssl /usr/local/openssl /usr/lib/openssl /usr/local/ssl /usr/lib/ssl /usr/local /opt/openssl])
 +    [])
  
  dnl XXXX check for OPENSSL_VERSION_NUMBER == SSLeay()
