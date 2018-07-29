@@ -1,6 +1,10 @@
 package=tor
-$(package)_version=0.3.2.9
-$(package)_sha256_hash=d1e621e716bec097d1094c34738bceb817b7f924d7d65f0cf835be3a9f7c4394
+# $(package)_version=0.3.2.9
+# $(package)_sha256_hash=d1e621e716bec097d1094c34738bceb817b7f924d7d65f0cf835be3a9f7c4394
+# $(package)_file_name=$(package)-$($(package)_version).tar.gz
+# $(package)_download_path=https://github.com/torproject/tor/archive
+$(package)_version=0.3.3.9
+$(package)_sha256_hash=d98991212edfda5b9ce46f7c8a92eecee06de3a8d48b702601bceb6f24610adb
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
 $(package)_download_path=https://github.com/torproject/tor/archive
 $(package)_dependencies=libseccomp libcap libevent zlib openssl

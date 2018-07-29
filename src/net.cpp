@@ -64,6 +64,7 @@ const char tor_git_revision[] = "";
 
 extern "C" {
   int tor_main(int argc, char *argv[]);
+  void tor_cleanup(void);
 }
 
 //
@@ -2283,6 +2284,6 @@ void StartTor() {
     catch (std::exception& e) {
       //  PrintException(&e, "StartTor()");
     }
+    LogPrint("net", "Onion thread exited.\n");
 
-    printf("Onion thread exited.");
 }
