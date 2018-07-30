@@ -130,7 +130,7 @@ void CreatePidFile(const boost::filesystem::path &path, pid_t pid);
 #endif
 class missing_crypticcoin_conf : public std::runtime_error {
 public:
-    missing_crypticcoin_conf() : std::runtime_error("Missing CrypticCoin.conf") { }
+    missing_crypticcoin_conf() : std::runtime_error("Missing Crypticcoin.conf") { }
 };
 void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet, std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet);
 #ifdef WIN32
@@ -234,7 +234,7 @@ void RenameThread(const char* name);
  */
 template <typename Callable> void TraceThread(const char* name,  Callable func)
 {
-    std::string s = strprintf("CrypticCoin-%s", name);
+    std::string s = strprintf("Crypticcoin-%s", name);
     RenameThread(s.c_str());
     try
     {

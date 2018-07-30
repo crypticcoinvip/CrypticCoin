@@ -43,7 +43,7 @@
 using namespace std;
 
 #if defined(NDEBUG)
-# error "CrypticCoin cannot be compiled without assertions."
+# error "Crypticcoin cannot be compiled without assertions."
 #endif
 
 /**
@@ -98,7 +98,7 @@ static void CheckBlockIndex();
 /** Constant stuff for coinbase transactions we create: */
 CScript COINBASE_FLAGS;
 
-const string strMessageMagic = "CrypticCoin Signed Message:\n";
+const string strMessageMagic = "Crypticcoin Signed Message:\n";
 
 // Internal stuff
 namespace {
@@ -3340,8 +3340,8 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
     }
 
     // Enforce BIP 34 rule that the coinbase starts with serialized block height.
-    // In CrypticCoin this has been enforced since launch, except that the genesis
-    // block didn't include the height in the coinbase (see CrypticCoin protocol spec
+    // In Crypticcoin this has been enforced since launch, except that the genesis
+    // block didn't include the height in the coinbase (see Crypticcoin protocol spec
     // section '6.8 Bitcoin Improvement Proposals').
     if (nHeight > 0)
     {

@@ -76,7 +76,7 @@ void ThreadShowMetricsScreen();
  * Heart image: https://crypticcoin.io/wp-content/uploads/2018/04/crypticcoin-ai.png
  *
  * Rendering options:
- * CrypticCoin: img2txt -W 40 -H 20 -f utf8 -d none -g 0.7 crypticcoin-ai.png > crypticcoin-ai.txt
+ * Crypticcoin: img2txt -W 40 -H 20 -f utf8 -d none -g 0.7 crypticcoin-ai.png > crypticcoin-ai.txt
  */
 const std::string METRICS_ART =
 "               [0;33;5;43;103m...........[0m              \n"

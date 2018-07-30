@@ -16,7 +16,7 @@
 #include "compat/endian.h"
 
 #if defined(NDEBUG)
-# error "CrypticCoin cannot be compiled without assertions."
+# error "Crypticcoin cannot be compiled without assertions."
 #endif
 
 uint16_t static inline ReadLE16(const unsigned char* ptr)
