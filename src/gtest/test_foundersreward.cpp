@@ -161,7 +161,7 @@ TEST(founders_reward_test, slow_start_subsidy) {
         totalSubsidy += nSubsidy;
     }
     
-    ASSERT_TRUE(totalSubsidy == MAX_MONEY/10.0);
+    ASSERT_EQ(totalSubsidy, MAX_MONEY/10.0);
 }
 
 
