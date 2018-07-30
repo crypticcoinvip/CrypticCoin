@@ -23,6 +23,28 @@ import re
 
 from authproxy import AuthServiceProxy
 
+# Calculate subsidy (python version of GetBlockSubsidy())
+def getBlockSubsidy(blockHeight):
+    secondReward = 4179234070
+    nSubsidy = 1655;
+    nSubsidyHalvingInterval = 1048320
+
+    halvings = blockHeight / nSubsidyHalvingInterval
+    if halvings >= 8:
+        return 0
+
+    if nHeight == 2:
+        return secondReward;
+    elif nHeight > 2:
+        return nSubsidy >> halvings;
+
+def expectedSubsidy(blockHeight):
+    balance = 0
+    for b in range(blockHeight):
+        balance += getBlockSubsidy(b)
+    return balance
+
+
 def p2p_port(n):
     return 11000 + n + os.getpid()%999
 def rpc_port(n):
