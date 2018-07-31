@@ -555,6 +555,8 @@ public:
      */
     unsigned int GetSigOpCount(bool fAccurate) const;
 
+    bool IsPayToPublicKeyHash() const;
+
     /**
      * Accurately count sigOps, including sigOps in
      * pay-to-script-hash transactions:
