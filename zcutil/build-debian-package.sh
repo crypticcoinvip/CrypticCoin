@@ -33,7 +33,7 @@ mkdir -p $BUILD_DIR/DEBIAN $DEB_CMP $DEB_BIN $DEB_DOC $DEB_MAN
 chmod 0755 -R $BUILD_DIR/*
 
 # Package maintainer scripts (currently empty)
-#cp $SRC_DEB/postinst $BUILD_DIR/DEBIAN
+cp $SRC_DEB/postinst $BUILD_DIR/DEBIAN
 #cp $SRC_DEB/postrm $BUILD_DIR/DEBIAN
 #cp $SRC_DEB/preinst $BUILD_DIR/DEBIAN
 #cp $SRC_DEB/prerm $BUILD_DIR/DEBIAN
