@@ -48,7 +48,7 @@ public:
         strDataDir = "regtest";
     }
 };
-static CBaseRegTestParams regTestParams;
+// static CBaseRegTestParams regTestParams;
 
 /*
  * Unit test
@@ -81,7 +81,7 @@ void SelectBaseParams(CBaseChainParams::Network network)
         pCurrentBaseParams = &testNetParams;
         break;
     case CBaseChainParams::REGTEST:
-        pCurrentBaseParams = &regTestParams;
+//        pCurrentBaseParams = &regTestParams;
         break;
     default:
         assert(false && "Unimplemented network");
