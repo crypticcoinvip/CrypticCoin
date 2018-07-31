@@ -533,6 +533,7 @@ bool timestampSort(std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> a,
 
 UniValue getaddressmempool(const UniValue& params, bool fHelp)
 {
+    LogPrintf("getaddressmempool \n");
     if (fHelp || params.size() != 1)
         throw runtime_error(
                 "getaddressmempool\n"
@@ -599,11 +600,13 @@ UniValue getaddressmempool(const UniValue& params, bool fHelp)
         result.push_back(delta);
     }
 
+    LogPrintf("getaddressmempool_ \n");
     return result;
 }
 
 UniValue getaddressutxos(const UniValue& params, bool fHelp)
 {
+    LogPrintf("getaddressutxos \n");
     if (fHelp || params.size() != 1)
         throw runtime_error(
                 "getaddressutxos\n"
@@ -682,14 +685,17 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
         LOCK(cs_main);
         result.push_back(Pair("hash", chainActive.Tip()->GetBlockHash().GetHex()));
         result.push_back(Pair("height", (int)chainActive.Height()));
+        LogPrintf("getaddressutxos_ \n");
         return result;
     } else {
+        LogPrintf("getaddressutxos__ \n");
         return utxos;
     }
 }
 
 UniValue getaddressdeltas(const UniValue& params, bool fHelp)
 {
+    LogPrintf("getaddressdeltas \n");
     if (fHelp || params.size() != 1 || !params[0].isObject())
         throw runtime_error(
                 "getaddressdeltas\n"
@@ -807,14 +813,17 @@ UniValue getaddressdeltas(const UniValue& params, bool fHelp)
         result.push_back(Pair("start", startInfo));
         result.push_back(Pair("end", endInfo));
 
+        LogPrintf("getaddressdeltas_ \n");
         return result;
     } else {
+        LogPrintf("getaddressdeltas__ \n");
         return deltas;
     }
 }
 
 UniValue getaddressbalance(const UniValue& params, bool fHelp)
 {
+    LogPrintf("getaddressbalance \n");
     if (fHelp || params.size() != 1)
         throw runtime_error(
                 "getaddressbalance\n"
@@ -865,12 +874,14 @@ UniValue getaddressbalance(const UniValue& params, bool fHelp)
     result.push_back(Pair("balance", balance));
     result.push_back(Pair("received", received));
 
+    LogPrintf("getaddressbalance_ \n");
     return result;
 
 }
 
 UniValue getaddresstxids(const UniValue& params, bool fHelp)
 {
+    LogPrintf("getaddresstxids \n");
     if (fHelp || params.size() != 1)
         throw runtime_error(
                 "getaddresstxids\n"
@@ -948,6 +959,7 @@ UniValue getaddresstxids(const UniValue& params, bool fHelp)
         }
     }
 
+    LogPrintf("getaddresstxids_ \n");
     return result;
 
 }
@@ -955,6 +967,7 @@ UniValue getaddresstxids(const UniValue& params, bool fHelp)
 UniValue getspentinfo(const UniValue& params, bool fHelp)
 {
 
+    LogPrintf("getspentinfo \n");
     if (fHelp || params.size() != 1 || !params[0].isObject())
         throw runtime_error(
                 "getspentinfo\n"
@@ -997,6 +1010,7 @@ UniValue getspentinfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("index", (int)value.inputIndex));
     obj.push_back(Pair("height", value.blockHeight));
 
+    LogPrintf("getspentinfo) \n");
     return obj;
 }
 
