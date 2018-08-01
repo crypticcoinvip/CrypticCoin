@@ -422,7 +422,6 @@ UniValue getrawmempool(const UniValue& params, bool fHelp)
 
 UniValue getblockdeltas(const UniValue& params, bool fHelp)
 {
-    LogPrintf("getblockdeltas \n");
     if (fHelp || params.size() != 1)
         throw runtime_error("");
 
@@ -440,14 +439,12 @@ UniValue getblockdeltas(const UniValue& params, bool fHelp)
 
     if(!ReadBlockFromDisk(block, pblockindex))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Can't read block from disk");
-    LogPrintf("getblockdeltas_ \n");
 
     return blockToDeltasJSON(block, pblockindex);
 }
 
 UniValue getblockhashes(const UniValue& params, bool fHelp)
 {
-    LogPrintf("getblockhashes \n");
     if (fHelp || params.size() < 2)
         throw runtime_error(
             "getblockhashes timestamp\n"
@@ -505,26 +502,21 @@ UniValue getblockhashes(const UniValue& params, bool fHelp)
     UniValue result(UniValue::VARR);
 
     for (std::vector<std::pair<uint256, unsigned int>>::const_iterator it = blockHashes.begin(); it != blockHashes.end(); it++) {
-        LogPrintf("getblockhashes it \n");
         if (fLogicalTS) {
             UniValue item(UniValue::VOBJ);
             item.push_back(Pair("blockhash", it->first.GetHex()));
             item.push_back(Pair("logicalts", (int)it->second));
             result.push_back(item);
-            LogPrintf("getblockhashes it __ \n");
         } else {
-            LogPrintf("getblockhashes it _ \n");
             result.push_back(it->first.GetHex());
         }
     }
-    LogPrintf("getblockhashes_ \n");
 
     return result;
 }
 
 UniValue getblockhash(const UniValue& params, bool fHelp)
 {
-    LogPrintf("getblockhash \n");
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "getblockhash index\n"
@@ -545,13 +537,11 @@ UniValue getblockhash(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Block height out of range");
 
     CBlockIndex* pblockindex = chainActive[nHeight];
-    LogPrintf("getblockhash_ \n");
     return pblockindex->GetBlockHash().GetHex();
 }
 
 UniValue getblockheader(const UniValue& params, bool fHelp)
 {
-    LogPrintf("getblockheader \n");
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
             "getblockheader \"hash\" ( verbose )\n"
@@ -595,7 +585,6 @@ UniValue getblockheader(const UniValue& params, bool fHelp)
 
     CBlockIndex* pblockindex = mapBlockIndex[hash];
 
-    LogPrintf("getblockheader_ \n");
     if (!fVerbose)
     {
         CDataStream ssBlock(SER_NETWORK, PROTOCOL_VERSION);
@@ -604,7 +593,6 @@ UniValue getblockheader(const UniValue& params, bool fHelp)
         return strHex;
     }
 
-    LogPrintf("getblockheader__ \n");
     return blockheaderToJSON(pblockindex);
 }
 
