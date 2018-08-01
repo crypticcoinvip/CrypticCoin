@@ -6,7 +6,7 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
-    start_node, connect_nodes_bi, wait_and_assert_operationid_status
+    start_node, connect_nodes_bi, wait_and_assert_operationid_status, summSubsidy_noPremine, summSubsidy_premine
 
 from decimal import Decimal
 
@@ -35,16 +35,16 @@ class PaymentDisclosureTest (BitcoinTestFramework):
 
         self.nodes[0].generate(4)
         walletinfo = self.nodes[0].getwalletinfo()
-        assert_equal(walletinfo['immature_balance'], 40)
+        assert_equal(walletinfo['immature_balance'], summSubsidy_premine(4))
         assert_equal(walletinfo['balance'], 0)
         self.sync_all()
         self.nodes[2].generate(3)
         self.sync_all()
         self.nodes[1].generate(101)
         self.sync_all()
-        assert_equal(self.nodes[0].getbalance(), 40)
-        assert_equal(self.nodes[1].getbalance(), 10)
-        assert_equal(self.nodes[2].getbalance(), 30)
+        assert_equal(self.nodes[0].getbalance(), summSubsidy_premine(4))
+        assert_equal(self.nodes[1].getbalance(), summSubsidy_noPremine(1))
+        assert_equal(self.nodes[2].getbalance(), summSubsidy_noPremine(3))
 
         mytaddr = self.nodes[0].getnewaddress()
         myzaddr = self.nodes[0].z_getnewaddress()
@@ -65,8 +65,9 @@ class PaymentDisclosureTest (BitcoinTestFramework):
             errorString = e.error['message']
             assert("No information available about transaction" in errorString)
 
-        # Shield coinbase utxos from node 0 of value 40, standard fee of 0.00010000
-        recipients = [{"address":myzaddr, "amount":Decimal('40.0')-Decimal('0.0001')}]
+        # Shield coinbase utxos from node 0 of value N, standard fee of 0.00010000
+        sentAmount = Decimal(summSubsidy_premine(4))-Decimal('0.0001')
+        recipients = [{"address":myzaddr, "amount":sentAmount}]
         myopid = self.nodes[0].z_sendmany(mytaddr, recipients)
         txid = wait_and_assert_operationid_status(self.nodes[0], myopid)
 
@@ -161,7 +162,7 @@ class PaymentDisclosureTest (BitcoinTestFramework):
         pd = self.nodes[0].z_getpaymentdisclosure(txid, 0, 1)
         result = self.nodes[0].z_validatepaymentdisclosure(pd)
         output_value_sum += Decimal(result["value"])
-        assert_equal(output_value_sum, Decimal('39.99990000'))
+        assert_equal(output_value_sum, sentAmount)
 
         # Create a z->z transaction, sending shielded funds from node 0 to node 1
         node1zaddr = self.nodes[1].z_getnewaddress()

@@ -6,7 +6,8 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
-    start_nodes, start_node, connect_nodes_bi, bitcoind_processes
+    start_nodes, start_node, connect_nodes_bi, bitcoind_processes, \
+    summSubsidy_noPremine, summSubsidy_premine
 
 
 class ZapWalletTXesTest (BitcoinTestFramework):
@@ -30,7 +31,7 @@ class ZapWalletTXesTest (BitcoinTestFramework):
         self.nodes[1].generate(101)
         self.sync_all()
 
-        assert_equal(self.nodes[0].getbalance(), 40)
+        assert_equal(self.nodes[0].getbalance(), summSubsidy_premine(4))
 
         txid0 = self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), 11)
         txid1 = self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), 10)
