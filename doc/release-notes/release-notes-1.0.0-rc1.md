@@ -87,7 +87,7 @@ Kevin Gallagher (24):
       Adds zcbenchmarks.h to libbitcoin_wallet_a_SOURCES
       Adds json_test_vectors.h to crypticcoin_gtest_SOURCES
       Adds additional licenses to Debian copyright file
-      Updates Crypticcoin Core developers -> Crypticcoin developers
+      Updates Crypticcoin Core developers -> Zcash developers
       Adds . to blank lines in Google license
 
 MarcoFalke (3):
