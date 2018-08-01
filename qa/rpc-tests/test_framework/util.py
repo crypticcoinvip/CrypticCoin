@@ -23,25 +23,35 @@ import re
 
 from authproxy import AuthServiceProxy
 
-# Calculate subsidy (python version of GetBlockSubsidy())
-def getBlockSubsidy(blockHeight):
-    secondReward = 4179234070
-    nSubsidy = 1655;
-    nSubsidyHalvingInterval = 1048320
+def getBlockSubsidy_noPremine():
+    """
+    Get BlockSubsidy (without premine reward)
+    """
+    return 1655
 
-    halvings = blockHeight / nSubsidyHalvingInterval
-    if halvings >= 8:
-        return 0
+def summSubsidy_noPremine(blocksNum):
+    """
+    Calculate subsidy for n blocks (without premine reward)
+    """
+    return getBlockSubsidy_noPremine() * blocksNum
 
-    if nHeight == 2:
-        return secondReward;
-    elif nHeight > 2:
-        return nSubsidy >> halvings;
+def getBlockSubsidy_premine(blockHeight):
+    """
+    Get BlockSubsidy (from GetBlockSubsidy() in main.cpp)
+    """
+    specialSubsidy = 4179234070
 
-def expectedSubsidy(blockHeight):
+    if blockHeight == 2:
+        return specialSubsidy
+    return getBlockSubsidy_noPremine()
+
+def summSubsidy_premine(blocksNum):
+    """
+    Calculate subsidy for n blocks (with premine reward)
+    """
     balance = 0
-    for b in range(blockHeight):
-        balance += getBlockSubsidy(b)
+    for b in range(blocksNum):
+        balance += getBlockSubsidy_premine(b)
     return balance
 
 
