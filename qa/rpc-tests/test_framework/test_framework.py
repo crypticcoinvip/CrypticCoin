@@ -17,7 +17,7 @@ from authproxy import JSONRPCException
 from util import assert_equal, check_json_precision, \
     initialize_chain, initialize_chain_clean, \
     start_nodes, connect_nodes_bi, stop_nodes, \
-    sync_blocks, sync_mempools, wait_bitcoinds
+    sync_blocks, sync_mempools, wait_bitcoinds, summSubsidy_noPremine, summSubsidy_premine
 
 
 class BitcoinTestFramework(object):
@@ -26,7 +26,10 @@ class BitcoinTestFramework(object):
     def run_test(self):
         for node in self.nodes:
             assert_equal(node.getblockcount(), 200)
-            assert_equal(node.getbalance(), 25*10)
+            if index is 0:
+                assert_equal(node.getbalance(), summSubsidy_premine(25))
+            else:
+                assert_equal(node.getbalance(), summSubsidy_noPremine(25))
 
     def add_options(self, parser):
         pass
