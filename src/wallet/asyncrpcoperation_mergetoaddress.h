@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Zcash developers
+// Copyright (c) 2017 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,8 +11,8 @@
 #include "paymentdisclosure.h"
 #include "primitives/transaction.h"
 #include "wallet.h"
-#include "zcash/Address.hpp"
-#include "zcash/JoinSplit.hpp"
+#include "crypticcoin/Address.hpp"
+#include "crypticcoin/JoinSplit.hpp"
 
 #include <tuple>
 #include <unordered_map>
@@ -22,7 +22,7 @@
 // Default transaction fee if caller does not specify one.
 #define MERGE_TO_ADDRESS_OPERATION_DEFAULT_MINERS_FEE 10000
 
-using namespace libzcash;
+using namespace libcrypticcoin;
 
 // Input UTXO is a tuple of txid, vout, amount
 typedef std::tuple<COutPoint, CAmount> MergeToAddressInputUTXO;

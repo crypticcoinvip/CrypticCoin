@@ -65,7 +65,7 @@ Jack Grigg (43):
       Don't require RELRO and BIND_NOW for Darwin
       Only set multicore flags if OpenMP is available
       Revert "remove -mt suffix from boost libraries built by depends"
-      Use correct Boost::System linker flag for libzcash
+      Use correct Boost::System linker flag for libcrypticcoin
       depends: Remove -mt suffix from Boost libraries
       snark: Remove -mt suffix from Boost library
       cleanup: Ensure code is pyflakes-clean for CI
@@ -87,8 +87,8 @@ Jack Grigg (43):
       Add RPC test of RewindBlockIndex
       When rewinding, remove insufficiently-validated blocks
       Adjust deprecation message to work in both UI and -alertnotify
-      Refactor Zcash changes to CCoinsViewDB
-      Update blockchain.py RPC test for Zcash
+      Refactor Crypticcoin changes to CCoinsViewDB
+      Update blockchain.py RPC test for Crypticcoin
       Update CBlockTreeDB::EraseBatchSync for dbwrapper refactor
       Fix typo
       test: Check return value of snprintf

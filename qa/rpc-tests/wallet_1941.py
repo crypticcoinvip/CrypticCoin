@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-# Copyright (c) 2016 The Zcash developers
+# Copyright (c) 2016 The Crypticcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -51,7 +51,8 @@ class Wallet1941RegressionTest (BitcoinTestFramework):
 
         # Send 10 coins to our zaddr.
         recipients = []
-        recipients.append({"address":myzaddr, "amount":Decimal('10.0') - Decimal('0.0001')})
+        sentAmount = self.nodes[0].getbalance() - Decimal('0.0001')
+        recipients.append({"address":myzaddr, "amount":sentAmount})
         myopid = self.nodes[0].z_sendmany(mytaddr, recipients)
         wait_and_assert_operationid_status(self.nodes[0], myopid)
         self.nodes[0].generate(1)
@@ -66,7 +67,7 @@ class Wallet1941RegressionTest (BitcoinTestFramework):
 
         # Confirm the balance on node 0.
         resp = self.nodes[0].z_getbalance(myzaddr)
-        assert_equal(Decimal(resp), Decimal('10.0') - Decimal('0.0001'))
+        assert_equal(Decimal(resp), sentAmount)
 
         # Export the key for the zaddr from node 0.
         key = self.nodes[0].z_exportkey(myzaddr)
@@ -93,7 +94,7 @@ class Wallet1941RegressionTest (BitcoinTestFramework):
         # Confirm that the balance on node 1 is valid now (node 1 must
         # have rescanned)
         resp = self.nodes[1].z_getbalance(myzaddr)
-        assert_equal(Decimal(resp), Decimal('10.0') - Decimal('0.0001'))
+        assert_equal(Decimal(resp), sentAmount)
 
 
 if __name__ == '__main__':

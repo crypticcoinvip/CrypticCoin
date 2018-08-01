@@ -11,7 +11,8 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
-    start_nodes, connect_nodes_bi
+    start_nodes, connect_nodes_bi, summSubsidy_noPremine, \
+    summSubsidy_premine, getBlockSubsidy_premine
 
 from decimal import Decimal
 
@@ -143,7 +144,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
-        assert_equal(self.nodes[0].getbalance(), bal+Decimal('10.00000000')+Decimal('2.19900000')) #block reward + tx
+        assert_equal(self.nodes[0].getbalance(), bal + getBlockSubsidy_premine(0) +Decimal('2.19900000')) #block reward + tx
 
 if __name__ == '__main__':
     RawTransactionsTest().main()

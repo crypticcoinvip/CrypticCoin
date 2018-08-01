@@ -1057,17 +1057,17 @@ public:
     }
 };
 
-const unsigned char ZCASH_PREVOUTS_HASH_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] =
-    {'Z','c','a','s','h','P','r','e','v','o','u','t','H','a','s','h'};
-const unsigned char ZCASH_SEQUENCE_HASH_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] =
-    {'Z','c','a','s','h','S','e','q','u','e','n','c','H','a','s','h'};
-const unsigned char ZCASH_OUTPUTS_HASH_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] =
-    {'Z','c','a','s','h','O','u','t','p','u','t','s','H','a','s','h'};
-const unsigned char ZCASH_JOINSPLITS_HASH_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] =
-    {'Z','c','a','s','h','J','S','p','l','i','t','s','H','a','s','h'};
+const unsigned char CRYPTICCOIN_PREVOUTS_HASH_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] =
+    {'C','r','y','p','t','P','r','e','v','o','u','t','H','a','s','h'};
+const unsigned char CRYPTICCOIN_SEQUENCE_HASH_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] =
+    {'C','r','y','p','t','S','e','q','u','e','n','c','H','a','s','h'};
+const unsigned char CRYPTICCOIN_OUTPUTS_HASH_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] =
+    {'C','r','y','p','t','O','u','t','p','u','t','s','H','a','s','h'};
+const unsigned char CRYPTICCOIN_JOINSPLITS_HASH_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] =
+    {'C','r','y','p','t','J','S','p','l','i','t','s','H','a','s','h'};
 
 uint256 GetPrevoutHash(const CTransaction& txTo) {
-    CBLAKE2bWriter ss(SER_GETHASH, 0, ZCASH_PREVOUTS_HASH_PERSONALIZATION);
+    CBLAKE2bWriter ss(SER_GETHASH, 0, CRYPTICCOIN_PREVOUTS_HASH_PERSONALIZATION);
     for (unsigned int n = 0; n < txTo.vin.size(); n++) {
         ss << txTo.vin[n].prevout;
     }
@@ -1075,7 +1075,7 @@ uint256 GetPrevoutHash(const CTransaction& txTo) {
 }
 
 uint256 GetSequenceHash(const CTransaction& txTo) {
-    CBLAKE2bWriter ss(SER_GETHASH, 0, ZCASH_SEQUENCE_HASH_PERSONALIZATION);
+    CBLAKE2bWriter ss(SER_GETHASH, 0, CRYPTICCOIN_SEQUENCE_HASH_PERSONALIZATION);
     for (unsigned int n = 0; n < txTo.vin.size(); n++) {
         ss << txTo.vin[n].nSequence;
     }
@@ -1083,7 +1083,7 @@ uint256 GetSequenceHash(const CTransaction& txTo) {
 }
 
 uint256 GetOutputsHash(const CTransaction& txTo) {
-    CBLAKE2bWriter ss(SER_GETHASH, 0, ZCASH_OUTPUTS_HASH_PERSONALIZATION);
+    CBLAKE2bWriter ss(SER_GETHASH, 0, CRYPTICCOIN_OUTPUTS_HASH_PERSONALIZATION);
     for (unsigned int n = 0; n < txTo.vout.size(); n++) {
         ss << txTo.vout[n];
     }
@@ -1091,7 +1091,7 @@ uint256 GetOutputsHash(const CTransaction& txTo) {
 }
 
 uint256 GetJoinSplitsHash(const CTransaction& txTo) {
-    CBLAKE2bWriter ss(SER_GETHASH, 0, ZCASH_JOINSPLITS_HASH_PERSONALIZATION);
+    CBLAKE2bWriter ss(SER_GETHASH, 0, CRYPTICCOIN_JOINSPLITS_HASH_PERSONALIZATION);
     for (unsigned int n = 0; n < txTo.vjoinsplit.size(); n++) {
         ss << txTo.vjoinsplit[n];
     }
@@ -1151,7 +1151,7 @@ uint256 SignatureHash(
         if ((nHashType & 0x1f) != SIGHASH_SINGLE && (nHashType & 0x1f) != SIGHASH_NONE) {
             hashOutputs = cache ? cache->hashOutputs : GetOutputsHash(txTo);
         } else if ((nHashType & 0x1f) == SIGHASH_SINGLE && nIn < txTo.vout.size()) {
-            CBLAKE2bWriter ss(SER_GETHASH, 0, ZCASH_OUTPUTS_HASH_PERSONALIZATION);
+            CBLAKE2bWriter ss(SER_GETHASH, 0, CRYPTICCOIN_OUTPUTS_HASH_PERSONALIZATION);
             ss << txTo.vout[nIn];
             hashOutputs = ss.GetHash();
         }
@@ -1162,7 +1162,7 @@ uint256 SignatureHash(
 
         uint32_t leConsensusBranchId = htole32(consensusBranchId);
         unsigned char personalization[16] = {};
-        memcpy(personalization, "ZcashSigHash", 12);
+        memcpy(personalization, "CryptSigHash", 12);
         memcpy(personalization+12, &leConsensusBranchId, 4);
 
         CBLAKE2bWriter ss(SER_GETHASH, 0, personalization);

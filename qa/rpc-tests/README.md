@@ -42,5 +42,5 @@ to recover with:
 
 ```bash
 rm -rf cache
-killall zcashd
+killall crypticcoind
 ```

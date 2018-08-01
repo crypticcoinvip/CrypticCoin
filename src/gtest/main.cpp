@@ -1,7 +1,7 @@
 #include "gmock/gmock.h"
 #include "crypto/common.h"
 #include "pubkey.h"
-#include "zcash/JoinSplit.hpp"
+#include "crypticcoin/JoinSplit.hpp"
 #include "util.h"
 
 #include <libsnark/common/default_types/r1cs_ppzksnark_pp.hpp>

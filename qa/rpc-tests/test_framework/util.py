@@ -23,6 +23,38 @@ import re
 
 from authproxy import AuthServiceProxy
 
+def getBlockSubsidy_noPremine():
+    """
+    Get BlockSubsidy (without premine reward)
+    """
+    return 1655
+
+def summSubsidy_noPremine(blocksNum):
+    """
+    Calculate subsidy for n blocks (without premine reward)
+    """
+    return getBlockSubsidy_noPremine() * blocksNum
+
+def getBlockSubsidy_premine(blockHeight):
+    """
+    Get BlockSubsidy (from GetBlockSubsidy() in main.cpp)
+    """
+    specialSubsidy = 4179234070
+
+    if blockHeight == 2:
+        return specialSubsidy
+    return getBlockSubsidy_noPremine()
+
+def summSubsidy_premine(blocksNum):
+    """
+    Calculate subsidy for n blocks (with premine reward)
+    """
+    balance = 0
+    for b in range(blocksNum):
+        balance += getBlockSubsidy_premine(b)
+    return balance
+
+
 def p2p_port(n):
     return 11000 + n + os.getpid()%999
 def rpc_port(n):
@@ -75,7 +107,7 @@ def initialize_datadir(dirname, n):
     datadir = os.path.join(dirname, "node"+str(n))
     if not os.path.isdir(datadir):
         os.makedirs(datadir)
-    with open(os.path.join(datadir, "zcash.conf"), 'w') as f:
+    with open(os.path.join(datadir, "crypticcoin.conf"), 'w') as f:
         f.write("regtest=1\n");
         f.write("showmetrics=0\n");
         f.write("rpcuser=rt\n");
@@ -144,7 +176,7 @@ def initialize_chain(test_dir):
         from_dir = os.path.join("cache", "node"+str(i))
         to_dir = os.path.join(test_dir,  "node"+str(i))
         shutil.copytree(from_dir, to_dir)
-        initialize_datadir(test_dir, i) # Overwrite port/rpcport in zcash.conf
+        initialize_datadir(test_dir, i) # Overwrite port/rpcport in crypticcoin.conf
 
 def initialize_chain_clean(test_dir, num_nodes):
     """
@@ -393,7 +425,7 @@ def wait_and_assert_operationid_status(node, myopid, in_status='success', in_err
             elif status == "success":
                 txid = results[0]['result']['txid']
             break
-    if os.getenv("PYTHON_DEBUG", ""):
+    if os.getenv("PYTHON_DEBUG", "") or in_status is 'success':
         print('...returned status: {}'.format(status))
         if errormsg is not None:
             print('...returned error: {}'.format(errormsg))

@@ -101,14 +101,41 @@ endif
 
 test_test_bitcoin_SOURCES = $(BITCOIN_TESTS) $(JSON_TEST_FILES) $(RAW_TEST_FILES)
 test_test_bitcoin_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) -I$(builddir)/test/ $(TESTDEFS) $(EVENT_CFLAGS)
-test_test_bitcoin_LDADD = $(LIBBITCOIN_SERVER) $(LIBBITCOIN_CLI) $(LIBBITCOIN_COMMON) $(LIBBITCOIN_UTIL) $(LIBBITCOIN_CRYPTO) $(LIBUNIVALUE) $(LIBLEVELDB) $(LIBMEMENV) \
-  $(BOOST_LIBS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB) $(LIBSECP256K1) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS)
+test_test_bitcoin_LDADD = \
+ $(LIBBITCOIN_SERVER) \
+ $(LIBBITCOIN_CLI) \
+ $(LIBBITCOIN_COMMON) \
+ $(LIBBITCOIN_UTIL) \
+ $(LIBBITCOIN_CRYPTO) \
+ $(LIBUNIVALUE) \
+ $(LIBLEVELDB) \
+ $(LIBMEMENV) \
+ $(TOR_PREFIX)/lib/libtor.a \
+ $(TOR_PREFIX)/lib/libor.a \
+ $(TOR_PREFIX)/lib/libor-ctime.a \
+ $(TOR_PREFIX)/lib/libor-crypto.a \
+ $(TOR_PREFIX)/lib/libor-event.a \
+ $(TOR_PREFIX)/lib/libor-trunnel.a \
+ $(TOR_PREFIX)/lib/libcurve25519_donna.a \
+ $(TOR_PREFIX)/lib/libed25519_donna.a \
+ $(TOR_PREFIX)/lib/libed25519_ref10.a \
+ $(TOR_PREFIX)/lib/libkeccak-tiny.a \
+ $(TOR_PREFIX)/lib/libcrypto.a \
+ $(TOR_PREFIX)/lib/libssl.a \
+ $(TOR_PREFIX)/lib/libcap.a \
+ $(TOR_PREFIX)/lib/libseccomp.a \
+ $(TOR_PREFIX)/lib/libz.a \
+ $(BOOST_LIBS) \
+ $(BOOST_UNIT_TEST_FRAMEWORK_LIB) \
+ $(LIBSECP256K1) \
+ $(EVENT_PTHREADS_LIBS) \
+ $(EVENT_LIBS)
 test_test_bitcoin_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 if ENABLE_WALLET
 test_test_bitcoin_LDADD += $(LIBBITCOIN_WALLET)
 endif
 
-test_test_bitcoin_LDADD += $(LIBZCASH_CONSENSUS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(LIBZCASH) $(LIBSNARK) $(LIBZCASH_LIBS)
+test_test_bitcoin_LDADD += $(LIBCRYPTICCOIN_CONSENSUS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(LIBCRYPTICCOIN) $(LIBSNARK) $(LIBCRYPTICCOIN_LIBS)
 test_test_bitcoin_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) -static
 
 if ENABLE_ZMQ

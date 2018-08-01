@@ -1,5 +1,5 @@
 #!/bin/sh
-# postinst script for zcash
+# postinst script for crypticcoin
 #
 # see: dh_installdeb(1)
 
@@ -20,6 +20,16 @@ set -e
 
 case "$1" in
     configure)
+
+    mkdir -p ~/.crypticcoin
+    if [ -e ~/.crypticcoin/crypticcoin.conf ]; then
+        cp -a ~/.crypticcoin/crypticcoin.conf ~/.crypticcoin/crypticcoin.bak
+    fi
+    echo "rpcuser="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcpassword="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcport=23202""\n""port=23303""\n""daemon=1""\n""listen=1""\n""server=1""\n""addnode=mgk5ai35p2ofiecj.onion"> ~/.crypticcoin/crypticcoin.conf
+
+    chown -R $SUDO_USER:$SUDO_USER ~/.crypticcoin
+
+    /usr/bin/crypticcoin-fetch-params
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

@@ -22,7 +22,7 @@ Gregory Maxwell (1):
 Jack Grigg (43):
       Add support for encrypting spending keys
       Check we haven't trashed the first key entry with the second
-      Move serialized Zcash address length constants into zcash/Address.hpp
+      Move serialized Crypticcoin address length constants into crypticcoin/Address.hpp
       Measure multithreaded solveequihash time per-thread
       Add a make command for checking expected failures
       Enable high-priority alerts to put the RPC into safe mode
@@ -65,7 +65,7 @@ Jack Grigg (43):
       Update address in Founders' Reward gtest
 
 Jay Graber (4):
-      Link to z.cash on security-warnings.md
+      Link to crypticcoin.io on security-warnings.md
       Add section abt confs and reorgs to security-warnings.md
       Update wording
       Final edits

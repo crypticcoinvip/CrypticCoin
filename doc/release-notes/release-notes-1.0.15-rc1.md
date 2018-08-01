@@ -10,7 +10,7 @@ funds from t-addresses, z-addresses, or both, and sends them to a single
 t-address or z-address.
 
 Unlike most other RPC methods, `z_mergetoaddress` operates over a particular
-quantity of UTXOs and notes, instead of a particular amount of ZEC. By default,
+quantity of UTXOs and notes, instead of a particular amount of CRYP. By default,
 it will merge 50 UTXOs and 10 notes at a time; these limits can be adjusted with
 the parameters `transparent_limit` and `shielded_limit`.
 
@@ -23,7 +23,7 @@ UTXO memory accounting
 
 The default -dbcache has been changed in this release to 450MiB. Users can set -dbcache to a higher value (e.g. to keep the UTXO set more fully cached in memory). Users on low-memory systems (such as systems with 1GB or less) should consider specifying a lower value for this parameter.
 
-Additional information relating to running on low-memory systems can be found here: [reducing-memory-usage.md](https://github.com/zcash/zcash/blob/master/doc/reducing-memory-usage.md).
+Additional information relating to running on low-memory systems can be found here: [reducing-memory-usage.md](https://github.com/crypticcoin/crypticcoin/blob/master/doc/reducing-memory-usage.md).
 
 Changelog
 =========

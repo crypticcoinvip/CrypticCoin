@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Zcash developers
+// Copyright (c) 2018 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,7 +12,7 @@ const struct NUInfo NetworkUpgradeInfo[Consensus::MAX_NETWORK_UPGRADES] = {
     {
         /*.nBranchId =*/ 0,
         /*.strName =*/ "Sprout",
-        /*.strInfo =*/ "The CrypticCoin network at launch",
+        /*.strInfo =*/ "The Crypticcoin network at launch",
     },
     {
         /*.nBranchId =*/ 0x74736554,

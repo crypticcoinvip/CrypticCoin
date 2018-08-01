@@ -469,7 +469,7 @@ static bool ProcessBlockFound(CBlock* pblock)
     {
         LOCK(cs_main);
         if (pblock->hashPrevBlock != chainActive.Tip()->GetBlockHash())
-            return error("ZcashMiner: generated block is stale");
+            return error("CrypticcoinMiner: generated block is stale");
     }
 
 #ifdef ENABLE_WALLET
@@ -488,7 +488,7 @@ static bool ProcessBlockFound(CBlock* pblock)
     // Process this block the same as if we had received it from another node
     CValidationState state;
     if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
-        return error("ZcashMiner: ProcessNewBlock, block not accepted");
+        return error("CrypticcoinMiner: ProcessNewBlock, block not accepted");
 
     TrackMinedBlock(pblock->GetHash());
 
@@ -501,9 +501,9 @@ void static BitcoinMiner(CWallet *pwallet)
 void static BitcoinMiner()
 #endif
 {
-    LogPrintf("ZcashMiner started\n");
+    LogPrintf("CrypticcoinMiner started\n");
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
-    RenameThread("zcash-miner");
+    RenameThread("crypticcoin-miner");
     const CChainParams& chainparams = Params();
 
 #ifdef ENABLE_WALLET
@@ -564,17 +564,17 @@ void static BitcoinMiner()
             if (!pblocktemplate.get())
             {
                 if (GetArg("-mineraddress", "").empty()) {
-                    LogPrintf("Error in ZcashMiner: Keypool ran out, please call keypoolrefill before restarting the mining thread\n");
+                    LogPrintf("Error in CrypticcoinMiner: Keypool ran out, please call keypoolrefill before restarting the mining thread\n");
                 } else {
                     // Should never reach here, because -mineraddress validity is checked in init.cpp
-                    LogPrintf("Error in ZcashMiner: Invalid -mineraddress\n");
+                    LogPrintf("Error in CrypticcoinMiner: Invalid -mineraddress\n");
                 }
                 return;
             }
             CBlock *pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
-            LogPrintf("Running ZcashMiner with %u transactions in block (%u bytes)\n", pblock->vtx.size(),
+            LogPrintf("Running CrypticcoinMiner with %u transactions in block (%u bytes)\n", pblock->vtx.size(),
                 ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
 
             //
@@ -625,7 +625,7 @@ void static BitcoinMiner()
 
                     // Found a solution
                     SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                    LogPrintf("ZcashMiner:\n");
+                    LogPrintf("CrypticcoinMiner:\n");
                     LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
 #ifdef ENABLE_WALLET
                     if (ProcessBlockFound(pblock, *pwallet, reservekey)) {
@@ -722,14 +722,14 @@ void static BitcoinMiner()
     {
         miningTimer.stop();
         c.disconnect();
-        LogPrintf("ZcashMiner terminated\n");
+        LogPrintf("CrypticcoinMiner terminated\n");
         throw;
     }
     catch (const std::runtime_error &e)
     {
         miningTimer.stop();
         c.disconnect();
-        LogPrintf("ZcashMiner runtime error: %s\n", e.what());
+        LogPrintf("CrypticcoinMiner runtime error: %s\n", e.what());
         return;
     }
     miningTimer.stop();

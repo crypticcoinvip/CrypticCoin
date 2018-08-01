@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-# Copyright (c) 2018 The Zcash developers
+# Copyright (c) 2018 The Crypticcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,16 +12,16 @@ from test_framework.util import initialize_chain_clean, start_nodes, \
 import time
 
 #
-# In this test we connect Sprout and Overwinter mininodes to a Zcashd node
+# In this test we connect Sprout and Overwinter mininodes to a Crypticcoind node
 # which will activate Overwinter at block 10.
 #
 # We test:
-# 1. the mininodes stay connected to Zcash with Sprout consensus rules
+# 1. the mininodes stay connected to Crypticcoin with Sprout consensus rules
 # 2. when Overwinter activates, the Sprout mininodes are dropped
-# 3. new Overwinter nodes can connect to Zcash
-# 4. new Sprout nodes cannot connect to Zcash
+# 3. new Overwinter nodes can connect to Crypticcoin
+# 4. new Sprout nodes cannot connect to Crypticcoin
 #
-# This test *does not* verify that prior to Overwinter activation, the Zcashd
+# This test *does not* verify that prior to Overwinter activation, the Crypticcoind
 # node will prefer connections with Overwinter nodes, with an eviction process
 # that prioritizes Sprout connections.
 #
@@ -65,7 +65,7 @@ class OverwinterPeerManagementTest(BitcoinTestFramework):
         self.nodes[0].generate(9)
         assert_equal(9, self.nodes[0].getblockcount())
 
-        # Verify mininodes are still connected to zcashd node
+        # Verify mininodes are still connected to crypticcoind node
         peerinfo = self.nodes[0].getpeerinfo()
         versions = [x["version"] for x in peerinfo]
         assert_equal(10, versions.count(MY_VERSION))
@@ -75,7 +75,7 @@ class OverwinterPeerManagementTest(BitcoinTestFramework):
         self.nodes[0].generate(1)
         assert_equal(10, self.nodes[0].getblockcount())
 
-        # Mininodes send ping message to zcashd node.
+        # Mininodes send ping message to crypticcoind node.
         pingCounter = 1
         for node in nodes:
             node.send_message(msg_ping(pingCounter))
@@ -92,12 +92,12 @@ class OverwinterPeerManagementTest(BitcoinTestFramework):
         # Extend the Overwinter chain with another block.
         self.nodes[0].generate(1)
 
-        # Connect a new Overwinter mininode to the zcashd node, which is accepted.
+        # Connect a new Overwinter mininode to the crypticcoind node, which is accepted.
         nodes.append(NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", True))
         time.sleep(3)
         assert_equal(11, len(self.nodes[0].getpeerinfo()))
 
-        # Try to connect a new Sprout mininode to the zcashd node, which is rejected.
+        # Try to connect a new Sprout mininode to the crypticcoind node, which is rejected.
         sprout = NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", False)
         nodes.append(sprout)
         time.sleep(3)

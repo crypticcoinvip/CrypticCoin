@@ -1,4 +1,4 @@
-Zcash Contributors
+Crypticcoin Contributors
 ==================
 
 Jack Grigg (648)
@@ -120,5 +120,5 @@ Alex Morcos (1)
 Alex (1)
 Adam Weiss (1)
 Adam Brown (1)
-4ZEC (1)
+4CRYP (1)
 21E14 (1)
