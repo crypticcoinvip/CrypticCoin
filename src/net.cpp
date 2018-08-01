@@ -65,7 +65,6 @@ const char tor_git_revision[] = "";
 
 extern "C" {
   int tor_main(int argc, char *argv[]);
-  void tor_cleanup(void);
 }
 
 //

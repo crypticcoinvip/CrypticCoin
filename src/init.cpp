@@ -45,13 +45,6 @@
 #include <signal.h>
 #endif
 
-#include <event2/event.h>
-#include <event2/http.h>
-#include <event2/thread.h>
-#include <event2/buffer.h>
-#include <event2/util.h>
-#include <event2/keyvalq_struct.h>
-
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/replace.hpp>
@@ -150,48 +143,6 @@ bool ShutdownRequested()
     return fRequestShutdown;
 }
 
-struct event_base *baseTor;
-boost::thread torEnabledThread;
-
-static void TorEnabledThread()
-{
-    StartTor();
-    event_base_dispatch(baseTor);
-}
-
-void StartTorEnabled(boost::thread_group& threadGroup)
-{
-#ifdef WIN32
-    evthread_use_windows_threads();
-#else
-    evthread_use_pthreads();
-#endif
-    baseTor = event_base_new();
-    if (!baseTor) {
-        LogPrintf("tor: Unable to create event_base\n");
-        return;
-    }
-
-    torEnabledThread = boost::thread(boost::bind(&TraceThread<void (*)()>, "torcontrol", &TorEnabledThread));
-}
-
-void InterruptTorEnabled()
-{
-    if (baseTor) {
-        LogPrintf("tor: Thread interrupt\n");
-        event_base_loopbreak(baseTor);
-    }
-}
-
-void StopTorEnabled()
-{
-    if (baseTor) {
-         torEnabledThread.join();
-        event_base_free(baseTor);
-        baseTor = 0;
-    }
-}
-
 class CCoinsViewErrorCatcher : public CCoinsViewBacked
 {
 public:
@@ -228,8 +179,6 @@ void Interrupt(boost::thread_group& threadGroup)
 
 void Shutdown()
 {
-    LogPrintf("MUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n\n\n");
-
     LogPrintf("%s: In progress...\n", __func__);
     static CCriticalSection cs_Shutdown;
     TRY_LOCK(cs_Shutdown, lockShutdown);
@@ -261,8 +210,6 @@ void Shutdown()
     StopNode();
     StopTorControl();
     UnregisterNodeSignals(GetNodeSignals());
-
-    LogPrintf("FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n\n\n");
 
     if (fFeeEstimatesInitialized)
     {
@@ -1284,21 +1231,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
     }
 
-    // if (!(mapArgs.count("-onion") && mapArgs["-onion"] != "0")) {
-    //     StartTorEnabled(threadGroup);
-    //     SetLimited(NET_TOR);
-    //     SetLimited(NET_IPV4);
-    //     SetLimited(NET_IPV6);
-    //     proxyType addrProxy = proxyType(CService("127.0.0.1", 9050),
-    //                                     true);
-    //     SetProxy(NET_IPV4, addrProxy);
-    //     SetProxy(NET_IPV6, addrProxy);
-    //     SetProxy(NET_TOR, addrProxy);
-    //     SetLimited(NET_IPV4, false);
-    //     SetLimited(NET_IPV6, false);
-    //     SetLimited(NET_TOR, false);
-    // }
-
     bool proxyRandomize = GetBoolArg("-proxyrandomize", true);
     // -proxy sets a proxy for all outgoing network traffic
     // -noproxy (or -proxy=0) as well as the empty string can be used to not set a proxy, this is the default
@@ -1373,13 +1305,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
 
     if (!(mapArgs.count("-onion") && mapArgs["-onion"] != "0")) {
-        //StartTorEnabled(threadGroup);
         threadGroup.create_thread(boost::bind(&StartTor));
-        // try {
-        //     boost::thread(StartTor); // thread detaches when out of scope
-        // } catch (boost::thread_resource_error& e) {
-        //     return InitError(strprintf(_("Error creating thread: %s\n"), e.what()));
-        // }
     }
 
     if (mapArgs.count("-externalip")) {
