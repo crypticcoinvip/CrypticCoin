@@ -116,4 +116,5 @@ class MempoolUpgradeActivationTest(BitcoinTestFramework):
         assert_equal(self.nodes[0].z_getbalance(node0_zaddr), Decimal('10'))
 
 if __name__ == '__main__':
-    MempoolUpgradeActivationTest().main()
+    print "MempoolUpgradeActivationTest is disabled"
+    #MempoolUpgradeActivationTest().main()

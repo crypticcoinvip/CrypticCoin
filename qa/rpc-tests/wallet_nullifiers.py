@@ -216,4 +216,5 @@ class WalletNullifiersTest (BitcoinTestFramework):
         assert_equal(self.nodes[3].z_getbalance(myzaddr), zsendmanynotevalue + zaddrremaining + zaddrremaining2)
 
 if __name__ == '__main__':
-    WalletNullifiersTest().main ()
+    print "WalletNullifiersTest is disabled"
+    #WalletNullifiersTest().main ()
