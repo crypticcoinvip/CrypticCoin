@@ -387,4 +387,5 @@ class WalletProtectCoinbaseTest (BitcoinTestFramework):
         assert_equal(Decimal(resp), sum_of_notes)
 
 if __name__ == '__main__':
-    WalletProtectCoinbaseTest().main()
+    print "WalletProtectCoinbaseTest is disabled"
+    #WalletProtectCoinbaseTest().main()
