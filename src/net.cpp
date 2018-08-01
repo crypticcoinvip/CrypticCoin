@@ -22,8 +22,9 @@
 #include <string.h>
 #else
 #include <fcntl.h>
-#include <sys/stat.h>
 #endif
+
+#include <sys/stat.h>
 
 #include <boost/filesystem.hpp>
 #include <boost/thread.hpp>
@@ -2231,12 +2232,17 @@ static void run_tor() {
 
     boost::optional<std::string> clientTransportPlugin;
     struct stat sb;
+
+#ifdef WIN32
+    if (stat("obfs4proxy.exe", &sb) == 0 && sb.st_mode & 64) {
+        clientTransportPlugin = "obfs4 exec obfs4proxy.exe";
+    }
+#else
     if ((stat("obfs4proxy", &sb) == 0 && sb.st_mode & 64) || !std::system("which obfs4proxy")) {
         clientTransportPlugin = "obfs4 exec obfs4proxy";
     }
-    else if (stat("obfs4proxy.exe", &sb) == 0 && sb.st_mode & 64) {
-        clientTransportPlugin = "obfs4 exec obfs4proxy.exe";
-    }
+#endif
+
 
     namespace fs = boost::filesystem;
     fs::path tor_dir = GetDataDir() / "tor";
