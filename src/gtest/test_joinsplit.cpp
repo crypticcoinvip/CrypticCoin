@@ -12,14 +12,14 @@
 #include "crypticcoin/NoteEncryption.hpp"
 #include "crypticcoin/IncrementalMerkleTree.hpp"
 
-using namespace libcrypticcoin;
+using namespace libzcash;
 
 extern ZCJoinSplit* params;
 
 void test_full_api(ZCJoinSplit* js)
 {
     // Create verification context.
-    auto verifier = libcrypticcoin::ProofVerifier::Strict();
+    auto verifier = libzcash::ProofVerifier::Strict();
 
     // The recipient's information.
     SpendingKey recipient_key = SpendingKey::random();

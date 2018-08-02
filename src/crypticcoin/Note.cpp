@@ -7,7 +7,7 @@
 
 #include "crypticcoin/util.h"
 
-namespace libcrypticcoin {
+namespace libzcash {
 
 Note::Note() {
     a_pk = random_uint256();

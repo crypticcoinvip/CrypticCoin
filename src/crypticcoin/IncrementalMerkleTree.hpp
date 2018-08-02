@@ -11,7 +11,7 @@
 #include "Crypticcoin.h"
 #include "crypticcoin/util.h"
 
-namespace libcrypticcoin {
+namespace libzcash {
 
 class MerklePath {
 public:
@@ -219,12 +219,12 @@ public:
 template<size_t Depth, typename Hash>
 EmptyMerkleRoots<Depth, Hash> IncrementalMerkleTree<Depth, Hash>::emptyroots;
 
-} // end namespace `libcrypticcoin`
+} // end namespace `libzcash`
 
-typedef libcrypticcoin::IncrementalMerkleTree<INCREMENTAL_MERKLE_TREE_DEPTH, libcrypticcoin::SHA256Compress> ZCIncrementalMerkleTree;
-typedef libcrypticcoin::IncrementalMerkleTree<INCREMENTAL_MERKLE_TREE_DEPTH_TESTING, libcrypticcoin::SHA256Compress> ZCTestingIncrementalMerkleTree;
+typedef libzcash::IncrementalMerkleTree<INCREMENTAL_MERKLE_TREE_DEPTH, libzcash::SHA256Compress> ZCIncrementalMerkleTree;
+typedef libzcash::IncrementalMerkleTree<INCREMENTAL_MERKLE_TREE_DEPTH_TESTING, libzcash::SHA256Compress> ZCTestingIncrementalMerkleTree;
 
-typedef libcrypticcoin::IncrementalWitness<INCREMENTAL_MERKLE_TREE_DEPTH, libcrypticcoin::SHA256Compress> ZCIncrementalWitness;
-typedef libcrypticcoin::IncrementalWitness<INCREMENTAL_MERKLE_TREE_DEPTH_TESTING, libcrypticcoin::SHA256Compress> ZCTestingIncrementalWitness;
+typedef libzcash::IncrementalWitness<INCREMENTAL_MERKLE_TREE_DEPTH, libzcash::SHA256Compress> ZCIncrementalWitness;
+typedef libzcash::IncrementalWitness<INCREMENTAL_MERKLE_TREE_DEPTH_TESTING, libzcash::SHA256Compress> ZCTestingIncrementalWitness;
 
 #endif /* ZC_INCREMENTALMERKLETREE_H_ */

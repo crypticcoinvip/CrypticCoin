@@ -8,7 +8,7 @@
 
 #include <libsnark/common/profiling.hpp>
 
-using namespace libcrypticcoin;
+using namespace libzcash;
 
 int main(int argc, char **argv)
 {

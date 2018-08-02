@@ -12,10 +12,10 @@ TEST(Transaction, JSDescriptionRandomized) {
     // construct a merkle tree
     ZCIncrementalMerkleTree merkleTree;
 
-    libcrypticcoin::SpendingKey k = libcrypticcoin::SpendingKey::random();
-    libcrypticcoin::PaymentAddress addr = k.address();
+    libzcash::SpendingKey k = libzcash::SpendingKey::random();
+    libzcash::PaymentAddress addr = k.address();
 
-    libcrypticcoin::Note note(addr.a_pk, 100, uint256(), uint256());
+    libzcash::Note note(addr.a_pk, 100, uint256(), uint256());
 
     // commitment from coin
     uint256 commitment = note.cm();
@@ -30,13 +30,13 @@ TEST(Transaction, JSDescriptionRandomized) {
 
     // create JSDescription
     uint256 pubKeyHash;
-    boost::array<libcrypticcoin::JSInput, ZC_NUM_JS_INPUTS> inputs = {
-        libcrypticcoin::JSInput(witness, note, k),
-        libcrypticcoin::JSInput() // dummy input of zero value
+    boost::array<libzcash::JSInput, ZC_NUM_JS_INPUTS> inputs = {
+        libzcash::JSInput(witness, note, k),
+        libzcash::JSInput() // dummy input of zero value
     };
-    boost::array<libcrypticcoin::JSOutput, ZC_NUM_JS_OUTPUTS> outputs = {
-        libcrypticcoin::JSOutput(addr, 50),
-        libcrypticcoin::JSOutput(addr, 50)
+    boost::array<libzcash::JSOutput, ZC_NUM_JS_OUTPUTS> outputs = {
+        libzcash::JSOutput(addr, 50),
+        libzcash::JSOutput(addr, 50)
     };
     boost::array<size_t, ZC_NUM_JS_INPUTS> inputMap;
     boost::array<size_t, ZC_NUM_JS_OUTPUTS> outputMap;

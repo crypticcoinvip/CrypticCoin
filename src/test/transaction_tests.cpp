@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(tx_valid)
     UniValue tests = read_json(std::string(json_tests::tx_valid, json_tests::tx_valid + sizeof(json_tests::tx_valid)));
     std::string comment("");
 
-    auto verifier = libcrypticcoin::ProofVerifier::Strict();
+    auto verifier = libzcash::ProofVerifier::Strict();
     ScriptError err;
     for (size_t idx = 0; idx < tests.size(); idx++) {
         UniValue test = tests[idx];
@@ -194,7 +194,7 @@ BOOST_AUTO_TEST_CASE(tx_invalid)
     UniValue tests = read_json(std::string(json_tests::tx_invalid, json_tests::tx_invalid + sizeof(json_tests::tx_invalid)));
     std::string comment("");
 
-    auto verifier = libcrypticcoin::ProofVerifier::Strict();
+    auto verifier = libzcash::ProofVerifier::Strict();
     ScriptError err;
     for (size_t idx = 0; idx < tests.size(); idx++) {
         UniValue test = tests[idx];
@@ -276,7 +276,7 @@ BOOST_AUTO_TEST_CASE(basic_transaction_tests)
     CMutableTransaction tx;
     stream >> tx;
     CValidationState state;
-    auto verifier = libcrypticcoin::ProofVerifier::Strict();
+    auto verifier = libzcash::ProofVerifier::Strict();
     BOOST_CHECK_MESSAGE(CheckTransaction(tx, state, verifier) && state.IsValid(), "Simple deserialized transaction should be valid.");
 
     // Check that duplicate txins fail
@@ -336,16 +336,16 @@ BOOST_AUTO_TEST_CASE(test_basic_joinsplit_verification)
     // on all platforms and would gently push us down an ugly
     // path. We should just fix the assertions.
     //
-    // Also, it's generally libcrypticcoin's job to ensure the
+    // Also, it's generally libzcash's job to ensure the
     // integrity of the scheme through its own tests.
 
     // construct a merkle tree
     ZCIncrementalMerkleTree merkleTree;
 
-    libcrypticcoin::SpendingKey k = libcrypticcoin::SpendingKey::random();
-    libcrypticcoin::PaymentAddress addr = k.address();
+    libzcash::SpendingKey k = libzcash::SpendingKey::random();
+    libzcash::PaymentAddress addr = k.address();
 
-    libcrypticcoin::Note note(addr.a_pk, 100, uint256(), uint256());
+    libzcash::Note note(addr.a_pk, 100, uint256(), uint256());
 
     // commitment from coin
     uint256 commitment = note.cm();
@@ -360,16 +360,16 @@ BOOST_AUTO_TEST_CASE(test_basic_joinsplit_verification)
 
     // create JSDescription
     uint256 pubKeyHash;
-    boost::array<libcrypticcoin::JSInput, ZC_NUM_JS_INPUTS> inputs = {
-        libcrypticcoin::JSInput(witness, note, k),
-        libcrypticcoin::JSInput() // dummy input of zero value
+    boost::array<libzcash::JSInput, ZC_NUM_JS_INPUTS> inputs = {
+        libzcash::JSInput(witness, note, k),
+        libzcash::JSInput() // dummy input of zero value
     };
-    boost::array<libcrypticcoin::JSOutput, ZC_NUM_JS_OUTPUTS> outputs = {
-        libcrypticcoin::JSOutput(addr, 50),
-        libcrypticcoin::JSOutput(addr, 50)
+    boost::array<libzcash::JSOutput, ZC_NUM_JS_OUTPUTS> outputs = {
+        libzcash::JSOutput(addr, 50),
+        libzcash::JSOutput(addr, 50)
     };
 
-    auto verifier = libcrypticcoin::ProofVerifier::Strict();
+    auto verifier = libzcash::ProofVerifier::Strict();
 
     {
         JSDescription jsdesc(*pcrypticcoinParams, pubKeyHash, rt, inputs, outputs, 0, 0);
@@ -401,7 +401,7 @@ BOOST_AUTO_TEST_CASE(test_basic_joinsplit_verification)
 
 void test_simple_joinsplit_invalidity(uint32_t consensusBranchId, CMutableTransaction tx)
 {
-    auto verifier = libcrypticcoin::ProofVerifier::Strict();
+    auto verifier = libzcash::ProofVerifier::Strict();
     {
         // Ensure that empty vin/vout remain invalid without
         // joinsplits.

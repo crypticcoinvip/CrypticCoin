@@ -6,7 +6,7 @@
 #include "crypto/sha256.h"
 #include "crypticcoin/util.h"
 
-namespace libcrypticcoin {
+namespace libzcash {
 
 SHA256Compress SHA256Compress::combine(const SHA256Compress& a, const SHA256Compress& b)
 {
@@ -323,4 +323,4 @@ template class IncrementalMerkleTree<INCREMENTAL_MERKLE_TREE_DEPTH_TESTING, SHA2
 template class IncrementalWitness<INCREMENTAL_MERKLE_TREE_DEPTH, SHA256Compress>;
 template class IncrementalWitness<INCREMENTAL_MERKLE_TREE_DEPTH_TESTING, SHA256Compress>;
 
-} // end namespace `libcrypticcoin`
+} // end namespace `libzcash`

@@ -36,7 +36,7 @@ LIBBITCOIN_CRYPTO=crypto/libbitcoin_crypto.a
 LIBSECP256K1=secp256k1/libsecp256k1.la
 LIBSNARK=snark/libsnark.a
 LIBUNIVALUE=univalue/libunivalue.la
-LIBCRYPTICCOIN=libcrypticcoin.a
+LIBCRYPTICCOIN=libzcash.a
 
 $(LIBSECP256K1): $(wildcard secp256k1/src/*) $(wildcard secp256k1/include/*)
 	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C $(@D) $(@F)
@@ -67,7 +67,7 @@ EXTRA_LIBRARIES = \
   libbitcoin_common.a \
   libbitcoin_server.a \
   libbitcoin_cli.a \
-  libcrypticcoin.a
+  libzcash.a
 if ENABLE_WALLET
 BITCOIN_INCLUDES += $(BDB_CPPFLAGS)
 EXTRA_LIBRARIES += libbitcoin_wallet.a
@@ -80,8 +80,8 @@ EXTRA_LIBRARIES += libbitcoin_proton.a
 endif
 
 if BUILD_BITCOIN_LIBS
-lib_LTLIBRARIES = libcrypticcoinconsensus.la
-LIBCRYPTICCOIN_CONSENSUS=libcrypticcoinconsensus.la
+lib_LTLIBRARIES = libzcashconsensus.la
+LIBCRYPTICCOIN_CONSENSUS=libzcashconsensus.la
 else
 LIBCRYPTICCOIN_CONSENSUS=
 endif
@@ -510,7 +510,7 @@ if TARGET_WINDOWS
 crypticcoin_tx_SOURCES += bitcoin-tx-res.rc
 endif
 
-# FIXME: Is libcrypticcoin needed for crypticcoin_tx?
+# FIXME: Is libzcash needed for crypticcoin_tx?
 crypticcoin_tx_LDADD = \
   $(LIBUNIVALUE) \
   $(LIBBITCOIN_COMMON) \
@@ -525,7 +525,7 @@ crypticcoin_tx_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
 #
 
 # crypticcoin protocol primitives #
-libcrypticcoin_a_SOURCES = \
+libzcash_a_SOURCES = \
   crypticcoin/IncrementalMerkleTree.cpp \
   crypticcoin/NoteEncryption.cpp \
   crypticcoin/Address.cpp \
@@ -541,16 +541,16 @@ libcrypticcoin_a_SOURCES = \
   crypticcoin/circuit/prfs.tcc \
   crypticcoin/circuit/utils.tcc
 
-libcrypticcoin_a_CPPFLAGS = $(AM_CPPFLAGS) $(PIC_FLAGS) -DBINARY_OUTPUT -DCURVE_ALT_BN128 -DBOOST_SPIRIT_THREADSAFE -fvisibility=hidden -DSTATIC $(BITCOIN_INCLUDES)
-libcrypticcoin_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libcrypticcoin_a_LDFLAGS = $(AM_LDFLAGS)
+libzcash_a_CPPFLAGS = $(AM_CPPFLAGS) $(PIC_FLAGS) -DBINARY_OUTPUT -DCURVE_ALT_BN128 -DBOOST_SPIRIT_THREADSAFE -fvisibility=hidden -DSTATIC $(BITCOIN_INCLUDES)
+libzcash_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libzcash_a_LDFLAGS = $(AM_LDFLAGS)
 
-libcrypticcoin_a_CPPFLAGS += -DMONTGOMERY_OUTPUT
+libzcash_a_CPPFLAGS += -DMONTGOMERY_OUTPUT
 
 # crypticcoinconsensus library #
 if BUILD_BITCOIN_LIBS
 include_HEADERS = script/crypticcoinconsensus.h
-libcrypticcoinconsensus_la_SOURCES = \
+libzcashconsensus_la_SOURCES = \
   crypto/equihash.cpp \
   crypto/hmac_sha512.cpp \
   crypto/ripemd160.cpp \
@@ -567,13 +567,13 @@ libcrypticcoinconsensus_la_SOURCES = \
   utilstrencodings.cpp
 
 if GLIBC_BACK_COMPAT
-  libcrypticcoinconsensus_la_SOURCES += compat/glibc_compat.cpp
+  libzcashconsensus_la_SOURCES += compat/glibc_compat.cpp
 endif
 
-libcrypticcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libcrypticcoinconsensus_la_LIBADD = $(LIBSECP256K1)
-libcrypticcoinconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
-libcrypticcoinconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libzcashconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
+libzcashconsensus_la_LIBADD = $(LIBSECP256K1)
+libzcashconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
+libzcashconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
 endif
 #
