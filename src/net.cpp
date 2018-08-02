@@ -2227,7 +2227,7 @@ static char *convert_str(const std::string &s) {
 }
 
 static void run_tor() {
-    printf("TOR thread started.\n");
+  //  printf("TOR thread started.\n");
 
     boost::optional<std::string> clientTransportPlugin;
     struct stat sb;
@@ -2255,6 +2255,7 @@ static void run_tor() {
     argv.push_back("--SocksPort");
     argv.push_back("9089");
     argv.push_back("--ignore-missing-torrc");
+    argv.push_back("--quiet");
     argv.push_back("-f");
     argv.push_back((tor_dir / "torrc").string());
     argv.push_back("--HiddenServiceDir");
@@ -2263,14 +2264,14 @@ static void run_tor() {
     argv.push_back("23303");
 
     if (clientTransportPlugin) {
-        printf("Using OBFS4.\n");
+     //   printf("Using OBFS4.\n");
         argv.push_back("--ClientTransportPlugin");
         argv.push_back(*clientTransportPlugin);
         argv.push_back("--UseBridges");
         argv.push_back("1");
     }
     else {
-        printf("No OBFS4 found, not using it.\n");
+     //   printf("No OBFS4 found, not using it.\n");
     }
 
     std::vector<char *> argv_c;
@@ -2287,7 +2288,7 @@ void StartTor() {
         run_tor();
     }
     catch (std::exception& e) {
-      //  PrintException(&e, "StartTor()");
+        PrintExceptionContinue(&e, "StartTor()");
     }
     LogPrint("net", "Onion thread exited.\n");
 
