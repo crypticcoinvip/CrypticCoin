@@ -306,7 +306,7 @@ public:
         nDefaultPort = 18344;
         nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 1000;
-        const size_t N = 48, K = 5;
+        const size_t N = 200, K = 9;
         BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
         nEquihashN = N;
         nEquihashK = K;
@@ -329,23 +329,23 @@ public:
         fMineBlocksOnDemand = true;
         fTestnetToBeDeprecatedFieldRPC = false;
 
-        checkpointData = (CCheckpointData){
+        checkpointData = (CCheckpointData) {
             boost::assign::map_list_of
-            ( 0, uint256S("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206")),
+            (0, consensus.hashGenesisBlock),
             0,
             0,
             0
         };
         // These prefixes are the same as the testnet prefixes
-        base58Prefixes[PUBKEY_ADDRESS]     = {0x0E,0xA4};
-        base58Prefixes[SCRIPT_ADDRESS]     = {0x0E,0xAA};
+        base58Prefixes[PUBKEY_ADDRESS]     = {0x1D,0x25};
+        base58Prefixes[SCRIPT_ADDRESS]     = {0x1C,0xBA};
         base58Prefixes[SECRET_KEY]         = {0xEF};
         // do not rely on these BIP32 prefixes; they are not specified and may change
         base58Prefixes[EXT_PUBLIC_KEY]     = {0x04,0x35,0x87,0xCF};
         base58Prefixes[EXT_SECRET_KEY]     = {0x04,0x35,0x83,0x94};
-        base58Prefixes[ZCPAYMENT_ADDRRESS] = {0x04,0x96,0x90};
-        base58Prefixes[ZCVIEWING_KEY]      = {0x1E,0x9A,0x10,0xC6};
-        base58Prefixes[ZCSPENDING_KEY]     = {0x09,0x17,0x1F,0xBA};
+        base58Prefixes[ZCPAYMENT_ADDRRESS] = {0x16,0xB6};
+        base58Prefixes[ZCVIEWING_KEY]      = {0xA8,0xAC,0x0C};
+        base58Prefixes[ZCSPENDING_KEY]     = {0xAC,0x08};
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = {};
