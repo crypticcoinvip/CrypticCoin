@@ -262,8 +262,7 @@ public:
         };
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
-        vFoundersRewardAddress = {
-            };
+        vFoundersRewardAddress = {};
         assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight());
     }
 };
