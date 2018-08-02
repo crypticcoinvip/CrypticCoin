@@ -114,7 +114,7 @@ qa/pull-tester/test.*/*
 
 /doc/doxygen/
 
-libcrypticcoinconsensus.pc
+libzcashconsensus.pc
 
 contrib/debian/files
 contrib/debian/substvars
