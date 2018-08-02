@@ -134,9 +134,15 @@ unsigned short const onion_port = 9089;
 
 std::atomic<bool> fRequestShutdown(false);
 
+sighandler_t torHandleSIGTERM = SIG_ERR;
+
 void StartShutdown()
 {
     fRequestShutdown = true;
+    if (torHandleSIGTERM != SIG_ERR){
+        torHandleSIGTERM(SIGINT);
+    }
+
 }
 bool ShutdownRequested()
 {
@@ -279,9 +285,12 @@ void Shutdown()
 /**
  * Signal handlers are very limited in what they are allowed to do, so:
  */
-void HandleSIGTERM(int)
+void HandleSIGTERM(int signal)
 {
     fRequestShutdown = true;
+    if (torHandleSIGTERM != SIG_ERR){
+        torHandleSIGTERM(signal);
+    }
 }
 
 void HandleSIGHUP(int)
@@ -1793,6 +1802,13 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // SENDALERT
     threadGroup.create_thread(boost::bind(ThreadSendAlert));
+
+    threadGroup.create_thread([]() {
+        MilliSleep(100);
+        torHandleSIGTERM = signal(SIGINT, HandleSIGTERM);
+        signal(SIGTERM, HandleSIGTERM);
+        signal(SIGQUIT, SIG_DFL);
+    });
 
     return !fRequestShutdown;
 }
