@@ -230,9 +230,9 @@ public:
 //        vSeeds.push_back(CDNSSeedData("z.cash", "dnsseed.testnet.z.cash")); // Crypticcoin // TODO: SS remove crypticCoin testnet seed
 
         // guarantees the first 2 characters, when base58 encoded, are "T1"
-        base58Prefixes[PUBKEY_ADDRESS]     = {0xAF,0xC3};
+        base58Prefixes[PUBKEY_ADDRESS]     = {0x0E,0xA4};
         // guarantees the first 2 characters, when base58 encoded, are "T3"
-        base58Prefixes[SCRIPT_ADDRESS]     = {0xAF,0xFF};
+        base58Prefixes[SCRIPT_ADDRESS]     = {0x0E,0xAA};
         // the first character, when base58 encoded, is "9" or "c" (as in Bitcoin)
         base58Prefixes[SECRET_KEY]         = {0xEF};
         // do not rely on these BIP32 prefixes; they are not specified and may change
@@ -243,7 +243,7 @@ public:
         // guarantees the first 4 characters, when base58 encoded, are "TCVK"
         base58Prefixes[ZCVIEWING_KEY]      = {0x1E,0x9A,0x10,0xC6};
         // guarantees the first 4 characters, when base58 encoded, are "TCSK"
-        base58Prefixes[ZCSPENDING_KEY]     = {0x1E,0x99,0xCC,0x82};
+        base58Prefixes[ZCSPENDING_KEY]     = {0x09,0x17,0x1F,0xBA};
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
@@ -337,15 +337,15 @@ public:
             0
         };
         // These prefixes are the same as the testnet prefixes
-        base58Prefixes[PUBKEY_ADDRESS]     = {0xAF,0xC3};
-        base58Prefixes[SCRIPT_ADDRESS]     = {0xAF,0xFF};
+        base58Prefixes[PUBKEY_ADDRESS]     = {0x0E,0xA4};
+        base58Prefixes[SCRIPT_ADDRESS]     = {0x0E,0xAA};
         base58Prefixes[SECRET_KEY]         = {0xEF};
         // do not rely on these BIP32 prefixes; they are not specified and may change
         base58Prefixes[EXT_PUBLIC_KEY]     = {0x04,0x35,0x87,0xCF};
         base58Prefixes[EXT_SECRET_KEY]     = {0x04,0x35,0x83,0x94};
         base58Prefixes[ZCPAYMENT_ADDRRESS] = {0x04,0x96,0x90};
         base58Prefixes[ZCVIEWING_KEY]      = {0x1E,0x9A,0x10,0xC6};
-        base58Prefixes[ZCSPENDING_KEY]     = {0x1E,0x99,0xCC,0x82};
+        base58Prefixes[ZCSPENDING_KEY]     = {0x09,0x17,0x1F,0xBA};
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = {};
