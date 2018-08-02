@@ -200,11 +200,11 @@ public:
             mi++;
         }
     }
-    virtual bool AddCryptedSpendingKey(const libcrypticcoin::PaymentAddress &address,
-                                       const libcrypticcoin::ReceivingKey &rk,
+    virtual bool AddCryptedSpendingKey(const libzcash::PaymentAddress &address,
+                                       const libzcash::ReceivingKey &rk,
                                        const std::vector<unsigned char> &vchCryptedSecret);
-    bool AddSpendingKey(const libcrypticcoin::SpendingKey &sk);
-    bool HaveSpendingKey(const libcrypticcoin::PaymentAddress &address) const
+    bool AddSpendingKey(const libzcash::SpendingKey &sk);
+    bool HaveSpendingKey(const libzcash::PaymentAddress &address) const
     {
         {
             LOCK(cs_SpendingKeyStore);
@@ -214,8 +214,8 @@ public:
         }
         return false;
     }
-    bool GetSpendingKey(const libcrypticcoin::PaymentAddress &address, libcrypticcoin::SpendingKey &skOut) const;
-    void GetPaymentAddresses(std::set<libcrypticcoin::PaymentAddress> &setAddress) const
+    bool GetSpendingKey(const libzcash::PaymentAddress &address, libzcash::SpendingKey &skOut) const;
+    void GetPaymentAddresses(std::set<libzcash::PaymentAddress> &setAddress) const
     {
         if (!IsCrypted())
         {

@@ -28,7 +28,7 @@
 #include "crypticcoin/NoteEncryption.hpp"
 
 using namespace std;
-using namespace libcrypticcoin;
+using namespace libzcash;
 
 // Function declaration for function implemented in wallet/rpcwallet.cpp
 bool EnsureWalletIsAvailable(bool avoidException);

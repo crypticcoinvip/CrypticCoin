@@ -6,7 +6,7 @@
 #include "Address.hpp"
 #include "NoteEncryption.hpp"
 
-namespace libcrypticcoin {
+namespace libzcash {
 
 class Note {
 public:

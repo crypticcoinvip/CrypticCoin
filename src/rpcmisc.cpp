@@ -253,7 +253,7 @@ UniValue z_validateaddress(const UniValue& params, bool fHelp)
     string strAddress = params[0].get_str();
     try {
         CZCPaymentAddress address(strAddress);
-        libcrypticcoin::PaymentAddress addr = address.Get();
+        libzcash::PaymentAddress addr = address.Get();
 
 #ifdef ENABLE_WALLET
         isMine = pwalletMain->HaveSpendingKey(addr);

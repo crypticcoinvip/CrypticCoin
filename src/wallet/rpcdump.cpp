@@ -302,8 +302,8 @@ UniValue importwallet_impl(const UniValue& params, bool fHelp, bool fImportZKeys
         if (fImportZKeys) {
             try {
                 CZCSpendingKey spendingkey(vstr[0]);
-                libcrypticcoin::SpendingKey key = spendingkey.Get();
-                libcrypticcoin::PaymentAddress addr = key.address();
+                libzcash::SpendingKey key = spendingkey.Get();
+                libzcash::PaymentAddress addr = key.address();
                 if (pwalletMain->HaveSpendingKey(addr)) {
                     LogPrint("zrpc", "Skipping import of zaddr %s (key already present)\n", CZCPaymentAddress(addr).ToString());
                     continue;
@@ -530,13 +530,13 @@ UniValue dumpwallet_impl(const UniValue& params, bool fHelp, bool fDumpZKeys)
     file << "\n";
 
     if (fDumpZKeys) {
-        std::set<libcrypticcoin::PaymentAddress> addresses;
+        std::set<libzcash::PaymentAddress> addresses;
         pwalletMain->GetPaymentAddresses(addresses);
         file << "\n";
         file << "# Zkeys\n";
         file << "\n";
         for (auto addr : addresses ) {
-            libcrypticcoin::SpendingKey key;
+            libzcash::SpendingKey key;
             if (pwalletMain->GetSpendingKey(addr, key)) {
                 std::string strTime = EncodeDumpTime(pwalletMain->mapZKeyMetadata[addr].nCreateTime);
                 file << strprintf("%s %s # zaddr=%s\n", CZCSpendingKey(key).ToString(), strTime, CZCPaymentAddress(addr).ToString());
@@ -766,7 +766,7 @@ UniValue z_exportkey(const UniValue& params, bool fHelp)
     CZCPaymentAddress address(strAddress);
     auto addr = address.Get();
 
-    libcrypticcoin::SpendingKey k;
+    libzcash::SpendingKey k;
     if (!pwalletMain->GetSpendingKey(addr, k))
         throw JSONRPCError(RPC_WALLET_ERROR, "Wallet does not hold private zkey for this zaddr");
 
@@ -802,9 +802,9 @@ UniValue z_exportviewingkey(const UniValue& params, bool fHelp)
     CZCPaymentAddress address(strAddress);
     auto addr = address.Get();
 
-    libcrypticcoin::ViewingKey vk;
+    libzcash::ViewingKey vk;
     if (!pwalletMain->GetViewingKey(addr, vk)) {
-        libcrypticcoin::SpendingKey k;
+        libzcash::SpendingKey k;
         if (!pwalletMain->GetSpendingKey(addr, k)) {
             throw JSONRPCError(RPC_WALLET_ERROR, "Wallet does not hold private key or viewing key for this zaddr");
         }

@@ -38,12 +38,12 @@ struct PaymentDisclosureInfo {
     uint256 joinSplitPrivKey; // primitives/transaction.h
     // ed25519 - not tied to implementation e.g. libsodium, see ed25519 rfc
 
-    libcrypticcoin::PaymentAddress zaddr;
+    libzcash::PaymentAddress zaddr;
 
     PaymentDisclosureInfo() : version(PAYMENT_DISCLOSURE_VERSION_EXPERIMENTAL) {
     }
 
-    PaymentDisclosureInfo(uint8_t v, uint256 esk, uint256 key, libcrypticcoin::PaymentAddress zaddr) : version(v), esk(esk), joinSplitPrivKey(key), zaddr(zaddr) { }
+    PaymentDisclosureInfo(uint8_t v, uint256 esk, uint256 key, libzcash::PaymentAddress zaddr) : version(v), esk(esk), joinSplitPrivKey(key), zaddr(zaddr) { }
 
     ADD_SERIALIZE_METHODS;
 
@@ -75,7 +75,7 @@ struct PaymentDisclosurePayload {
     uint256 txid;           // primitives/transaction.h
     uint64_t js;            // Index into CTransaction.vjoinsplit
     uint8_t n;              // Index into JSDescription fields of length ZC_NUM_JS_OUTPUTS
-    libcrypticcoin::PaymentAddress zaddr; // crypticcoin/Address.hpp
+    libzcash::PaymentAddress zaddr; // crypticcoin/Address.hpp
     std::string message;     // parameter to RPC call
 
     ADD_SERIALIZE_METHODS;

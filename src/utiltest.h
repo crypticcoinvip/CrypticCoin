@@ -8,11 +8,11 @@
 #include "crypticcoin/NoteEncryption.hpp"
 
 CWalletTx GetValidReceive(ZCJoinSplit& params,
-                          const libcrypticcoin::SpendingKey& sk, CAmount value,
+                          const libzcash::SpendingKey& sk, CAmount value,
                           bool randomInputs);
-libcrypticcoin::Note GetNote(ZCJoinSplit& params,
-                       const libcrypticcoin::SpendingKey& sk,
+libzcash::Note GetNote(ZCJoinSplit& params,
+                       const libzcash::SpendingKey& sk,
                        const CTransaction& tx, size_t js, size_t n);
 CWalletTx GetValidSpend(ZCJoinSplit& params,
-                        const libcrypticcoin::SpendingKey& sk,
-                        const libcrypticcoin::Note& note, CAmount value);
+                        const libzcash::SpendingKey& sk,
+                        const libzcash::Note& note, CAmount value);

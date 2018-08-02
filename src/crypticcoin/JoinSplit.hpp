@@ -13,7 +13,7 @@
 
 #include <boost/array.hpp>
 
-namespace libcrypticcoin {
+namespace libzcash {
 
 class JSInput {
 public:
@@ -99,7 +99,7 @@ protected:
 
 }
 
-typedef libcrypticcoin::JoinSplit<ZC_NUM_JS_INPUTS,
+typedef libzcash::JoinSplit<ZC_NUM_JS_INPUTS,
                             ZC_NUM_JS_OUTPUTS> ZCJoinSplit;
 
 #endif // ZC_JOINSPLIT_H_

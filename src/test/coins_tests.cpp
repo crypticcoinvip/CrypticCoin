@@ -154,10 +154,10 @@ public:
 
 uint256 appendRandomCommitment(ZCIncrementalMerkleTree &tree)
 {
-    libcrypticcoin::SpendingKey k = libcrypticcoin::SpendingKey::random();
-    libcrypticcoin::PaymentAddress addr = k.address();
+    libzcash::SpendingKey k = libzcash::SpendingKey::random();
+    libzcash::PaymentAddress addr = k.address();
 
-    libcrypticcoin::Note note(addr.a_pk, 0, uint256(), uint256());
+    libzcash::Note note(addr.a_pk, 0, uint256(), uint256());
 
     auto cm = note.cm();
     tree.append(cm);

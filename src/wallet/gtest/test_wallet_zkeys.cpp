@@ -20,7 +20,7 @@ TEST(wallet_zkeys_tests, store_and_load_zkeys) {
     CWallet wallet;
 
     // wallet should be empty
-    std::set<libcrypticcoin::PaymentAddress> addrs;
+    std::set<libzcash::PaymentAddress> addrs;
     wallet.GetPaymentAddresses(addrs);
     ASSERT_EQ(0, addrs.size());
 
@@ -34,7 +34,7 @@ TEST(wallet_zkeys_tests, store_and_load_zkeys) {
     ASSERT_TRUE(wallet.HaveSpendingKey(addr));
 
     // manually add new spending key to wallet
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     ASSERT_TRUE(wallet.AddZKey(sk));
 
     // verify wallet did add it
@@ -42,7 +42,7 @@ TEST(wallet_zkeys_tests, store_and_load_zkeys) {
     ASSERT_TRUE(wallet.HaveSpendingKey(addr));
 
     // verify spending key stored correctly
-    libcrypticcoin::SpendingKey keyOut;
+    libzcash::SpendingKey keyOut;
     wallet.GetSpendingKey(addr, keyOut);
     ASSERT_EQ(sk, keyOut);
 
@@ -52,7 +52,7 @@ TEST(wallet_zkeys_tests, store_and_load_zkeys) {
     ASSERT_EQ(1, addrs.count(addr));
 
     // Load a third key into the wallet
-    sk = libcrypticcoin::SpendingKey::random();
+    sk = libzcash::SpendingKey::random();
     ASSERT_TRUE(wallet.LoadZKey(sk));
 
     // attach metadata to this third key
@@ -78,12 +78,12 @@ TEST(wallet_zkeys_tests, StoreAndLoadViewingKeys) {
     CWallet wallet;
 
     // wallet should be empty
-    std::set<libcrypticcoin::PaymentAddress> addrs;
+    std::set<libzcash::PaymentAddress> addrs;
     wallet.GetPaymentAddresses(addrs);
     ASSERT_EQ(0, addrs.size());
 
     // manually add new viewing key to wallet
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     auto vk = sk.viewing_key();
     ASSERT_TRUE(wallet.AddViewingKey(vk));
 
@@ -94,12 +94,12 @@ TEST(wallet_zkeys_tests, StoreAndLoadViewingKeys) {
     ASSERT_FALSE(wallet.HaveSpendingKey(addr));
 
     // verify viewing key stored correctly
-    libcrypticcoin::ViewingKey vkOut;
+    libzcash::ViewingKey vkOut;
     wallet.GetViewingKey(addr, vkOut);
     ASSERT_EQ(vk, vkOut);
 
     // Load a second viewing key into the wallet
-    auto sk2 = libcrypticcoin::SpendingKey::random();
+    auto sk2 = libzcash::SpendingKey::random();
     ASSERT_TRUE(wallet.LoadViewingKey(sk2.viewing_key()));
 
     // verify wallet did add it
@@ -134,7 +134,7 @@ TEST(wallet_zkeys_tests, write_zkey_direct_to_db) {
     ASSERT_TRUE(fFirstRun);
 
     // wallet should be empty
-    std::set<libcrypticcoin::PaymentAddress> addrs;
+    std::set<libzcash::PaymentAddress> addrs;
     wallet.GetPaymentAddresses(addrs);
     ASSERT_EQ(0, addrs.size());
 
@@ -146,7 +146,7 @@ TEST(wallet_zkeys_tests, write_zkey_direct_to_db) {
     ASSERT_EQ(1, addrs.size());
 
     // create random key and add it to database directly, bypassing wallet
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     auto addr = sk.address();
     int64_t now = GetTime();
     CKeyMetadata meta(now);
@@ -172,7 +172,7 @@ TEST(wallet_zkeys_tests, write_zkey_direct_to_db) {
     ASSERT_TRUE(wallet.HaveSpendingKey(addr));
 
     // check key is the same
-    libcrypticcoin::SpendingKey keyOut;
+    libzcash::SpendingKey keyOut;
     wallet.GetSpendingKey(addr, keyOut);
     ASSERT_EQ(sk, keyOut);
 
@@ -206,7 +206,7 @@ TEST(wallet_zkeys_tests, WriteViewingKeyDirectToDB) {
     ASSERT_TRUE(fFirstRun);
 
     // create random viewing key and add it to database directly, bypassing wallet
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     auto vk = sk.viewing_key();
     auto addr = sk.address();
     int64_t now = GetTime();
@@ -224,7 +224,7 @@ TEST(wallet_zkeys_tests, WriteViewingKeyDirectToDB) {
     ASSERT_TRUE(wallet.HaveViewingKey(addr));
 
     // check key is the same
-    libcrypticcoin::ViewingKey vkOut;
+    libzcash::ViewingKey vkOut;
     wallet.GetViewingKey(addr, vkOut);
     ASSERT_EQ(vk, vkOut);
 }
@@ -253,7 +253,7 @@ TEST(wallet_zkeys_tests, write_cryptedzkey_direct_to_db) {
     ASSERT_TRUE(fFirstRun);
 
     // wallet should be empty
-    std::set<libcrypticcoin::PaymentAddress> addrs;
+    std::set<libzcash::PaymentAddress> addrs;
     wallet.GetPaymentAddresses(addrs);
     ASSERT_EQ(0, addrs.size());
 
@@ -293,7 +293,7 @@ TEST(wallet_zkeys_tests, write_cryptedzkey_direct_to_db) {
     ASSERT_TRUE(addrs.count(paymentAddress2.Get()));
 
     // spending key is crypted, so we can't extract valid payment address
-    libcrypticcoin::SpendingKey keyOut;
+    libzcash::SpendingKey keyOut;
     wallet2.GetSpendingKey(paymentAddress.Get(), keyOut);
     ASSERT_FALSE(paymentAddress.Get() == keyOut.address());
     

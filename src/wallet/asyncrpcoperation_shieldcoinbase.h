@@ -23,7 +23,7 @@
 // Default transaction fee if caller does not specify one.
 #define SHIELD_COINBASE_DEFAULT_MINERS_FEE   10000
 
-using namespace libcrypticcoin;
+using namespace libzcash;
 
 struct ShieldCoinbaseUTXO {
     uint256 txid;

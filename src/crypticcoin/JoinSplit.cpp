@@ -20,7 +20,7 @@
 
 using namespace libsnark;
 
-namespace libcrypticcoin {
+namespace libzcash {
 
 #include "crypticcoin/circuit/gadget.tcc"
 

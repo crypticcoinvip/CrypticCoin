@@ -9,13 +9,13 @@
 
 TEST(keystore_tests, store_and_retrieve_spending_key) {
     CBasicKeyStore keyStore;
-    libcrypticcoin::SpendingKey skOut;
+    libzcash::SpendingKey skOut;
 
-    std::set<libcrypticcoin::PaymentAddress> addrs;
+    std::set<libzcash::PaymentAddress> addrs;
     keyStore.GetPaymentAddresses(addrs);
     EXPECT_EQ(0, addrs.size());
 
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     auto addr = sk.address();
 
     // Sanity-check: we can't get a key we haven't added
@@ -36,7 +36,7 @@ TEST(keystore_tests, store_and_retrieve_note_decryptor) {
     CBasicKeyStore keyStore;
     ZCNoteDecryption decOut;
 
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     auto addr = sk.address();
 
     EXPECT_FALSE(keyStore.GetNoteDecryptor(addr, decOut));
@@ -48,11 +48,11 @@ TEST(keystore_tests, store_and_retrieve_note_decryptor) {
 
 TEST(keystore_tests, StoreAndRetrieveViewingKey) {
     CBasicKeyStore keyStore;
-    libcrypticcoin::ViewingKey vkOut;
-    libcrypticcoin::SpendingKey skOut;
+    libzcash::ViewingKey vkOut;
+    libzcash::SpendingKey skOut;
     ZCNoteDecryption decOut;
 
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     auto vk = sk.viewing_key();
     auto addr = sk.address();
 
@@ -66,7 +66,7 @@ TEST(keystore_tests, StoreAndRetrieveViewingKey) {
     EXPECT_FALSE(keyStore.GetNoteDecryptor(addr, decOut));
 
     // and we can't find it in our list of addresses
-    std::set<libcrypticcoin::PaymentAddress> addresses;
+    std::set<libzcash::PaymentAddress> addresses;
     keyStore.GetPaymentAddresses(addresses);
     EXPECT_FALSE(addresses.count(addr));
 
@@ -115,12 +115,12 @@ TEST(keystore_tests, store_and_retrieve_spending_key_in_encrypted_store) {
     TestCCryptoKeyStore keyStore;
     uint256 r {GetRandHash()};
     CKeyingMaterial vMasterKey (r.begin(), r.end());
-    libcrypticcoin::SpendingKey keyOut;
+    libzcash::SpendingKey keyOut;
     ZCNoteDecryption decOut;
-    std::set<libcrypticcoin::PaymentAddress> addrs;
+    std::set<libzcash::PaymentAddress> addrs;
 
     // 1) Test adding a key to an unencrypted key store, then encrypting it
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     auto addr = sk.address();
     EXPECT_FALSE(keyStore.GetNoteDecryptor(addr, decOut));
 
@@ -157,7 +157,7 @@ TEST(keystore_tests, store_and_retrieve_spending_key_in_encrypted_store) {
     ASSERT_EQ(1, addrs.count(addr));
 
     // 2) Test adding a spending key to an already-encrypted key store
-    auto sk2 = libcrypticcoin::SpendingKey::random();
+    auto sk2 = libzcash::SpendingKey::random();
     auto addr2 = sk2.address();
     EXPECT_FALSE(keyStore.GetNoteDecryptor(addr2, decOut));
 

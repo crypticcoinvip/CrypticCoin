@@ -12,7 +12,7 @@ https://github.com/crypticcoin/zips/blob/master/protocol/protocol.pdf
 
 #include "crypticcoin/Crypticcoin.h"
 
-namespace libcrypticcoin {
+namespace libzcash {
 
 #define NOTEENCRYPTION_AUTH_BYTES 16
 
@@ -117,9 +117,9 @@ public:
 
 }
 
-typedef libcrypticcoin::NoteEncryption<ZC_NOTEPLAINTEXT_SIZE> ZCNoteEncryption;
-typedef libcrypticcoin::NoteDecryption<ZC_NOTEPLAINTEXT_SIZE> ZCNoteDecryption;
+typedef libzcash::NoteEncryption<ZC_NOTEPLAINTEXT_SIZE> ZCNoteEncryption;
+typedef libzcash::NoteDecryption<ZC_NOTEPLAINTEXT_SIZE> ZCNoteDecryption;
 
-typedef libcrypticcoin::PaymentDisclosureNoteDecryption<ZC_NOTEPLAINTEXT_SIZE> ZCPaymentDisclosureNoteDecryption;
+typedef libzcash::PaymentDisclosureNoteDecryption<ZC_NOTEPLAINTEXT_SIZE> ZCPaymentDisclosureNoteDecryption;
 
 #endif /* ZC_NOTE_ENCRYPTION_H_ */
