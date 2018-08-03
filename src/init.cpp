@@ -134,7 +134,8 @@ unsigned short const onion_port = 9089;
 
 std::atomic<bool> fRequestShutdown(false);
 
-sighandler_t torHandleSIGTERM = SIG_ERR;
+typedef void (*general_sighandler_t)(int);
+general_sighandler_t torHandleSIGTERM = SIG_ERR;
 
 void StartShutdown()
 {
