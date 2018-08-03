@@ -7,7 +7,7 @@
 #include "consensus/upgrades.h"
 
 CWalletTx GetValidReceive(ZCJoinSplit& params,
-                          const libcrypticcoin::SpendingKey& sk, CAmount value,
+                          const libzcash::SpendingKey& sk, CAmount value,
                           bool randomInputs) {
     CMutableTransaction mtx;
     mtx.nVersion = 2; // Enable JoinSplits
@@ -28,17 +28,17 @@ CWalletTx GetValidReceive(ZCJoinSplit& params,
     crypto_sign_keypair(joinSplitPubKey.begin(), joinSplitPrivKey);
     mtx.joinSplitPubKey = joinSplitPubKey;
 
-    boost::array<libcrypticcoin::JSInput, 2> inputs = {
-        libcrypticcoin::JSInput(), // dummy input
-        libcrypticcoin::JSInput() // dummy input
+    boost::array<libzcash::JSInput, 2> inputs = {
+        libzcash::JSInput(), // dummy input
+        libzcash::JSInput() // dummy input
     };
 
-    boost::array<libcrypticcoin::JSOutput, 2> outputs = {
-        libcrypticcoin::JSOutput(sk.address(), value),
-        libcrypticcoin::JSOutput(sk.address(), value)
+    boost::array<libzcash::JSOutput, 2> outputs = {
+        libzcash::JSOutput(sk.address(), value),
+        libzcash::JSOutput(sk.address(), value)
     };
 
-    boost::array<libcrypticcoin::Note, 2> output_notes;
+    boost::array<libzcash::Note, 2> output_notes;
 
     // Prepare JoinSplits
     uint256 rt;
@@ -63,12 +63,12 @@ CWalletTx GetValidReceive(ZCJoinSplit& params,
     return wtx;
 }
 
-libcrypticcoin::Note GetNote(ZCJoinSplit& params,
-                       const libcrypticcoin::SpendingKey& sk,
+libzcash::Note GetNote(ZCJoinSplit& params,
+                       const libzcash::SpendingKey& sk,
                        const CTransaction& tx, size_t js, size_t n) {
     ZCNoteDecryption decryptor {sk.receiving_key()};
     auto hSig = tx.vjoinsplit[js].h_sig(params, tx.joinSplitPubKey);
-    auto note_pt = libcrypticcoin::NotePlaintext::decrypt(
+    auto note_pt = libzcash::NotePlaintext::decrypt(
         decryptor,
         tx.vjoinsplit[js].ciphertexts[n],
         tx.vjoinsplit[js].ephemeralKey,
@@ -78,8 +78,8 @@ libcrypticcoin::Note GetNote(ZCJoinSplit& params,
 }
 
 CWalletTx GetValidSpend(ZCJoinSplit& params,
-                        const libcrypticcoin::SpendingKey& sk,
-                        const libcrypticcoin::Note& note, CAmount value) {
+                        const libzcash::SpendingKey& sk,
+                        const libzcash::Note& note, CAmount value) {
     CMutableTransaction mtx;
     mtx.vout.resize(2);
     mtx.vout[0].nValue = value;
@@ -94,36 +94,36 @@ CWalletTx GetValidSpend(ZCJoinSplit& params,
     // Fake tree for the unused witness
     ZCIncrementalMerkleTree tree;
 
-    libcrypticcoin::JSOutput dummyout;
-    libcrypticcoin::JSInput dummyin;
+    libzcash::JSOutput dummyout;
+    libzcash::JSInput dummyin;
 
     {
         if (note.value > value) {
-            libcrypticcoin::SpendingKey dummykey = libcrypticcoin::SpendingKey::random();
-            libcrypticcoin::PaymentAddress dummyaddr = dummykey.address();
-            dummyout = libcrypticcoin::JSOutput(dummyaddr, note.value - value);
+            libzcash::SpendingKey dummykey = libzcash::SpendingKey::random();
+            libzcash::PaymentAddress dummyaddr = dummykey.address();
+            dummyout = libzcash::JSOutput(dummyaddr, note.value - value);
         } else if (note.value < value) {
-            libcrypticcoin::SpendingKey dummykey = libcrypticcoin::SpendingKey::random();
-            libcrypticcoin::PaymentAddress dummyaddr = dummykey.address();
-            libcrypticcoin::Note dummynote(dummyaddr.a_pk, (value - note.value), uint256(), uint256());
+            libzcash::SpendingKey dummykey = libzcash::SpendingKey::random();
+            libzcash::PaymentAddress dummyaddr = dummykey.address();
+            libzcash::Note dummynote(dummyaddr.a_pk, (value - note.value), uint256(), uint256());
             tree.append(dummynote.cm());
-            dummyin = libcrypticcoin::JSInput(tree.witness(), dummynote, dummykey);
+            dummyin = libzcash::JSInput(tree.witness(), dummynote, dummykey);
         }
     }
 
     tree.append(note.cm());
 
-    boost::array<libcrypticcoin::JSInput, 2> inputs = {
-        libcrypticcoin::JSInput(tree.witness(), note, sk),
+    boost::array<libzcash::JSInput, 2> inputs = {
+        libzcash::JSInput(tree.witness(), note, sk),
         dummyin
     };
 
-    boost::array<libcrypticcoin::JSOutput, 2> outputs = {
+    boost::array<libzcash::JSOutput, 2> outputs = {
         dummyout, // dummy output
-        libcrypticcoin::JSOutput() // dummy output
+        libzcash::JSOutput() // dummy output
     };
 
-    boost::array<libcrypticcoin::Note, 2> output_notes;
+    boost::array<libzcash::Note, 2> output_notes;
 
     // Prepare JoinSplits
     uint256 rt = tree.root();

@@ -194,7 +194,7 @@ TEST(merkletree, vectors) {
 TEST(merkletree, emptyroots) {
     UniValue empty_roots = read_json(MAKE_STRING(json_tests::merkle_roots_empty));
 
-    libcrypticcoin::EmptyMerkleRoots<64, libcrypticcoin::SHA256Compress> emptyroots;
+    libzcash::EmptyMerkleRoots<64, libzcash::SHA256Compress> emptyroots;
 
     for (size_t depth = 0; depth <= 64; depth++) {
         expect_test_vector(empty_roots[depth], emptyroots.empty_root(depth));

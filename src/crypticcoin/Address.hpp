@@ -5,7 +5,7 @@
 #include "uint252.h"
 #include "serialize.h"
 
-namespace libcrypticcoin {
+namespace libzcash {
 
 const size_t SerializedPaymentAddressSize = 64;
 const size_t SerializedViewingKeySize = 64;

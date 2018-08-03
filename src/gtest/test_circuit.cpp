@@ -15,7 +15,7 @@
 #include "crypticcoin/IncrementalMerkleTree.hpp"
 
 using namespace libsnark;
-using namespace libcrypticcoin;
+using namespace libzcash;
 
 #include "crypticcoin/circuit/utils.tcc"
 #include "crypticcoin/circuit/merkle.tcc"

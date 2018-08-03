@@ -120,7 +120,7 @@ TEST(paymentdisclosure, mainnet) {
         PaymentDisclosureInfo info;
         info.esk = random_uint256();
         info.joinSplitPrivKey = joinSplitPrivKey;
-        info.zaddr = libcrypticcoin::SpendingKey::random().address();
+        info.zaddr = libzcash::SpendingKey::random().address();
         ASSERT_TRUE(mydb.Put(key, info));
 
         // Retrieve info from test database into new local variable and test it matches
@@ -131,7 +131,7 @@ TEST(paymentdisclosure, mainnet) {
         // Modify this local variable and confirm it no longer matches
         info2.esk = random_uint256();
         info2.joinSplitPrivKey = random_uint256();
-        info2.zaddr = libcrypticcoin::SpendingKey::random().address();        
+        info2.zaddr = libzcash::SpendingKey::random().address();        
         ASSERT_NE(info, info2);
 
         // Using the payment info object, let's create a dummy payload

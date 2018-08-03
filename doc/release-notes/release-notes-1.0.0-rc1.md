@@ -83,7 +83,7 @@ Kevin Gallagher (24):
       Adds crypticcoin/Crypticcoin.h to LIBCRYPTICCOIN sources
       Adds crypticcoin/Proof.hpp to LIBCRYPTICCOIN_H
       Add alertkeys.h to libbitcoin_server_a_SOURCES
-      Adds files in src/crypticcoin/circuit to libcrypticcoin_a_SOURCES
+      Adds files in src/crypticcoin/circuit to libzcash_a_SOURCES
       Adds zcbenchmarks.h to libbitcoin_wallet_a_SOURCES
       Adds json_test_vectors.h to crypticcoin_gtest_SOURCES
       Adds additional licenses to Debian copyright file

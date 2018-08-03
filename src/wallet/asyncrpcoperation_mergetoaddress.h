@@ -22,7 +22,7 @@
 // Default transaction fee if caller does not specify one.
 #define MERGE_TO_ADDRESS_OPERATION_DEFAULT_MINERS_FEE 10000
 
-using namespace libcrypticcoin;
+using namespace libzcash;
 
 // Input UTXO is a tuple of txid, vout, amount
 typedef std::tuple<COutPoint, CAmount> MergeToAddressInputUTXO;

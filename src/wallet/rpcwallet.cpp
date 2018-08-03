@@ -40,7 +40,7 @@
 
 using namespace std;
 
-using namespace libcrypticcoin;
+using namespace libzcash;
 
 extern UniValue TxJoinSplitToJSON(const CTransaction& tx);
 
@@ -2490,7 +2490,7 @@ UniValue z_listunspent(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Maximum number of confirmations must be greater or equal to the minimum number of confirmations");
     }
 
-    std::set<libcrypticcoin::PaymentAddress> zaddrs = {};
+    std::set<libzcash::PaymentAddress> zaddrs = {};
 
     bool fIncludeWatchonly = false;
     if (params.size() > 2) {
@@ -2516,7 +2516,7 @@ UniValue z_listunspent(const UniValue& params, bool fHelp)
             string address = o.get_str();
             try {
                 CZCPaymentAddress zaddr(address);
-                libcrypticcoin::PaymentAddress addr = zaddr.Get();
+                libzcash::PaymentAddress addr = zaddr.Get();
                 if (!fIncludeWatchonly && !pwalletMain->HaveSpendingKey(addr)) {
                     throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, spending key for address does not belong to wallet: ") + address);
                 }
@@ -2971,7 +2971,7 @@ UniValue zc_raw_joinsplit(const UniValue& params, bool fHelp)
                          vpub_new);
 
     {
-        auto verifier = libcrypticcoin::ProofVerifier::Strict();
+        auto verifier = libzcash::ProofVerifier::Strict();
         assert(jsdesc.Verify(*pcrypticcoinParams, verifier, joinSplitPubKey));
     }
 
@@ -3120,7 +3120,7 @@ UniValue z_listaddresses(const UniValue& params, bool fHelp)
     }
 
     UniValue ret(UniValue::VARR);
-    std::set<libcrypticcoin::PaymentAddress> addresses;
+    std::set<libzcash::PaymentAddress> addresses;
     pwalletMain->GetPaymentAddresses(addresses);
     for (auto addr : addresses ) {
         if (fIncludeWatchonly || pwalletMain->HaveSpendingKey(addr)) {
@@ -3221,7 +3221,7 @@ UniValue z_listreceivedbyaddress(const UniValue& params, bool fHelp)
     // Check that the from address is valid.
     auto fromaddress = params[0].get_str();
 
-    libcrypticcoin::PaymentAddress zaddr;
+    libzcash::PaymentAddress zaddr;
     CZCPaymentAddress address(fromaddress);
     try {
         zaddr = address.Get();
@@ -3292,7 +3292,7 @@ UniValue z_getbalance(const UniValue& params, bool fHelp)
     bool fromTaddr = false;
     CBitcoinAddress taddr(fromaddress);
     fromTaddr = taddr.IsValid();
-    libcrypticcoin::PaymentAddress zaddr;
+    libzcash::PaymentAddress zaddr;
     if (!fromTaddr) {
         CZCPaymentAddress address(fromaddress);
         try {
@@ -3526,7 +3526,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     bool fromTaddr = false;
     CBitcoinAddress taddr(fromaddress);
     fromTaddr = taddr.IsValid();
-    libcrypticcoin::PaymentAddress zaddr;
+    libzcash::PaymentAddress zaddr;
     if (!fromTaddr) {
         CZCPaymentAddress address(fromaddress);
         try {
@@ -3758,7 +3758,7 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
     auto destaddress = params[1].get_str();
     try {
         CZCPaymentAddress pa(destaddress);
-        libcrypticcoin::PaymentAddress zaddr = pa.Get();
+        libzcash::PaymentAddress zaddr = pa.Get();
     } catch (const std::runtime_error&) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, unknown address format: ") + destaddress );
     }
@@ -3971,7 +3971,7 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
     bool useAnyUTXO = false;
     bool useAnyNote = false;
     std::set<CBitcoinAddress> taddrs = {};
-    std::set<libcrypticcoin::PaymentAddress> zaddrs = {};
+    std::set<libzcash::PaymentAddress> zaddrs = {};
 
     UniValue addresses = params[0].get_array();
     if (addresses.size()==0)

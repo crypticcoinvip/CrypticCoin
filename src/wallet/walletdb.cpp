@@ -105,8 +105,8 @@ bool CWalletDB::WriteCryptedKey(const CPubKey& vchPubKey,
     return true;
 }
 
-bool CWalletDB::WriteCryptedZKey(const libcrypticcoin::PaymentAddress & addr,
-                                 const libcrypticcoin::ReceivingKey &rk,
+bool CWalletDB::WriteCryptedZKey(const libzcash::PaymentAddress & addr,
+                                 const libzcash::ReceivingKey &rk,
                                  const std::vector<unsigned char>& vchCryptedSecret,
                                  const CKeyMetadata &keyMeta)
 {
@@ -131,7 +131,7 @@ bool CWalletDB::WriteMasterKey(unsigned int nID, const CMasterKey& kMasterKey)
     return Write(std::make_pair(std::string("mkey"), nID), kMasterKey, true);
 }
 
-bool CWalletDB::WriteZKey(const libcrypticcoin::PaymentAddress& addr, const libcrypticcoin::SpendingKey& key, const CKeyMetadata &keyMeta)
+bool CWalletDB::WriteZKey(const libzcash::PaymentAddress& addr, const libzcash::SpendingKey& key, const CKeyMetadata &keyMeta)
 {
     nWalletDBUpdated++;
 
@@ -142,13 +142,13 @@ bool CWalletDB::WriteZKey(const libcrypticcoin::PaymentAddress& addr, const libc
     return Write(std::make_pair(std::string("zkey"), addr), key, false);
 }
 
-bool CWalletDB::WriteViewingKey(const libcrypticcoin::ViewingKey &vk)
+bool CWalletDB::WriteViewingKey(const libzcash::ViewingKey &vk)
 {
     nWalletDBUpdated++;
     return Write(std::make_pair(std::string("vkey"), vk), '1');
 }
 
-bool CWalletDB::EraseViewingKey(const libcrypticcoin::ViewingKey &vk)
+bool CWalletDB::EraseViewingKey(const libzcash::ViewingKey &vk)
 {
     nWalletDBUpdated++;
     return Erase(std::make_pair(std::string("vkey"), vk));
@@ -424,7 +424,7 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             CWalletTx wtx;
             ssValue >> wtx;
             CValidationState state;
-            auto verifier = libcrypticcoin::ProofVerifier::Strict();
+            auto verifier = libzcash::ProofVerifier::Strict();
             if (!(CheckTransaction(wtx, state, verifier) && (wtx.GetHash() == hash) && state.IsValid()))
                 return false;
 
@@ -485,7 +485,7 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
         }
         else if (strType == "vkey")
         {
-            libcrypticcoin::ViewingKey vk;
+            libzcash::ViewingKey vk;
             ssKey >> vk;
             char fYes;
             ssValue >> fYes;
@@ -498,9 +498,9 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
         }
         else if (strType == "zkey")
         {
-            libcrypticcoin::PaymentAddress addr;
+            libzcash::PaymentAddress addr;
             ssKey >> addr;
-            libcrypticcoin::SpendingKey key;
+            libzcash::SpendingKey key;
             ssValue >> key;
 
             if (!pwallet->LoadZKey(key))
@@ -607,12 +607,12 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
         }
         else if (strType == "czkey")
         {
-            libcrypticcoin::PaymentAddress addr;
+            libzcash::PaymentAddress addr;
             ssKey >> addr;
             // Deserialization of a pair is just one item after another
             uint256 rkValue;
             ssValue >> rkValue;
-            libcrypticcoin::ReceivingKey rk(rkValue);
+            libzcash::ReceivingKey rk(rkValue);
             vector<unsigned char> vchCryptedSecret;
             ssValue >> vchCryptedSecret;
             wss.nCKeys++;
@@ -641,7 +641,7 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
         }
         else if (strType == "zkeymeta")
         {
-            libcrypticcoin::PaymentAddress addr;
+            libzcash::PaymentAddress addr;
             ssKey >> addr;
             CKeyMetadata keyMeta;
             ssValue >> keyMeta;

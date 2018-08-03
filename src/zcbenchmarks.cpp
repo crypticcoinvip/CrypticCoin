@@ -31,7 +31,7 @@
 #include "crypticcoin/Crypticcoin.h"
 #include "crypticcoin/IncrementalMerkleTree.hpp"
 
-using namespace libcrypticcoin;
+using namespace libzcash;
 // This method is based on Shutdown from init.cpp
 void pre_wallet_load()
 {
@@ -125,7 +125,7 @@ double benchmark_create_joinsplit()
                          0);
     double ret = timer_stop(tv_start);
 
-    auto verifier = libcrypticcoin::ProofVerifier::Strict();
+    auto verifier = libzcash::ProofVerifier::Strict();
     assert(jsdesc.Verify(*pcrypticcoinParams, verifier, pubKeyHash));
     return ret;
 }
@@ -156,7 +156,7 @@ double benchmark_verify_joinsplit(const JSDescription &joinsplit)
     struct timeval tv_start;
     timer_start(tv_start);
     uint256 pubKeyHash;
-    auto verifier = libcrypticcoin::ProofVerifier::Strict();
+    auto verifier = libzcash::ProofVerifier::Strict();
     joinsplit.Verify(*pcrypticcoinParams, verifier, pubKeyHash);
     return timer_stop(tv_start);
 }
@@ -281,11 +281,11 @@ double benchmark_try_decrypt_notes(size_t nAddrs)
 {
     CWallet wallet;
     for (int i = 0; i < nAddrs; i++) {
-        auto sk = libcrypticcoin::SpendingKey::random();
+        auto sk = libzcash::SpendingKey::random();
         wallet.AddSpendingKey(sk);
     }
 
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     auto tx = GetValidReceive(*pcrypticcoinParams, sk, 10, true);
 
     struct timeval tv_start;
@@ -299,7 +299,7 @@ double benchmark_increment_note_witnesses(size_t nTxs)
     CWallet wallet;
     ZCIncrementalMerkleTree tree;
 
-    auto sk = libcrypticcoin::SpendingKey::random();
+    auto sk = libzcash::SpendingKey::random();
     wallet.AddSpendingKey(sk);
 
     // First block

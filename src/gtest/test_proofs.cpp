@@ -7,7 +7,7 @@
 #include <libsnark/relations/constraint_satisfaction_problems/r1cs/examples/r1cs_examples.hpp>
 #include <libsnark/zk_proof_systems/ppzksnark/r1cs_ppzksnark/r1cs_ppzksnark.hpp>
 
-using namespace libcrypticcoin;
+using namespace libzcash;
 
 typedef libsnark::default_r1cs_ppzksnark_pp curve_pp;
 typedef libsnark::default_r1cs_ppzksnark_pp::G1_type curve_G1;
