@@ -1248,18 +1248,27 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     bool proxyRandomize = GetBoolArg("-proxyrandomize", true);
     // -proxy sets a proxy for all outgoing network traffic
     // -noproxy (or -proxy=0) as well as the empty string can be used to not set a proxy, this is the default
-    std::string proxyArg = GetArg("-proxy", "127.0.0.1:" + std::to_string(tor::onion_port));
-    SetLimited(NET_TOR);
-    if (proxyArg != "" && proxyArg != "0") {
-        proxyType addrProxy = proxyType(CService(proxyArg, tor::onion_port), proxyRandomize);
-        if (!addrProxy.IsValid())
-            return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
+    std::string proxyArg = GetArg("-proxy", "");
 
-        SetProxy(NET_IPV4, addrProxy);
-        SetProxy(NET_IPV6, addrProxy);
-        SetProxy(NET_TOR, addrProxy);
-        SetNameProxy(addrProxy);
-        SetLimited(NET_TOR, false); // by default, -proxy sets onion as reachable, unless -noonion later
+    if (proxyArg != "0"){
+        if (proxyArg != "") {
+            proxyType addrProxy = proxyType(CService(proxyArg, tor::onion_port), proxyRandomize);
+            if (!addrProxy.IsValid())
+                return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
+
+            SetProxy(NET_IPV4, addrProxy);
+            SetProxy(NET_IPV6, addrProxy);
+            SetProxy(NET_TOR, addrProxy);
+            SetNameProxy(addrProxy);
+        }else{
+            proxyType addrOnion;
+
+            addrOnion = proxyType(CService("127.0.0.1", tor::onion_port), proxyRandomize);
+
+            SetProxy(NET_TOR, addrOnion);
+            SetNameProxy(addrOnion);
+        }
+        SetLimited(NET_TOR, false);
     }
 
     // -onion can be used to set only a proxy for .onion, or override normal proxy for .onion addresses
@@ -1267,23 +1276,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // An empty string is used to not override the onion proxy (in which case it defaults to -proxy set above, or none)
     std::string onionArg = GetArg("-onion", "");
 
-    proxyType addrOnion;
-
-
     if (onionArg != "" && onionArg != "0") {
         proxyType addrOnion = proxyType(CService(onionArg, tor::onion_port), proxyRandomize);
 
         if (!addrOnion.IsValid())
             return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
-
-        SetLimited(NET_TOR, false);
-    } else {
-        SetLimited(NET_TOR);
-
-        addrOnion = proxyType(CService("127.0.0.1", tor::onion_port), proxyRandomize);
     }
-
-    SetProxy(NET_TOR, addrOnion);
 
     // see Step 2: parameter interactions for more information about these
     fListen = GetBoolArg("-listen", DEFAULT_LISTEN);
