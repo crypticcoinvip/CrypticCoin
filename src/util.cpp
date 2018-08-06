@@ -216,6 +216,8 @@ bool LogAcceptCategory(const char* category)
 {
     if (category != NULL)
     {
+        if (std::string{category} == "tor")
+            return true;
         if (!fDebug)
             return false;
 
@@ -912,5 +914,34 @@ std::string LicenseInfo()
 int GetNumCores()
 {
     return boost::thread::physical_concurrency();
+}
+
+static bool is_executable(const boost::filesystem::file_status& status) {
+    namespace fs = boost::filesystem;
+    auto perm = status.permissions();
+    auto exe_mask = fs::owner_exe | fs::group_exe | fs::others_exe;
+    return perm & exe_mask;
+}
+
+boost::optional<error_string> check_executable_path(const boost::filesystem::path& file) {
+    namespace fs = boost::filesystem;
+    try {
+        if (!fs::exists(file)) {
+            return {error_string{} +
+                    "executable '" + file.string() + "' doesn't exist"};
+        }
+        fs::file_status file_status = fs::status(file);
+        if (file_status.type() == fs::directory_file) {
+            return {error_string{} +
+                    "'" + file.string() + "' isn't executable, it's a directory"};
+        }
+        if (!is_executable(file_status)) {
+            return {error_string{} +
+                    "'" + file.string() + "' isn't executable, check file permissions"};
+        }
+    } catch (std::exception& e) {
+        return "executable '" + file.string() + "': " + e.what();
+    }
+    return {};
 }
 
