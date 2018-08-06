@@ -7,6 +7,7 @@
 
 #include <boost/test/unit_test.hpp>
 
+using namespace tor;
 
 BOOST_FIXTURE_TEST_SUITE(torcontrol_tests, BasicTestingSetup)
 
