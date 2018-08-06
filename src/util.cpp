@@ -216,6 +216,8 @@ bool LogAcceptCategory(const char* category)
 {
     if (category != NULL)
     {
+        if (std::string{category} == "tor")
+            return true;
         if (!fDebug)
             return false;
 
