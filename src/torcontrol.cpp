@@ -14,6 +14,11 @@
 #include <set>
 #include <stdlib.h>
 
+#include <sys/types.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
 #include <boost/signals2/signal.hpp>
@@ -28,6 +33,8 @@
 #include <event2/util.h>
 #include <event2/event.h>
 #include <event2/thread.h>
+
+namespace tor {
 
 /** Default control port */
 const std::string DEFAULT_TOR_CONTROL = "127.0.0.1:9051";
@@ -528,7 +535,7 @@ void TorController::auth_cb(TorControlConnection& conn, const TorControlReply& r
         // Now that we know Tor is running setup the proxy for onion addresses
         // if -onion isn't set to something else.
         if (GetArg("-onion", "") == "") {
-            proxyType addrOnion = proxyType(CService("127.0.0.1", 9089), true);
+            proxyType addrOnion = proxyType(CService("127.0.0.1", onion_port), true);
             SetProxy(NET_TOR, addrOnion);
             SetLimited(NET_TOR, false);
         }
@@ -775,3 +782,111 @@ void StopTorControl()
     }
 }
 
+/**
+* Execs tor
+* @param hidden_port is -port from daemon config
+* @param public_port is -tor_service_port from daemon config
+* @param tor_exe_path is path to tor executable
+* @return tor exit code
+*/
+static int exec_tor(boost::filesystem::path tor_exe_path, unsigned short public_port, unsigned short hidden_port) {
+    /**
+    * Find obfs4
+    */
+    boost::optional<std::string> clientTransportPlugin;
+    struct stat sb;
+#ifdef WIN32
+    if (stat("obfs4proxy.exe", &sb) == 0 && sb.st_mode & 64) {
+        clientTransportPlugin = "obfs4 exec obfs4proxy.exe";
+    }
+#else
+    if ((stat("obfs4proxy", &sb) == 0 && sb.st_mode & 64) || !std::system("which obfs4proxy")) {
+        clientTransportPlugin = "obfs4 exec obfs4proxy";
+    }
+#endif
+
+    /**
+    * Paths
+    */
+    namespace fs = boost::filesystem;
+
+    fs::path tor_dir_path = GetTorDir();
+    fs::create_directory(tor_dir_path);
+
+    fs::path log_file_path = tor_dir_path / "tor.log";
+    fs::path tor_config_path = tor_dir_path / "torrc";
+    fs::path tor_hidden_service_path = GetTorHiddenServiceDir();
+
+    /**
+    * Tor config
+    */
+    std::ofstream tor_config(tor_config_path.string());
+    tor_config << "SOCKSPort " << onion_port << '\n'; ///< Open SOCKS proxy on this port 
+    tor_config << "SOCKSPolicy accept 127.0.0.1/8" << '\n'; ///< Accept only localhost on the tor proxy
+    tor_config << "Log notice file " << log_file_path.string() << '\n'; ///< Log file path
+    tor_config << "HiddenServiceDir " << tor_hidden_service_path.string() << '\n'; ///< directory to store tor HiddenService data
+    tor_config << "HiddenServicePort " << public_port << " 127.0.0.1:" << hidden_port << '\n'; ///< tor will listen on %port and redirect the data to 127.0.0.1:%port
+
+    if (clientTransportPlugin) {
+        tor_config << "ClientTransportPlugin " << *clientTransportPlugin << '\n';
+        tor_config << "UseBridges 1" << '\n';
+    }
+    tor_config.close();
+
+    /**
+    * Exec tor (-f is config path, --quiet is quiet mode)
+    */
+    const char* executable = tor_exe_path.string().c_str();
+    return ::execlp(executable, executable, "--quiet", "-f", tor_config_path.string().c_str(), nullptr);
+}
+
+boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path) {
+    try {
+        if (!boost::filesystem::exists(tor_exe_path)) {
+            return {err_str{} + "Tor exectuion error: executable " + tor_exe_path.string() + " doesn't exist"};
+        }
+
+        // load prev. tor pid
+        namespace fs = boost::filesystem;
+        fs::path tor_dir_path = GetTorDir();
+        fs::create_directory(tor_dir_path);
+        fs::path tor_pid_path = tor_dir_path / "tor.pid";
+        std::ifstream tor_pid_file(tor_pid_path.string());
+        // kill prev. tor
+        if (boost::filesystem::exists(tor_pid_path)) {
+            pid_t prev_tor_pid = 0;
+            tor_pid_file >> prev_tor_pid;
+            const int res = ::kill(prev_tor_pid, SIGTERM);
+            if (res < 0) {
+                LogPrint("tor", "Prev. tor killing error: %s", std::strerror(errno));
+            }
+            /*if (res < 0) {
+                return {err_str{} + "Prev. tor killing error: " + std::strerror(errno)};
+            }*/
+        }
+
+        // Create a process for tor
+        pid_t tor_pid = fork();
+        if (tor_pid < 0) {
+            return {err_str{} + "Tor exectuion error: " + std::strerror(errno)};
+        }
+        if (tor_pid > 0) { // Parent process, pid is child process id
+            // save pid in file
+            std::ofstream tor_pid_file(tor_pid_path.string());
+            tor_pid_file << tor_pid;
+            tor_pid_file.close();
+
+            return {};
+        }
+
+        exec_tor(tor_exe_path, GetTorServiceListenPort(), GetListenPort());
+        // exec_tor exited then some error happened
+        LogPrint("tor", "Tor execution error: %s", std::strerror(errno));
+        ::exit(1); // kill forked process
+    } catch (std::exception& e) {
+        return {err_str(e.what())};
+    }
+
+}
+
+}

@@ -72,6 +72,11 @@ CNode* FindNode(const CService& ip);
 CNode* ConnectNode(CAddress addrConnect, const char *pszDest = NULL);
 bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOutbound = NULL, const char *strDest = NULL, bool fOneShot = false);
 unsigned short GetListenPort();
+
+namespace tor {
+unsigned short GetTorServiceListenPort();
+}
+
 bool BindListenPort(const CService &bindAddr, std::string& strError, bool fWhitelisted = false);
 void StartTor();
 void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler);

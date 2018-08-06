@@ -104,7 +104,6 @@ enum BindFlags {
 
 static const char* FEE_ESTIMATES_FILENAME="fee_estimates.dat";
 CClientUIInterface uiInterface; // Declared but not defined in ui_interface.h
-unsigned short const onion_port = 9089;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -134,16 +133,9 @@ unsigned short const onion_port = 9089;
 
 std::atomic<bool> fRequestShutdown(false);
 
-typedef void (*general_sighandler_t)(int);
-general_sighandler_t torHandleSIGTERM = SIG_ERR;
-
 void StartShutdown()
 {
     fRequestShutdown = true;
-    if (torHandleSIGTERM != SIG_ERR){
-        torHandleSIGTERM(SIGINT);
-    }
-
 }
 bool ShutdownRequested()
 {
@@ -180,7 +172,7 @@ void Interrupt(boost::thread_group& threadGroup)
     InterruptHTTPRPC();
     InterruptRPC();
     InterruptREST();
-    InterruptTorControl();
+    tor::InterruptTorControl();
     threadGroup.interrupt_all();
 }
 
@@ -215,7 +207,7 @@ void Shutdown()
  #endif
 #endif
     StopNode();
-    StopTorControl();
+    tor::StopTorControl();
     UnregisterNodeSignals(GetNodeSignals());
 
     if (fFeeEstimatesInitialized)
@@ -289,9 +281,6 @@ void Shutdown()
 void HandleSIGTERM(int signal)
 {
     fRequestShutdown = true;
-    if (torHandleSIGTERM != SIG_ERR){
-        torHandleSIGTERM(signal);
-    }
 }
 
 void HandleSIGHUP(int)
@@ -393,22 +382,24 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-externalip=<ip>", _("Specify your own public address"));
     strUsage += HelpMessageOpt("-forcednsseed", strprintf(_("Always query for peer addresses via DNS lookup (default: %u)"), 0));
     strUsage += HelpMessageOpt("-listen", _("Accept connections from outside (default: 1 if no -proxy or -connect)"));
-    strUsage += HelpMessageOpt("-listenonion", strprintf(_("Automatically create Tor hidden service (default: %d)"), DEFAULT_LISTEN_ONION));
+    strUsage += HelpMessageOpt("-listenonion", strprintf(_("Automatically create Tor hidden service (default: %d)"), tor::DEFAULT_LISTEN_ONION));
     strUsage += HelpMessageOpt("-maxconnections=<n>", strprintf(_("Maintain at most <n> connections to peers (default: %u)"), DEFAULT_MAX_PEER_CONNECTIONS));
     strUsage += HelpMessageOpt("-maxreceivebuffer=<n>", strprintf(_("Maximum per-connection receive buffer, <n>*1000 bytes (default: %u)"), 5000));
     strUsage += HelpMessageOpt("-maxsendbuffer=<n>", strprintf(_("Maximum per-connection send buffer, <n>*1000 bytes (default: %u)"), 1000));
     strUsage += HelpMessageOpt("-onion=<ip:port>", strprintf(_("Use separate SOCKS5 proxy to reach peers via Tor hidden services (default: %s)"), "-proxy"));
+    strUsage += HelpMessageOpt("-tor_exe_path=<path>", strprintf(_("Path to tor executable. Daemon will execute tor and re-execute if it gets killed (default: '%s')"), ""));
     strUsage += HelpMessageOpt("-onlynet=<net>", _("Only connect to nodes in network <net> (ipv4, ipv6 or onion)"));
     strUsage += HelpMessageOpt("-permitbaremultisig", strprintf(_("Relay non-P2SH multisig (default: %u)"), 1));
     strUsage += HelpMessageOpt("-peerbloomfilters", strprintf(_("Support filtering of blocks and transaction with Bloom filters (default: %u)"), 1));
     if (showDebug)
         strUsage += HelpMessageOpt("-enforcenodebloom", strprintf("Enforce minimum protocol version to limit use of Bloom filters (default: %u)", 0));
     strUsage += HelpMessageOpt("-port=<port>", strprintf(_("Listen for connections on <port> (default: %u or testnet: %u)"), 23303, 23313));
+    strUsage += HelpMessageOpt("-tor_service_port=<port>", strprintf(_("[if -tor_exe_path] Executed tor will listen for connections on <port> (default: %u or testnet: %u)"), 23303, 23313));
     strUsage += HelpMessageOpt("-proxy=<ip:port>", _("Connect through SOCKS5 proxy"));
     strUsage += HelpMessageOpt("-proxyrandomize", strprintf(_("Randomize credentials for every proxy connection. This enables Tor stream isolation (default: %u)"), 1));
     strUsage += HelpMessageOpt("-seednode=<ip>", _("Connect to a node to retrieve peer addresses, and disconnect"));
     strUsage += HelpMessageOpt("-timeout=<n>", strprintf(_("Specify connection timeout in milliseconds (minimum: 1, default: %d)"), DEFAULT_CONNECT_TIMEOUT));
-    strUsage += HelpMessageOpt("-torcontrol=<ip>:<port>", strprintf(_("Tor control port to use if onion listening enabled (default: %s)"), DEFAULT_TOR_CONTROL));
+    strUsage += HelpMessageOpt("-torcontrol=<ip>:<port>", strprintf(_("Tor control port to use if onion listening enabled (default: %s)"), tor::DEFAULT_TOR_CONTROL));
     strUsage += HelpMessageOpt("-torpassword=<pass>", _("Tor control port password (default: empty)"));
     strUsage += HelpMessageOpt("-whitebind=<addr>", _("Bind to given address and whitelist peers connecting to it. Use [host]:port notation for IPv6"));
     strUsage += HelpMessageOpt("-whitelist=<netmask>", _("Whitelist peers connecting from the given netmask or IP address. Can be specified multiple times.") +
@@ -1247,7 +1238,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     std::string proxyArg = GetArg("-proxy", "");
     SetLimited(NET_TOR);
     if (proxyArg != "" && proxyArg != "0") {
-        proxyType addrProxy = proxyType(CService(proxyArg, onion_port), proxyRandomize);
+        proxyType addrProxy = proxyType(CService(proxyArg, tor::onion_port), proxyRandomize);
         if (!addrProxy.IsValid())
             return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
 
@@ -1261,13 +1252,13 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // -onion can be used to set only a proxy for .onion, or override normal proxy for .onion addresses
     // -noonion (or -onion=0) disables connecting to .onion entirely
     // An empty string is used to not override the onion proxy (in which case it defaults to -proxy set above, or none)
-    std::string onionArg = GetArg("-onion", "");
+    std::string onionArg = GetArg("-onion", "127.0.0.1:" + std::to_string(tor::onion_port));
 
     proxyType addrOnion;
 
 
     if (onionArg != "" && onionArg != "0") {
-        proxyType addrOnion = proxyType(CService(onionArg, onion_port), proxyRandomize);
+        proxyType addrOnion = proxyType(CService(onionArg, tor::onion_port), proxyRandomize);
 
         if (!addrOnion.IsValid())
             return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
@@ -1276,7 +1267,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     } else {
         SetLimited(NET_TOR);
 
-        addrOnion = proxyType(CService("127.0.0.1", onion_port), proxyRandomize);
+        addrOnion = proxyType(CService("127.0.0.1", tor::onion_port), proxyRandomize);
     }
 
     SetProxy(NET_TOR, addrOnion);
@@ -1314,10 +1305,26 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             return InitError(_("Failed to listen on any port. Use -listen=0 if you want this."));
     }
 
-    if (!(mapArgs.count("-onion") && mapArgs["-onion"] != "0")) {
-        threadGroup.create_thread(boost::bind(&StartTor));
+    /**
+    * Init tor
+    */
+    if (GetBoolArg("-listenonion", tor::DEFAULT_LISTEN_ONION)) {
+        { // exec tor
+            std::string tor_exe_path_str = GetArg("-tor_exe_path", "");
+            if (!tor_exe_path_str.empty()) {
+                boost::filesystem::path tor_exe_path{tor_exe_path_str};
+                auto errStr = tor::StartTor(tor_exe_path);
+                if (errStr) {
+                    LogPrint("tor", (*errStr).c_str());
+                }
+            }
+        }
+        tor::StartTorControl(threadGroup, scheduler);
     }
 
+    /**
+    * Init -externalip
+    */
     if (mapArgs.count("-externalip")) {
         BOOST_FOREACH(const std::string& strAddr, mapMultiArgs["-externalip"]) {
             CService addrLocal(strAddr, GetListenPort(), fNameLookup);
@@ -1325,21 +1332,23 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr));
             AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
         }
-    }
-    else
-    {
+    } else if (GetBoolArg("-listenonion", tor::DEFAULT_LISTEN_ONION)) {
+        /**
+        * Init -externalip with current tor hostname
+        */
         string automatic_onion;
-        boost::filesystem::path hostname_path = GetDataDir() / "tor" / "onion" / "hostname";
+        boost::filesystem::path hostname_path = tor::GetTorHiddenServiceDir() / "hostname";
 
+        const int timeoutAttempts = 16;
         int attempts = 0;
-        while (1) {
+        while (true) {
             if (boost::filesystem::exists(hostname_path))
                 break;
+            boost::this_thread::sleep(boost::posix_time::seconds(1));
             ++attempts;
-            boost::this_thread::sleep(boost::posix_time::seconds(2));
-            if (attempts > 8)
-                return InitError(_("Timed out waiting for onion hostname."));
-            LogPrintf("No onion hostname yet, will retry in 2 seconds... (%d/8)\n", attempts);
+            if (attempts > timeoutAttempts)
+                return InitError(_("Timed out waiting for onion hostname. Is tor running? You can specify tor_exe_path or run it in another way."));
+            LogPrint("tor", "No onion hostname yet, will retry in 1 second... (%d/%d)\n", attempts, timeoutAttempts);
         }
 
         ifstream file(hostname_path.string().c_str());
@@ -1765,9 +1774,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("mapAddressBook.size() = %u\n",  pwalletMain ? pwalletMain->mapAddressBook.size() : 0);
 #endif
 
-    if (GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
-        StartTorControl(threadGroup, scheduler);
-
     StartNode(threadGroup, scheduler);
 
     // Monitor the chain, and alert if we get blocks much quicker or slower than expected
@@ -1803,13 +1809,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // SENDALERT
     threadGroup.create_thread(boost::bind(ThreadSendAlert));
-
-    threadGroup.create_thread([]() {
-        MilliSleep(100);
-        torHandleSIGTERM = signal(SIGINT, HandleSIGTERM);
-        signal(SIGTERM, HandleSIGTERM);
-        signal(SIGQUIT, SIG_DFL);
-    });
 
     return !fRequestShutdown;
 }

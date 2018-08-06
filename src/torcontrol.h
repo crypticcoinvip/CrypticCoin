@@ -9,12 +9,37 @@
 #define BITCOIN_TORCONTROL_H
 
 #include "scheduler.h"
+#include <boost/filesystem.hpp>
+#include "util.h"
+
+namespace tor {
 
 extern const std::string DEFAULT_TOR_CONTROL;
 static const bool DEFAULT_LISTEN_ONION = true;
 
+unsigned short const onion_port = 9089;
+
 void StartTorControl(boost::thread_group& threadGroup, CScheduler& scheduler);
 void InterruptTorControl();
 void StopTorControl();
+
+/**
+* Create tor execution thread (execs tor, execs again if it gets closed)
+* @param tor_exe_path is path to tor executable
+*/
+using err_str = std::string;
+boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path);
+
+static boost::filesystem::path GetTorDir() {
+    return GetDataDir() / "tor";
+}
+
+static boost::filesystem::path GetTorHiddenServiceDir() {
+    return GetTorDir() / "hidden_service";
+}
+
+}
+
+unsigned short GetTorServiceListenPort();
 
 #endif /* BITCOIN_TORCONTROL_H */
