@@ -184,6 +184,11 @@ void Shutdown()
     if (!lockShutdown)
         return;
 
+    auto err_str = tor::KillTor();
+    if (err_str) {
+        LogPrint("tor", "Tor killing error: %s", *err_str);
+    }
+
     /// Note: Shutdown() must be able to handle cases in which AppInit2() failed part of the way,
     /// for example if the data directory was found to be locked.
     /// Be sure that anything that writes files or flushes caches only does this if the respective
@@ -730,6 +735,14 @@ bool AppInitServers(boost::thread_group& threadGroup)
  */
 bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
+    /**
+    * Kill prev. tor (to be able to bind ports)
+    */
+    auto err_str = tor::KillTor();
+    if (err_str) {
+        LogPrint("tor", "Tor killing error: %s", *err_str);
+    }
+    
     // ********************************************************* Step 1: setup
 #ifdef _MSC_VER
     // Turn off Microsoft heap dump noise

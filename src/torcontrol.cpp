@@ -840,12 +840,8 @@ static int exec_tor(boost::filesystem::path tor_exe_path, unsigned short public_
     return ::execlp(executable, executable, "--quiet", "-f", tor_config_path.string().c_str(), nullptr);
 }
 
-boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path) {
+boost::optional<err_str> KillTor() {
     try {
-        if (!boost::filesystem::exists(tor_exe_path)) {
-            return {err_str{} + "Tor exectuion error: executable " + tor_exe_path.string() + " doesn't exist"};
-        }
-
         // load prev. tor pid
         namespace fs = boost::filesystem;
         fs::path tor_dir_path = GetTorDir();
@@ -867,6 +863,20 @@ boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path) {
                 return {err_str{} + "Prev. tor killing error: " + std::strerror(errno)};
             }*/
         }
+    } catch (std::exception& e) {
+        return {err_str(e.what())};
+    }
+    return {};
+}
+
+boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path) {
+    try {
+        if (!boost::filesystem::exists(tor_exe_path)) {
+            return {err_str{} + "Tor exectuion error: executable " + tor_exe_path.string() + " doesn't exist"};
+        }
+
+        // kill prev. tor
+        KillTor();
 
         // Create a process for tor
         pid_t tor_pid = fork();
@@ -875,6 +885,7 @@ boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path) {
         }
         if (tor_pid > 0) { // Parent process, pid is child process id
             // save pid in file
+            boost::filesystem::path tor_pid_path = GetTorDir() / "tor.pid";
             std::ofstream tor_pid_file(tor_pid_path.string());
             tor_pid_file << tor_pid;
             tor_pid_file.close();

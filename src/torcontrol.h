@@ -10,6 +10,7 @@
 
 #include "scheduler.h"
 #include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
 #include "util.h"
 
 namespace tor {
@@ -29,6 +30,8 @@ void StopTorControl();
 */
 using err_str = std::string;
 boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path);
+
+boost::optional<err_str> KillTor();
 
 static boost::filesystem::path GetTorDir() {
     return GetDataDir() / "tor";
