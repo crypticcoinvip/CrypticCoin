@@ -859,7 +859,10 @@ boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path) {
             const int res = ::kill(prev_tor_pid, SIGTERM);
             if (res < 0) {
                 LogPrint("tor", "Prev. tor killing error: %s", std::strerror(errno));
+            } else { // wait 100ms until it's killed
+                boost::this_thread::sleep(boost::posix_time::milliseconds(100));
             }
+            ::kill(prev_tor_pid, 9); // kill -9 if it haven't exited yet
             /*if (res < 0) {
                 return {err_str{} + "Prev. tor killing error: " + std::strerror(errno)};
             }*/
