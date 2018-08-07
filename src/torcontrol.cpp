@@ -795,16 +795,14 @@ static std::pair<std::error_code, pid_t> exec_tor(boost::filesystem::path tor_ex
     */
     boost::optional<std::string> clientTransportPlugin;
 #ifdef WIN32
-    auto obfs_err = check_executable_path(tor_exe_path.parent_path() / "obfs4proxy.exe");
-    if (!obfs_err) {
-        clientTransportPlugin = "obfs4 exec obfs4proxy.exe";
-    }
+    fs::path obfs_path = tor_exe_path.parent_path() / "obfs4proxy.exe";
 #else
-    auto obfs_err = check_executable_path(tor_exe_path.parent_path() / "obfs4proxy");
-    if (!obfs_err || !std::system("which obfs4proxy")) {
-        clientTransportPlugin = "obfs4 exec obfs4proxy";
-    }
+    fs::path obfs_path = tor_exe_path.parent_path() / "obfs4proxy";
 #endif
+    auto obfs_err = check_executable_path(obfs_path);
+    if (!obfs_err) {
+        clientTransportPlugin = "obfs4 exec " + obfs_path.string();
+    }
 
     /**
     * Paths
