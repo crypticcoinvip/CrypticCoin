@@ -186,7 +186,7 @@ void Shutdown()
 
     auto err_str = tor::KillTor();
     if (err_str) {
-        LogPrint("tor", "Tor killing error: %s", *err_str);
+        LogPrint("tor", "Tor killing error: %s\n", *err_str);
     }
 
     /// Note: Shutdown() must be able to handle cases in which AppInit2() failed part of the way,
@@ -740,7 +740,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     */
     auto err_str = tor::KillTor();
     if (err_str) {
-        LogPrint("tor", "Tor killing error: %s", *err_str);
+        LogPrint("tor", "Tor killing error: %s\n", *err_str);
     }
     
     // ********************************************************* Step 1: setup
@@ -1326,7 +1326,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 boost::filesystem::path tor_exe_path{tor_exe_path_str};
                 auto errStr = tor::StartTor(tor_exe_path);
                 if (errStr) {
-                    LogPrint("tor", (*errStr).c_str());
+                    LogPrint("tor", (*errStr + "\n").c_str());
                 }
             }
         }
