@@ -889,7 +889,7 @@ boost::optional<error_string> KillTor() {
             tor_pid_file >> prev_tor_pid;
             const int res = ::kill(prev_tor_pid, SIGTERM);
             if (res < 0) {
-                LogPrint("tor", "Prev. tor killing error: %s", std::strerror(errno));
+                LogPrint("tor", "Prev. tor killing error: %s\n", std::strerror(errno));
             } else { // wait 100ms until it's killed
                 boost::this_thread::sleep(boost::posix_time::milliseconds(100));
             }
@@ -908,13 +908,13 @@ boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
     try {
         auto err = check_executable_path(tor_exe_path);
         if (err)
-            return {"Tor exectuion error: " + *err};
+            return {"Tor execution error: " + *err};
 
         // kill prev. tor
         KillTor();
 
         auto ret = exec_tor(tor_exe_path, GetTorServiceListenPort(), GetListenPort());
-        if (!ret.first) {
+        if (ret.first) {
             return {ret.first.message()};
         }
 
@@ -925,7 +925,7 @@ boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
     } catch (std::exception& e) {
         return {error_string(e.what())};
     }
-
+    return {};
 }
 
 }

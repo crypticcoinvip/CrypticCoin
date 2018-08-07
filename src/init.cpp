@@ -1324,9 +1324,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             std::string tor_exe_path_str = GetArg("-tor_exe_path", "");
             if (!tor_exe_path_str.empty()) {
                 boost::filesystem::path tor_exe_path{tor_exe_path_str};
-                auto errStr = tor::StartTor(tor_exe_path);
-                if (errStr) {
-                    LogPrint("tor", (*errStr + "\n").c_str());
+                auto err_str = tor::StartTor(tor_exe_path);
+                if (err_str) {
+                    return InitError(*err_str);
+                } else {
+                    LogPrint("tor", "Tor (%s) has started (check tor/tor.log for details)\n", tor_exe_path.string());
                 }
             }
         }
