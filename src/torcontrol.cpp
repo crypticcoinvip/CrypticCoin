@@ -905,7 +905,7 @@ boost::optional<error_string> KillTor() {
             tor_pid_file >> prev_tor_pid;
             const int res = ::kill(prev_tor_pid, SIGTERM);
             if (res < 0) {
-                LogPrint("tor", "Prev. tor killing error: %s\n", std::strerror(errno));
+                return {error_string{} + std::strerror(errno)};
             } else {
                 waitFor(prev_tor_pid);
             }

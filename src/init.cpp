@@ -738,10 +738,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     /**
     * Kill prev. tor (to be able to bind ports)
     */
-    auto err_str = tor::KillTor();
-    if (err_str) {
-        LogPrint("tor", "Tor killing error: %s\n", *err_str);
-    }
+    tor::KillTor();
     
     // ********************************************************* Step 1: setup
 #ifdef _MSC_VER
