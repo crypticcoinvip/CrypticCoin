@@ -782,13 +782,6 @@ void StopTorControl()
     }
 }
 
-static bool is_executable(boost::filesystem::file_status status) {
-    namespace fs = boost::filesystem;
-    auto perm = status.permissions();
-    auto exe_mask = fs::owner_exe | fs::group_exe | fs::others_exe;
-    return perm & exe_mask;
-}
-
 /**
 * Execs tor
 * @param hidden_port is -port from daemon config
@@ -796,17 +789,19 @@ static bool is_executable(boost::filesystem::file_status status) {
 * @param tor_exe_path is path to tor executable
 */
 static std::pair<std::error_code, pid_t> exec_tor(boost::filesystem::path tor_exe_path, unsigned short public_port, unsigned short hidden_port) {
+    namespace fs = boost::filesystem;
     /**
     * Find obfs4
     */
     boost::optional<std::string> clientTransportPlugin;
-    struct stat sb;
 #ifdef WIN32
-    if (stat("obfs4proxy.exe", &sb) == 0 && sb.st_mode & 64) {
+    auto obfs_err = check_executable_path(tor_exe_path.parent_path() / "obfs4proxy.exe");
+    if (!obfs_err) {
         clientTransportPlugin = "obfs4 exec obfs4proxy.exe";
     }
 #else
-    if ((stat("obfs4proxy", &sb) == 0 && sb.st_mode & 64) || !std::system("which obfs4proxy")) {
+    auto obfs_err = check_executable_path(tor_exe_path.parent_path() / "obfs4proxy");
+    if (!obfs_err || !std::system("which obfs4proxy")) {
         clientTransportPlugin = "obfs4 exec obfs4proxy";
     }
 #endif
@@ -814,7 +809,6 @@ static std::pair<std::error_code, pid_t> exec_tor(boost::filesystem::path tor_ex
     /**
     * Paths
     */
-    namespace fs = boost::filesystem;
 
     fs::path tor_dir_path = GetTorDir();
     fs::create_directory(tor_dir_path);
@@ -858,7 +852,30 @@ static std::pair<std::error_code, pid_t> exec_tor(boost::filesystem::path tor_ex
     return {ec, tor_process.id()};
 }
 
-boost::optional<err_str> KillTor() {
+/**
+ * Saves pid into file
+ */
+static void save_pid(pid_t pid, boost::filesystem::path file_path) {
+    std::ofstream file(file_path.string());
+    file << pid;
+    file.close();
+}
+
+/**
+ * Loads pid from file
+ */
+static boost::optional<pid_t> load_pid(boost::filesystem::path file_path) {
+    if (boost::filesystem::exists(file_path)) {
+        std::ifstream file(file_path.string());
+        pid_t pid;
+        file >> pid;
+        file.close();
+        return {pid};
+    }
+    return {};
+}
+
+boost::optional<error_string> KillTor() {
     try {
         // load prev. tor pid
         namespace fs = boost::filesystem;
@@ -878,31 +895,20 @@ boost::optional<err_str> KillTor() {
             }
             ::kill(prev_tor_pid, 9); // kill -9 if it haven't exited yet
             /*if (res < 0) {
-                return {err_str{} + "Prev. tor killing error: " + std::strerror(errno)};
+                return {error_string{} + "Prev. tor killing error: " + std::strerror(errno)};
             }*/
         }
     } catch (std::exception& e) {
-        return {err_str(e.what())};
+        return {error_string(e.what())};
     }
     return {};
 }
 
-boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path) {
+boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
     try {
-        namespace fs = boost::filesystem;
-        if (!fs::exists(tor_exe_path)) {
-            return {err_str{} +
-                    "Tor exectuion error: executable '" + tor_exe_path.string() + "' doesn't exist"};
-        }
-        fs::file_status tor_file_status = fs::status(tor_exe_path);
-        if (tor_file_status.type() == fs::directory_file) {
-            return {err_str{} +
-                    "Tor exectuion error: '" + tor_exe_path.string() + "' isn't executable, it's a directory"};
-        }
-        if (!is_executable(tor_file_status)) {
-            return {err_str{} +
-                    "Tor exectuion error: '" + tor_exe_path.string() + "' isn't executable, check file permissions"};
-        }
+        auto err = check_executable_path(tor_exe_path);
+        if (err)
+            return {"Tor exectuion error: " + *err};
 
         // kill prev. tor
         KillTor();
@@ -914,12 +920,10 @@ boost::optional<err_str> StartTor(boost::filesystem::path tor_exe_path) {
 
         // save tor pid into file
         pid_t tor_pid = ret.second;
-        fs::path tor_pid_path = GetTorDir() / "tor.pid";
-        std::ofstream tor_pid_file(tor_pid_path.string());
-        tor_pid_file << tor_pid;
-        tor_pid_file.close();
+        boost::filesystem::path tor_pid_path = GetTorDir() / "tor.pid";
+        save_pid(tor_pid, tor_pid_path);
     } catch (std::exception& e) {
-        return {err_str(e.what())};
+        return {error_string(e.what())};
     }
 
 }

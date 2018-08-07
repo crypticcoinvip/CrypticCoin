@@ -53,6 +53,8 @@ extern bool fLogIPs;
 extern std::atomic<bool> fReopenDebugLog;
 extern CTranslationInterface translationInterface;
 
+using error_string = std::string;
+
 /**
  * Translation function: Call Translate signal on UI interface, which returns a boost::optional result.
  * If no translation slot is registered, nothing is returned, and simply return the input.
@@ -256,5 +258,7 @@ template <typename Callable> void TraceThread(const char* name,  Callable func)
         throw;
     }
 }
+
+boost::optional<error_string> check_executable_path(const boost::filesystem::path& file);
 
 #endif // BITCOIN_UTIL_H
