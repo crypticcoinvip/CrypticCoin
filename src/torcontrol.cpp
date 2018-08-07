@@ -875,6 +875,24 @@ static boost::optional<pid_t> load_pid(boost::filesystem::path file_path) {
     return {};
 }
 
+/**
+ *  Performs ::wait with a given pid
+ *  @return error code
+ */
+static std::errc waitFor(pid_t pid) {
+    pid_t waitPid;
+    do {
+        int status;
+        waitPid = ::wait(&status);
+
+        if (waitPid < 0) {
+            return std::errc(errno);
+        }
+    } while(waitPid != pid);
+
+    return std::errc(0);
+}
+
 boost::optional<error_string> KillTor() {
     try {
         // load prev. tor pid
@@ -890,13 +908,9 @@ boost::optional<error_string> KillTor() {
             const int res = ::kill(prev_tor_pid, SIGTERM);
             if (res < 0) {
                 LogPrint("tor", "Prev. tor killing error: %s\n", std::strerror(errno));
-            } else { // wait 100ms until it's killed
-                boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+            } else {
+                waitFor(prev_tor_pid);
             }
-            ::kill(prev_tor_pid, 9); // kill -9 if it haven't exited yet
-            /*if (res < 0) {
-                return {error_string{} + "Prev. tor killing error: " + std::strerror(errno)};
-            }*/
         }
     } catch (std::exception& e) {
         return {error_string(e.what())};
