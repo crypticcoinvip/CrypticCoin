@@ -893,22 +893,19 @@ static std::errc waitFor(pid_t pid) {
 
 boost::optional<error_string> KillTor() {
     try {
-        // load prev. tor pid
         namespace fs = boost::filesystem;
-        fs::path tor_dir_path = GetTorDir();
-        fs::create_directory(tor_dir_path);
-        fs::path tor_pid_path = tor_dir_path / "tor.pid";
-        std::ifstream tor_pid_file(tor_pid_path.string());
+        fs::path tor_pid_path = GetTorDir() / "tor.pid";
+        // load prev. tor pid
+        auto prev_tor_pid = load_pid(tor_pid_path);
+        if (!prev_tor_pid)
+            return {error_string{} + "tor.pid file wasn't found"};
         // kill prev. tor
-        if (boost::filesystem::exists(tor_pid_path)) {
-            pid_t prev_tor_pid = 0;
-            tor_pid_file >> prev_tor_pid;
-            const int res = ::kill(prev_tor_pid, SIGTERM);
-            if (res < 0) {
-                return {error_string{} + std::strerror(errno)};
-            } else {
-                waitFor(prev_tor_pid);
-            }
+        const int res = ::kill(*prev_tor_pid, SIGTERM);
+        // wait until it's killed (and free its resources)
+        if (res < 0) {
+            return {error_string{} + std::strerror(errno)};
+        } else {
+            waitFor(*prev_tor_pid);
         }
     } catch (std::exception& e) {
         return {error_string(e.what())};
