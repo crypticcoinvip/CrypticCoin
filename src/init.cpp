@@ -735,7 +735,7 @@ bool AppInitServers(boost::thread_group& threadGroup)
 /**
  * Set default program argument according to other arguments
  */
-static void preprocesssMapArgs() {
+static void preprocessMapArgs() {
     // when specifying an explicit binding address, you want to listen on it
     // even when -connect or -proxy is specified
     if (mapArgs.count("-bind")) {
@@ -878,7 +878,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     LogPrintf("Crypticcoin version %s (%s)\n", FormatFullVersion(), CLIENT_DATE);
 
-    preprocesssMapArgs();
+    preprocessMapArgs();
 
     /**
     * Init tor
@@ -924,8 +924,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         mapMultiArgs["-externalip"].push_back(automatic_onion);
     }
 
-    // preprocesssMapArgs() again after args are changed
-    preprocesssMapArgs();
+    // preprocessMapArgs() again after args are changed
+    preprocessMapArgs();
 
     // interpret -externalip
     if (mapArgs.count("-externalip")) {
