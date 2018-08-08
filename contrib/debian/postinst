@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # postinst script for crypticcoin
 #
 # see: dh_installdeb(1)
