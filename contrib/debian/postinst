@@ -25,10 +25,24 @@ case "$1" in
 
     mkdir -p ~/.crypticcoin
     if [ -e ~/.crypticcoin/crypticcoin.conf ]; then
-        postfix=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 4 ; echo '')
+        postfix=$(date +%Y-%m-%d_%H-%M-%S)
         cp -a ~/.crypticcoin/crypticcoin.conf ~/.crypticcoin/crypticcoin.${postfix}.bak.conf
     fi
-    echo "rpcuser="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""rpcpassword="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')"\n""tor_exe_path=/usr/bin/tor""\n""bind=127.0.0.1""\n""onlynet=onion""\n""rpcallowip=127.0.0.1""\n""rpcport=23202""\n""port=23303""\n""daemon=0""\n""listen=1""\n""server=1""\n""addnode=2yt4fstq5oacwwh5.onion"> ~/.crypticcoin/crypticcoin.conf
+
+cat << EOF > ~/.crypticcoin/crypticcoin.conf
+rpcuser=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')
+rpcpassword=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')
+tor_exe_path=/usr/bin/tor
+bind=127.0.0.1
+onlynet=onion
+rpcallowip=127.0.0.1
+rpcport=23202
+port=23303
+daemon=0
+listen=1
+server=1
+addnode=2yt4fstq5oacwwh5.onion
+EOF
 
     chown -R $SUDO_USER:$SUDO_USER ~/.crypticcoin
 
