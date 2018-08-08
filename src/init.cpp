@@ -896,7 +896,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 }
             }
         }
-        tor::StartTorControl(threadGroup, scheduler);
+        //tor::StartTorControl(threadGroup, scheduler);
     }
 
     /**
