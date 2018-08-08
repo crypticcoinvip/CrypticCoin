@@ -9,6 +9,7 @@
 #include "util.h"
 #include "crypto/hmac_sha256.h"
 
+#include <chrono>
 #include <vector>
 #include <deque>
 #include <set>
@@ -842,7 +843,7 @@ static std::pair<std::error_code, pid_t> exec_tor(boost::filesystem::path tor_ex
     /**
     * Exec tor
     */
-    static boost::process::child tor_process;
+    static boost::process::child tor_process; // precess-scope var
     std::error_code ec;
     const std::string executable = tor_exe_path.string();
     tor_process = boost::process::child(executable + " " + args_str, ec);
@@ -874,21 +875,18 @@ static boost::optional<pid_t> load_pid(boost::filesystem::path file_path) {
 }
 
 /**
- *  Performs ::wait with a given pid
- *  @return error code
+ * sends SIGTERM on unix, terminates on win
  */
-static std::errc waitFor(pid_t pid) {
-    pid_t waitPid;
-    do {
-        int status;
-        waitPid = ::wait(&status);
-
-        if (waitPid < 0) {
-            return std::errc(errno);
-        }
-    } while(waitPid != pid);
-
-    return std::errc(0);
+static std::error_code kill_softly(boost::process::child& proccess) {
+    std::error_code ec;
+    // try to kill with SIGTERM (terminate on win)
+#ifdef WIN32
+        proccess.terminate(ec);
+#else
+    if (::kill(proccess.id(), SIGTERM) < 0) {
+        ec = std::make_error_code(static_cast<std::errc>(errno));
+    }
+#endif
 }
 
 boost::optional<error_string> KillTor() {
@@ -899,15 +897,25 @@ boost::optional<error_string> KillTor() {
         auto prev_tor_pid = load_pid(tor_pid_path);
         if (!prev_tor_pid)
             return {error_string{} + "tor.pid file wasn't found"};
-        // kill prev. tor
-        const int res = ::kill(*prev_tor_pid, SIGTERM);
-        // wait until it's killed (and free its resources)
-        if (res < 0) {
-            return {error_string{} + std::strerror(errno)};
-        } else {
-            waitFor(*prev_tor_pid);
-        }
-    } catch (std::exception& e) {
+
+        // boost::process methods without error code throw exceptions
+        std::error_code ec;
+        boost::process::child prev_tor{*prev_tor_pid};
+        if (!prev_tor.running(ec) || ec) // tor isn't alive or we don't have rights
+            return {};
+
+        // try to kill with SIGTERM (terminate on win)
+        if (ec = kill_softly(prev_tor))
+            return {error_string{} + ec.message()};
+        // give it 100ms to stop after SIGTERM
+        bool stopped = prev_tor.wait_for(std::chrono::milliseconds(100));
+        if (stopped)
+            return {};
+        // kill it with terminate otherwise
+        prev_tor.terminate();
+        prev_tor.wait();
+    }
+    catch (std::exception& e) {
         return {error_string(e.what())};
     }
     return {};
@@ -931,7 +939,8 @@ boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
         pid_t tor_pid = ret.second;
         boost::filesystem::path tor_pid_path = GetTorDir() / "tor.pid";
         save_pid(tor_pid, tor_pid_path);
-    } catch (std::exception& e) {
+    }
+    catch (std::exception& e) {
         return {error_string(e.what())};
     }
     return {};
