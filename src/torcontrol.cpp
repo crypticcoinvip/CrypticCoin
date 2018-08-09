@@ -57,6 +57,8 @@ static const float RECONNECT_TIMEOUT_EXP = 1.5;
  */
 static const int MAX_LINE_LENGTH = 100000;
 
+using boost_pid_t = boost::process::pid_t;
+
 /****** Low-level TorControlConnection ********/
 
 /** Reply from Tor, can be single or multi-line */
@@ -789,7 +791,7 @@ void StopTorControl()
 * @param public_port is -tor_service_port from daemon config
 * @param tor_exe_path is path to tor executable
 */
-static std::pair<std::error_code, pid_t> exec_tor(boost::filesystem::path tor_exe_path, unsigned short public_port, unsigned short hidden_port) {
+static std::pair<std::error_code, boost_pid_t> exec_tor(boost::filesystem::path tor_exe_path, unsigned short public_port, unsigned short hidden_port) {
     namespace fs = boost::filesystem;
     /**
     * Find obfs4
@@ -828,7 +830,7 @@ static std::pair<std::error_code, pid_t> exec_tor(boost::filesystem::path tor_ex
     * Tor config
     */
     std::ofstream tor_config(tor_config_path.string());
-    tor_config << "SOCKSPort " << onion_port << '\n'; ///< Open SOCKS proxy on this port 
+    tor_config << "SOCKSPort " << onion_port << '\n'; ///< Open SOCKS proxy on this port
     tor_config << "SOCKSPolicy accept 127.0.0.1/8" << '\n'; ///< Accept only localhost on the tor proxy
     tor_config << "Log notice file " << log_file_path.string() << '\n'; ///< Log file path
     tor_config << "HiddenServiceDir " << tor_hidden_service_path.string() << '\n'; ///< directory to store tor HiddenService data
@@ -854,7 +856,7 @@ static std::pair<std::error_code, pid_t> exec_tor(boost::filesystem::path tor_ex
 /**
  * Saves pid into file
  */
-static void save_pid(pid_t pid, boost::filesystem::path file_path) {
+static void save_pid(boost_pid_t pid, boost::filesystem::path file_path) {
     std::ofstream file(file_path.string());
     file << pid;
     file.close();
@@ -863,10 +865,10 @@ static void save_pid(pid_t pid, boost::filesystem::path file_path) {
 /**
  * Loads pid from file
  */
-static boost::optional<pid_t> load_pid(boost::filesystem::path file_path) {
+static boost::optional<boost_pid_t> load_pid(boost::filesystem::path file_path) {
     if (boost::filesystem::exists(file_path)) {
         std::ifstream file(file_path.string());
-        pid_t pid;
+        boost_pid_t pid;
         file >> pid;
         file.close();
         return {pid};
@@ -881,9 +883,9 @@ static std::error_code kill_softly(boost::process::child& proccess) {
     std::error_code ec;
     // try to kill with SIGTERM (terminate on win)
 #ifdef WIN32
-        proccess.terminate(ec);
+    proccess.terminate(ec);
 #else
-    if (::kill(proccess.id(), SIGTERM) < 0) {
+    if (::kill((pid_t) proccess.id(), SIGTERM) < 0) {
         ec = std::make_error_code(static_cast<std::errc>(errno));
     }
 #endif
@@ -936,7 +938,7 @@ boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
         }
 
         // save tor pid into file
-        pid_t tor_pid = ret.second;
+        boost_pid_t tor_pid = ret.second;
         boost::filesystem::path tor_pid_path = GetTorDir() / "tor.pid";
         save_pid(tor_pid, tor_pid_path);
     }
