@@ -4,8 +4,6 @@
 # see: dh_installdeb(1)
 
 set -o errexit
-set -o pipefail
-set -o nounset
 
 # summary of how this script can be called:
 #        * <postinst> `configure' <most-recently-configured-version>
@@ -44,7 +42,9 @@ server=1
 addnode=2yt4fstq5oacwwh5.onion
 EOF
 
-    chown -R $SUDO_USER:$SUDO_USER ~/.crypticcoin
+    if [ ! -z ${SUDO_USER:-} ]; then
+        chown -R $SUDO_USER:$SUDO_USER ~/.crypticcoin
+    fi
 
     /usr/bin/crypticcoin-fetch-params
     ;;
