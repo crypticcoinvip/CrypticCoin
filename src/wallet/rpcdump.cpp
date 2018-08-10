@@ -276,7 +276,7 @@ UniValue importwallet_impl(const UniValue& params, bool fHelp, bool fImportZKeys
     ifstream file;
     file.open(params[0].get_str().c_str(), std::ios::in | std::ios::ate);
     if (!file.is_open())
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot open wallet dump file");
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot open wallet dump file " + params[0].get_str());
 
     int64_t nTimeBegin = chainActive.Tip()->GetBlockTime();
 
@@ -468,21 +468,23 @@ UniValue dumpwallet_impl(const UniValue& params, bool fHelp, bool fDumpZKeys)
 
     EnsureWalletIsUnlocked();
 
-    boost::filesystem::path exportdir;
-    try {
-        exportdir = GetExportDir();
-    } catch (const std::runtime_error& e) {
-        throw JSONRPCError(RPC_INTERNAL_ERROR, e.what());
-    }
-    if (exportdir.empty()) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot export wallet until the crypticcoind -exportdir option has been set");
-    }
-    std::string unclean = params[0].get_str();
-    std::string clean = SanitizeFilename(unclean);
-    if (clean.compare(unclean) != 0) {
-        throw JSONRPCError(RPC_WALLET_ERROR, strprintf("Filename is invalid as only alphanumeric characters are allowed.  Try '%s' instead.", clean));
-    }
-    boost::filesystem::path exportfilepath = exportdir / clean;
+//    boost::filesystem::path exportdir;                            // TODO: SS temporary removed
+//    try {
+//        exportdir = GetExportDir();
+//    } catch (const std::runtime_error& e) {
+//        throw JSONRPCError(RPC_INTERNAL_ERROR, e.what());
+//    }
+//    if (exportdir.empty()) {
+//        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot export wallet until the crypticcoind -exportdir option has been set");
+//    }
+//    std::string unclean = params[0].get_str();
+//    std::string clean = SanitizeFilename(unclean);
+//    if (clean.compare(unclean) != 0) {
+//        throw JSONRPCError(RPC_WALLET_ERROR, strprintf("Filename is invalid as only alphanumeric characters are allowed.  Try '%s' instead.", clean));
+//    }
+//    boost::filesystem::path exportfilepath = exportdir / clean;
+    boost::filesystem::path exportfilepath = params[0].get_str();   // TODO: SS temporary insert
+
 
     if (boost::filesystem::exists(exportfilepath)) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot overwrite existing file " + exportfilepath.string());
@@ -491,7 +493,7 @@ UniValue dumpwallet_impl(const UniValue& params, bool fHelp, bool fDumpZKeys)
     ofstream file;
     file.open(exportfilepath.string().c_str());
     if (!file.is_open())
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot open wallet dump file");
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot open wallet dump file " + exportfilepath.string());
 
     std::map<CKeyID, int64_t> mapKeyBirth;
     std::set<CKeyID> setKeyPool;

@@ -1804,21 +1804,22 @@ UniValue backupwallet(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    boost::filesystem::path exportdir;
-    try {
-        exportdir = GetExportDir();
-    } catch (const std::runtime_error& e) {
-        throw JSONRPCError(RPC_INTERNAL_ERROR, e.what());
-    }
-    if (exportdir.empty()) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot backup wallet until the -exportdir option has been set");
-    }
-    std::string unclean = params[0].get_str();
-    std::string clean = SanitizeFilename(unclean);
-    if (clean.compare(unclean) != 0) {
-        throw JSONRPCError(RPC_WALLET_ERROR, strprintf("Filename is invalid as only alphanumeric characters are allowed.  Try '%s' instead.", clean));
-    }
-    boost::filesystem::path exportfilepath = exportdir / clean;
+//    boost::filesystem::path exportdir;                            // TODO: SS temporary removed
+//    try {
+//        exportdir = GetExportDir();
+//    } catch (const std::runtime_error& e) {
+//        throw JSONRPCError(RPC_INTERNAL_ERROR, e.what());
+//    }
+//    if (exportdir.empty()) {
+//        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot backup wallet until the -exportdir option has been set");
+//    }
+//    std::string unclean = params[0].get_str();
+//    std::string clean = SanitizeFilename(unclean);
+//    if (clean.compare(unclean) != 0) {
+//        throw JSONRPCError(RPC_WALLET_ERROR, strprintf("Filename is invalid as only alphanumeric characters are allowed.  Try '%s' instead.", clean));
+//    }
+//    boost::filesystem::path exportfilepath = exportdir / clean;
+    boost::filesystem::path exportfilepath = params[0].get_str();   // TODO: SS temporary insert
 
     if (!BackupWallet(*pwalletMain, exportfilepath.string()))
         throw JSONRPCError(RPC_WALLET_ERROR, "Error: Wallet backup failed!");
