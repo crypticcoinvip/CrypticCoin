@@ -918,7 +918,7 @@ boost::optional<error_string> KillTor() {
         prev_tor.wait();
     }
     catch (std::exception& e) {
-        return {error_string(e.what())};
+        return {error_string{} + e.what()};
     }
     return {};
 }
@@ -943,7 +943,7 @@ boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
         save_pid(tor_pid, tor_pid_path);
     }
     catch (std::exception& e) {
-        return {error_string(e.what())};
+        return {error_string{} + e.what()};
     }
     return {};
 }
