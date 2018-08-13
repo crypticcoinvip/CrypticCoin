@@ -791,20 +791,15 @@ void StopTorControl()
 * @param public_port is -tor_service_port from daemon config
 * @param tor_exe_path is path to tor executable
 */
-static std::pair<std::error_code, boost_pid_t> exec_tor(boost::filesystem::path tor_exe_path, unsigned short public_port, unsigned short hidden_port) {
+static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& pathes, unsigned short public_port, unsigned short hidden_port) {
     namespace fs = boost::filesystem;
     /**
     * Find obfs4
     */
     boost::optional<std::string> clientTransportPlugin;
-#ifdef WIN32
-    fs::path obfs_path = tor_exe_path.parent_path() / "obfs4proxy.exe";
-#else
-    fs::path obfs_path = tor_exe_path.parent_path() / "obfs4proxy";
-#endif
-    auto obfs_err = check_executable_path(obfs_path);
+    auto obfs_err = check_executable_path(pathes.tor_obfs_exe_path);
     if (!obfs_err) {
-        clientTransportPlugin = "obfs4 exec " + obfs_path.string();
+        clientTransportPlugin = "obfs4 exec " + pathes.tor_obfs_exe_path.string();
     }
 
     /**
@@ -847,7 +842,7 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(boost::filesystem::path 
     */
     static boost::process::child tor_process; // precess-scope var
     std::error_code ec;
-    const std::string executable = tor_exe_path.string();
+    const std::string executable = pathes.tor_exe_path.string();
     tor_process = boost::process::child(executable + " " + args_str, ec);
 
     return {ec, tor_process.id()};
@@ -923,16 +918,16 @@ boost::optional<error_string> KillTor() {
     return {};
 }
 
-boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
+boost::optional<error_string> StartTor(const TorExePathes& pathes) {
     try {
-        auto err = check_executable_path(tor_exe_path);
+        auto err = check_executable_path(pathes.tor_exe_path);
         if (err)
             return {"Tor execution error: " + *err};
 
         // kill prev. tor
         KillTor();
 
-        auto ret = exec_tor(tor_exe_path, GetTorServiceListenPort(), GetListenPort());
+        auto ret = exec_tor(pathes, GetTorServiceListenPort(), GetListenPort());
         if (ret.first) {
             return {ret.first.message()};
         }
