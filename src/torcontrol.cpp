@@ -789,28 +789,22 @@ void StopTorControl()
 * Execs tor
 * @param hidden_port is -port from daemon config
 * @param public_port is -tor_service_port from daemon config
-* @param tor_exe_path is path to tor executable
+* @param pathes are pathes to tor executables
 */
-static std::pair<std::error_code, boost_pid_t> exec_tor(boost::filesystem::path tor_exe_path, unsigned short public_port, unsigned short hidden_port) {
+static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& pathes, unsigned short public_port, unsigned short hidden_port) {
     namespace fs = boost::filesystem;
     /**
     * Find obfs4
     */
     boost::optional<std::string> clientTransportPlugin;
-#ifdef WIN32
-    fs::path obfs_path = tor_exe_path.parent_path() / "obfs4proxy.exe";
-#else
-    fs::path obfs_path = tor_exe_path.parent_path() / "obfs4proxy";
-#endif
-    auto obfs_err = check_executable_path(obfs_path);
+    auto obfs_err = check_executable_path(pathes.tor_obfs4_exe_path);
     if (!obfs_err) {
-        clientTransportPlugin = "obfs4 exec " + obfs_path.string();
+        clientTransportPlugin = {"obfs4 exec " + pathes.tor_obfs4_exe_path.string()};
     }
 
     /**
     * Paths
     */
-
     fs::path tor_dir_path = GetTorDir();
     fs::create_directory(tor_dir_path);
 
@@ -838,7 +832,6 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(boost::filesystem::path 
 
     if (clientTransportPlugin) {
         tor_config << "ClientTransportPlugin " << *clientTransportPlugin << '\n';
-        tor_config << "UseBridges 1" << '\n';
     }
     tor_config.close();
 
@@ -847,7 +840,7 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(boost::filesystem::path 
     */
     static boost::process::child tor_process; // precess-scope var
     std::error_code ec;
-    const std::string executable = tor_exe_path.string();
+    const std::string executable = pathes.tor_exe_path.string();
     tor_process = boost::process::child(executable + " " + args_str, ec);
 
     return {ec, tor_process.id()};
@@ -918,21 +911,21 @@ boost::optional<error_string> KillTor() {
         prev_tor.wait();
     }
     catch (std::exception& e) {
-        return {error_string(e.what())};
+        return {error_string{} + e.what()};
     }
     return {};
 }
 
-boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
+boost::optional<error_string> StartTor(const TorExePathes& pathes) {
     try {
-        auto err = check_executable_path(tor_exe_path);
+        auto err = check_executable_path(pathes.tor_exe_path);
         if (err)
             return {"Tor execution error: " + *err};
 
         // kill prev. tor
         KillTor();
 
-        auto ret = exec_tor(tor_exe_path, GetTorServiceListenPort(), GetListenPort());
+        auto ret = exec_tor(pathes, GetTorServiceListenPort(), GetListenPort());
         if (ret.first) {
             return {ret.first.message()};
         }
@@ -943,7 +936,7 @@ boost::optional<error_string> StartTor(boost::filesystem::path tor_exe_path) {
         save_pid(tor_pid, tor_pid_path);
     }
     catch (std::exception& e) {
-        return {error_string(e.what())};
+        return {error_string{} + e.what()};
     }
     return {};
 }
