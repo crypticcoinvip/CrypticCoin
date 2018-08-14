@@ -799,13 +799,12 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& path
     boost::optional<std::string> clientTransportPlugin;
     auto obfs_err = check_executable_path(pathes.tor_obfs4_exe_path);
     if (!obfs_err) {
-        clientTransportPlugin = "obfs4 exec " + pathes.tor_obfs4_exe_path.string();
+        clientTransportPlugin = {"obfs4 exec " + pathes.tor_obfs4_exe_path.string()};
     }
 
     /**
     * Paths
     */
-
     fs::path tor_dir_path = GetTorDir();
     fs::create_directory(tor_dir_path);
 
