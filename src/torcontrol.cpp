@@ -832,7 +832,6 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& path
 
     if (clientTransportPlugin) {
         tor_config << "ClientTransportPlugin " << *clientTransportPlugin << '\n';
-        tor_config << "UseBridges 1" << '\n';
     }
     tor_config.close();
 
