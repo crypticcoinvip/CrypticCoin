@@ -29,7 +29,7 @@ void StopTorControl();
  */
 struct TorExePathes {
     boost::filesystem::path tor_exe_path;
-    boost::filesystem::path tor_obfs_exe_path;
+    boost::filesystem::path tor_obfs4_exe_path;
 };
 
 /**

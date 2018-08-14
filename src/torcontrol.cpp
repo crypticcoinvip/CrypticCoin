@@ -797,9 +797,9 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& path
     * Find obfs4
     */
     boost::optional<std::string> clientTransportPlugin;
-    auto obfs_err = check_executable_path(pathes.tor_obfs_exe_path);
+    auto obfs_err = check_executable_path(pathes.tor_obfs4_exe_path);
     if (!obfs_err) {
-        clientTransportPlugin = "obfs4 exec " + pathes.tor_obfs_exe_path.string();
+        clientTransportPlugin = "obfs4 exec " + pathes.tor_obfs4_exe_path.string();
     }
 
     /**
