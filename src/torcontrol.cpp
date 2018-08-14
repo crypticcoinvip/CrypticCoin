@@ -789,7 +789,7 @@ void StopTorControl()
 * Execs tor
 * @param hidden_port is -port from daemon config
 * @param public_port is -tor_service_port from daemon config
-* @param tor_exe_path is path to tor executable
+* @param pathes are pathes to tor executables
 */
 static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& pathes, unsigned short public_port, unsigned short hidden_port) {
     namespace fs = boost::filesystem;

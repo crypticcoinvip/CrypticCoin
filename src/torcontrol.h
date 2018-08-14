@@ -34,7 +34,7 @@ struct TorExePathes {
 
 /**
 * Create tor execution thread (execs tor, execs again if it gets closed)
-* @param tor_exe_path is path to tor executable
+* @param pathes are pathes to tor executables
 */
 boost::optional<error_string> StartTor(const TorExePathes& pathes);
 
