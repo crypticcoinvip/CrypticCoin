@@ -395,7 +395,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-maxsendbuffer=<n>", strprintf(_("Maximum per-connection send buffer, <n>*1000 bytes (default: %u)"), 1000));
     strUsage += HelpMessageOpt("-onion=<ip:port>", strprintf(_("Use separate SOCKS5 proxy to reach peers via Tor hidden services (default: %s)"), "-proxy"));
     strUsage += HelpMessageOpt("-tor_exe_path=<path>", strprintf(_("Path to tor executable. Daemon will execute it (default: '%s')"), ""));
-    strUsage += HelpMessageOpt("-tor_obfs4_exe_path=<path>", strprintf(_("Path to obfs executable. Daemon will execute it (default: '%s')"), ""));
+    strUsage += HelpMessageOpt("-tor_obfs4_exe_path=<path>", strprintf(_("Path to obfs4 executable. Daemon will execute it (default: '%s')"), ""));
     strUsage += HelpMessageOpt("-onlynet=<net>", _("Only connect to nodes in network <net> (ipv4, ipv6 or onion)"));
     strUsage += HelpMessageOpt("-permitbaremultisig", strprintf(_("Relay non-P2SH multisig (default: %u)"), 1));
     strUsage += HelpMessageOpt("-peerbloomfilters", strprintf(_("Support filtering of blocks and transaction with Bloom filters (default: %u)"), 1));
