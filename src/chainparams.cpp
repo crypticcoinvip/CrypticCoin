@@ -132,9 +132,6 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-//        vSeeds.push_back(CDNSSeedData("z.cash", "dnsseed.z.cash")); // Crypticcoin
-//        vSeeds.push_back(CDNSSeedData("str4d.xyz", "dnsseed.str4d.xyz")); // @str4d
-//        vSeeds.push_back(CDNSSeedData("znodes.org", "dnsseed.znodes.org")); // @bitcartel
 
         // guarantees the first 2 characters, when base58 encoded, are "c1"
         base58Prefixes[PUBKEY_ADDRESS]     = {0x13,0xB6};
@@ -233,7 +230,6 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-//        vSeeds.push_back(CDNSSeedData("z.cash", "dnsseed.testnet.z.cash")); // Crypticcoin // TODO: SS remove crypticCoin testnet seed
 
         // guarantees the first 2 characters, when base58 encoded, are "T1"
         base58Prefixes[PUBKEY_ADDRESS]     = {0x0E,0xA4};
