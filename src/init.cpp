@@ -104,7 +104,6 @@ enum BindFlags {
 
 static const char* FEE_ESTIMATES_FILENAME="fee_estimates.dat";
 CClientUIInterface uiInterface; // Declared but not defined in ui_interface.h
-unsigned short const onion_port = 9089;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -134,15 +133,9 @@ unsigned short const onion_port = 9089;
 
 std::atomic<bool> fRequestShutdown(false);
 
-sighandler_t torHandleSIGTERM = SIG_ERR;
-
 void StartShutdown()
 {
     fRequestShutdown = true;
-    if (torHandleSIGTERM != SIG_ERR){
-        torHandleSIGTERM(SIGINT);
-    }
-
 }
 bool ShutdownRequested()
 {
@@ -179,7 +172,7 @@ void Interrupt(boost::thread_group& threadGroup)
     InterruptHTTPRPC();
     InterruptRPC();
     InterruptREST();
-    InterruptTorControl();
+    tor::InterruptTorControl();
     threadGroup.interrupt_all();
 }
 
@@ -190,6 +183,13 @@ void Shutdown()
     TRY_LOCK(cs_Shutdown, lockShutdown);
     if (!lockShutdown)
         return;
+
+    if (!GetArg("-tor_exe_path", "").empty()) {
+        auto err_str = tor::KillTor();
+        if (err_str) {
+            LogPrint("tor", "Tor killing error: %s\n", *err_str);
+        }
+    }
 
     /// Note: Shutdown() must be able to handle cases in which AppInit2() failed part of the way,
     /// for example if the data directory was found to be locked.
@@ -214,7 +214,7 @@ void Shutdown()
  #endif
 #endif
     StopNode();
-    StopTorControl();
+    tor::StopTorControl();
     UnregisterNodeSignals(GetNodeSignals());
 
     if (fFeeEstimatesInitialized)
@@ -288,9 +288,6 @@ void Shutdown()
 void HandleSIGTERM(int signal)
 {
     fRequestShutdown = true;
-    if (torHandleSIGTERM != SIG_ERR){
-        torHandleSIGTERM(signal);
-    }
 }
 
 void HandleSIGHUP(int)
@@ -396,22 +393,25 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-externalip=<ip>", _("Specify your own public address"));
     strUsage += HelpMessageOpt("-forcednsseed", strprintf(_("Always query for peer addresses via DNS lookup (default: %u)"), 0));
     strUsage += HelpMessageOpt("-listen", _("Accept connections from outside (default: 1 if no -proxy or -connect)"));
-    strUsage += HelpMessageOpt("-listenonion", strprintf(_("Automatically create Tor hidden service (default: %d)"), DEFAULT_LISTEN_ONION));
+    strUsage += HelpMessageOpt("-listenonion", strprintf(_("Automatically create Tor hidden service (default: %d)"), tor::DEFAULT_LISTEN_ONION));
     strUsage += HelpMessageOpt("-maxconnections=<n>", strprintf(_("Maintain at most <n> connections to peers (default: %u)"), DEFAULT_MAX_PEER_CONNECTIONS));
     strUsage += HelpMessageOpt("-maxreceivebuffer=<n>", strprintf(_("Maximum per-connection receive buffer, <n>*1000 bytes (default: %u)"), 5000));
     strUsage += HelpMessageOpt("-maxsendbuffer=<n>", strprintf(_("Maximum per-connection send buffer, <n>*1000 bytes (default: %u)"), 1000));
     strUsage += HelpMessageOpt("-onion=<ip:port>", strprintf(_("Use separate SOCKS5 proxy to reach peers via Tor hidden services (default: %s)"), "-proxy"));
+    strUsage += HelpMessageOpt("-tor_exe_path=<path>", strprintf(_("[if -listenonion] Path to tor executable. Daemon will execute it (default: '%s')"), ""));
+    strUsage += HelpMessageOpt("-tor_obfs4_exe_path=<path>", strprintf(_("[if -tor_exe_path] Path to obfs4 executable. Tor will execute it (default: '%s')"), ""));
     strUsage += HelpMessageOpt("-onlynet=<net>", _("Only connect to nodes in network <net> (ipv4, ipv6 or onion)"));
     strUsage += HelpMessageOpt("-permitbaremultisig", strprintf(_("Relay non-P2SH multisig (default: %u)"), 1));
     strUsage += HelpMessageOpt("-peerbloomfilters", strprintf(_("Support filtering of blocks and transaction with Bloom filters (default: %u)"), 1));
     if (showDebug)
         strUsage += HelpMessageOpt("-enforcenodebloom", strprintf("Enforce minimum protocol version to limit use of Bloom filters (default: %u)", 0));
     strUsage += HelpMessageOpt("-port=<port>", strprintf(_("Listen for connections on <port> (default: %u or testnet: %u)"), 23303, 23313));
+    strUsage += HelpMessageOpt("-tor_service_port=<port>", strprintf(_("[if -tor_exe_path] Executed tor will listen for connections on <port> (default: %u or testnet: %u)"), 23303, 23313));
     strUsage += HelpMessageOpt("-proxy=<ip:port>", _("Connect through SOCKS5 proxy"));
     strUsage += HelpMessageOpt("-proxyrandomize", strprintf(_("Randomize credentials for every proxy connection. This enables Tor stream isolation (default: %u)"), 1));
     strUsage += HelpMessageOpt("-seednode=<ip>", _("Connect to a node to retrieve peer addresses, and disconnect"));
     strUsage += HelpMessageOpt("-timeout=<n>", strprintf(_("Specify connection timeout in milliseconds (minimum: 1, default: %d)"), DEFAULT_CONNECT_TIMEOUT));
-    strUsage += HelpMessageOpt("-torcontrol=<ip>:<port>", strprintf(_("Tor control port to use if onion listening enabled (default: %s)"), DEFAULT_TOR_CONTROL));
+    strUsage += HelpMessageOpt("-torcontrol=<ip>:<port>", strprintf(_("Tor control port to use if onion listening enabled (default: %s)"), tor::DEFAULT_TOR_CONTROL));
     strUsage += HelpMessageOpt("-torpassword=<pass>", _("Tor control port password (default: empty)"));
     strUsage += HelpMessageOpt("-whitebind=<addr>", _("Bind to given address and whitelist peers connecting to it. Use [host]:port notation for IPv6"));
     strUsage += HelpMessageOpt("-whitelist=<netmask>", _("Whitelist peers connecting from the given netmask or IP address. Can be specified multiple times.") +
@@ -737,11 +737,70 @@ bool AppInitServers(boost::thread_group& threadGroup)
     return true;
 }
 
+/**
+ * Set default program argument according to other arguments
+ */
+static void preprocessMapArgs() {
+    // when specifying an explicit binding address, you want to listen on it
+    // even when -connect or -proxy is specified
+    if (mapArgs.count("-bind")) {
+        if (SoftSetBoolArg("-listen", true))
+            LogPrintf("%s: parameter interaction: -bind set -> setting -listen=1\n", __func__);
+    }
+    if (mapArgs.count("-whitebind")) {
+        if (SoftSetBoolArg("-listen", true))
+            LogPrintf("%s: parameter interaction: -whitebind set -> setting -listen=1\n", __func__);
+    }
+
+    if (mapArgs.count("-connect") && mapMultiArgs["-connect"].size() > 0) {
+        // when only connecting to trusted nodes, do not seed via DNS, or listen by default
+        if (SoftSetBoolArg("-dnsseed", false))
+            LogPrintf("%s: parameter interaction: -connect set -> setting -dnsseed=0\n", __func__);
+        if (SoftSetBoolArg("-listen", false))
+            LogPrintf("%s: parameter interaction: -connect set -> setting -listen=0\n", __func__);
+    }
+
+    if (mapArgs.count("-proxy")) {
+        // to protect privacy, do not listen by default if a default proxy server is specified
+        if (SoftSetBoolArg("-listen", false))
+            LogPrintf("%s: parameter interaction: -proxy set -> setting -listen=0\n", __func__);
+        // to protect privacy, do not discover addresses by default
+        if (SoftSetBoolArg("-discover", false))
+            LogPrintf("%s: parameter interaction: -proxy set -> setting -discover=0\n", __func__);
+    }
+
+    if (!GetBoolArg("-listen", DEFAULT_LISTEN)) {
+        // do not try to retrieve public IP when not listening (pointless)
+        if (SoftSetBoolArg("-discover", false))
+            LogPrintf("%s: parameter interaction: -listen=0 -> setting -discover=0\n", __func__);
+        if (SoftSetBoolArg("-listenonion", false))
+            LogPrintf("%s: parameter interaction: -listen=0 -> setting -listenonion=0\n", __func__);
+    }
+
+    if (mapArgs.count("-externalip")) {
+        // if an explicit public IP is specified, do not try to find others
+        if (SoftSetBoolArg("-discover", false))
+            LogPrintf("%s: parameter interaction: -externalip set -> setting -discover=0\n", __func__);
+    }
+
+    if (GetBoolArg("-salvagewallet", false)) {
+        // Rewrite just private keys: rescan to find transactions
+        if (SoftSetBoolArg("-rescan", true))
+            LogPrintf("%s: parameter interaction: -salvagewallet=1 -> setting -rescan=1\n", __func__);
+    }
+}
+
 /** Initialize bitcoin.
  *  @pre Parameters should be parsed and config file should be read.
  */
 bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
+    /**
+    * Kill prev. tor (to be able to bind ports)
+    */
+    if (!GetArg("-tor_exe_path", "").empty()) {
+        tor::KillTor();
+    }
     // ********************************************************* Step 1: setup
 #ifdef _MSC_VER
     // Turn off Microsoft heap dump noise
@@ -824,52 +883,64 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     LogPrintf("Crypticcoin version %s (%s)\n", FormatFullVersion(), CLIENT_DATE);
 
-    // when specifying an explicit binding address, you want to listen on it
-    // even when -connect or -proxy is specified
-    if (mapArgs.count("-bind")) {
-        if (SoftSetBoolArg("-listen", true))
-            LogPrintf("%s: parameter interaction: -bind set -> setting -listen=1\n", __func__);
-    }
-    if (mapArgs.count("-whitebind")) {
-        if (SoftSetBoolArg("-listen", true))
-            LogPrintf("%s: parameter interaction: -whitebind set -> setting -listen=1\n", __func__);
+    preprocessMapArgs();
+
+    /**
+    * Init tor
+    */
+    if (GetBoolArg("-listenonion", tor::DEFAULT_LISTEN_ONION)) {
+        { // exec tor
+            if (!GetArg("-tor_exe_path", "").empty()) {
+                tor::TorExePathes tor_pathes;
+                tor_pathes.tor_exe_path = {GetArg("-tor_exe_path", "")};
+                tor_pathes.tor_obfs4_exe_path = {GetArg("-tor_obfs4_exe_path", "")};
+                auto err_str = tor::StartTor(tor_pathes);
+                if (err_str) {
+                    return InitError(*err_str);
+                } else {
+                    LogPrint("tor", "Tor (%s) has started (check tor/tor.log for details)\n", tor_pathes.tor_exe_path.string());
+                }
+            }
+        }
+        //tor::StartTorControl(threadGroup, scheduler);
     }
 
-    if (mapArgs.count("-connect") && mapMultiArgs["-connect"].size() > 0) {
-        // when only connecting to trusted nodes, do not seed via DNS, or listen by default
-        if (SoftSetBoolArg("-dnsseed", false))
-            LogPrintf("%s: parameter interaction: -connect set -> setting -dnsseed=0\n", __func__);
-        if (SoftSetBoolArg("-listen", false))
-            LogPrintf("%s: parameter interaction: -connect set -> setting -listen=0\n", __func__);
+    /**
+    * Init -externalip with current tor hostname
+    */
+    if (GetBoolArg("-listenonion", tor::DEFAULT_LISTEN_ONION)) {
+        boost::filesystem::path hostname_path = tor::GetTorHiddenServiceDir() / "hostname";
+
+        const int timeoutAttempts = 16;
+        int attempts = 0;
+        while (true) {
+            if (boost::filesystem::exists(hostname_path))
+                break;
+            boost::this_thread::sleep(boost::posix_time::seconds(1));
+            ++attempts;
+            if (attempts > timeoutAttempts)
+                return InitError(_("Timed out waiting for onion hostname. Is tor running? You can specify tor_exe_path or run it in another way."));
+            LogPrint("tor", "No onion hostname yet, will retry in 1 second... (%d/%d)\n", attempts, timeoutAttempts);
+        }
+
+        ifstream file(hostname_path.string().c_str());
+        string automatic_onion;
+        file >> automatic_onion;
+        mapArgs.insert(std::make_pair("-externalip", automatic_onion));
+        mapMultiArgs["-externalip"].push_back(automatic_onion);
     }
 
-    if (mapArgs.count("-proxy")) {
-        // to protect privacy, do not listen by default if a default proxy server is specified
-        if (SoftSetBoolArg("-listen", false))
-            LogPrintf("%s: parameter interaction: -proxy set -> setting -listen=0\n", __func__);
-        // to protect privacy, do not discover addresses by default
-        if (SoftSetBoolArg("-discover", false))
-            LogPrintf("%s: parameter interaction: -proxy set -> setting -discover=0\n", __func__);
-    }
+    // preprocessMapArgs() again after args are changed
+    preprocessMapArgs();
 
-    if (!GetBoolArg("-listen", DEFAULT_LISTEN)) {
-        // do not try to retrieve public IP when not listening (pointless)
-        if (SoftSetBoolArg("-discover", false))
-            LogPrintf("%s: parameter interaction: -listen=0 -> setting -discover=0\n", __func__);
-        if (SoftSetBoolArg("-listenonion", false))
-            LogPrintf("%s: parameter interaction: -listen=0 -> setting -listenonion=0\n", __func__);
-    }
-
+    // interpret -externalip
     if (mapArgs.count("-externalip")) {
-        // if an explicit public IP is specified, do not try to find others
-        if (SoftSetBoolArg("-discover", false))
-            LogPrintf("%s: parameter interaction: -externalip set -> setting -discover=0\n", __func__);
-    }
-
-    if (GetBoolArg("-salvagewallet", false)) {
-        // Rewrite just private keys: rescan to find transactions
-        if (SoftSetBoolArg("-rescan", true))
-            LogPrintf("%s: parameter interaction: -salvagewallet=1 -> setting -rescan=1\n", __func__);
+        BOOST_FOREACH(const std::string& strAddr, mapMultiArgs["-externalip"]) {
+            CService addrLocal(strAddr, GetListenPort(), fNameLookup);
+            if (!addrLocal.IsValid())
+                return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr));
+            AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
+        }
     }
 
     // -zapwallettx implies a rescan
@@ -1248,17 +1319,26 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // -proxy sets a proxy for all outgoing network traffic
     // -noproxy (or -proxy=0) as well as the empty string can be used to not set a proxy, this is the default
     std::string proxyArg = GetArg("-proxy", "");
-    SetLimited(NET_TOR);
-    if (proxyArg != "" && proxyArg != "0") {
-        proxyType addrProxy = proxyType(CService(proxyArg, onion_port), proxyRandomize);
-        if (!addrProxy.IsValid())
-            return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
 
-        SetProxy(NET_IPV4, addrProxy);
-        SetProxy(NET_IPV6, addrProxy);
-        SetProxy(NET_TOR, addrProxy);
-        SetNameProxy(addrProxy);
-        SetLimited(NET_TOR, false); // by default, -proxy sets onion as reachable, unless -noonion later
+    if (proxyArg != "0"){
+        if (proxyArg != "") {
+            proxyType addrProxy = proxyType(CService(proxyArg, tor::onion_port), proxyRandomize);
+            if (!addrProxy.IsValid())
+                return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
+
+            SetProxy(NET_IPV4, addrProxy);
+            SetProxy(NET_IPV6, addrProxy);
+            SetProxy(NET_TOR, addrProxy);
+            SetNameProxy(addrProxy);
+        }else{
+            proxyType addrOnion;
+
+            addrOnion = proxyType(CService("127.0.0.1", tor::onion_port), proxyRandomize);
+
+            SetProxy(NET_TOR, addrOnion);
+            SetNameProxy(addrOnion);
+        }
+        SetLimited(NET_TOR, false);
     }
 
     // -onion can be used to set only a proxy for .onion, or override normal proxy for .onion addresses
@@ -1266,23 +1346,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // An empty string is used to not override the onion proxy (in which case it defaults to -proxy set above, or none)
     std::string onionArg = GetArg("-onion", "");
 
-    proxyType addrOnion;
-
-
     if (onionArg != "" && onionArg != "0") {
-        proxyType addrOnion = proxyType(CService(onionArg, onion_port), proxyRandomize);
+        proxyType addrOnion = proxyType(CService(onionArg, tor::onion_port), proxyRandomize);
 
         if (!addrOnion.IsValid())
             return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
-
-        SetLimited(NET_TOR, false);
-    } else {
-        SetLimited(NET_TOR);
-
-        addrOnion = proxyType(CService("127.0.0.1", onion_port), proxyRandomize);
     }
-
-    SetProxy(NET_TOR, addrOnion);
 
     // see Step 2: parameter interactions for more information about these
     fListen = GetBoolArg("-listen", DEFAULT_LISTEN);
@@ -1315,39 +1384,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
         if (!fBound)
             return InitError(_("Failed to listen on any port. Use -listen=0 if you want this."));
-    }
-
-    if (!(mapArgs.count("-onion") && mapArgs["-onion"] != "0")) {
-        threadGroup.create_thread(boost::bind(&StartTor));
-    }
-
-    if (mapArgs.count("-externalip")) {
-        BOOST_FOREACH(const std::string& strAddr, mapMultiArgs["-externalip"]) {
-            CService addrLocal(strAddr, GetListenPort(), fNameLookup);
-            if (!addrLocal.IsValid())
-                return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr));
-            AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
-        }
-    }
-    else
-    {
-        string automatic_onion;
-        boost::filesystem::path hostname_path = GetDataDir() / "tor" / "onion" / "hostname";
-
-        int attempts = 0;
-        while (1) {
-            if (boost::filesystem::exists(hostname_path))
-                break;
-            ++attempts;
-            boost::this_thread::sleep(boost::posix_time::seconds(2));
-            if (attempts > 8)
-                return InitError(_("Timed out waiting for onion hostname."));
-            LogPrintf("No onion hostname yet, will retry in 2 seconds... (%d/8)\n", attempts);
-        }
-
-        ifstream file(hostname_path.string().c_str());
-        file >> automatic_onion;
-        AddLocal(CService(automatic_onion, GetListenPort(), fNameLookup), LOCAL_MANUAL);
     }
 
     BOOST_FOREACH(const std::string& strDest, mapMultiArgs["-seednode"])
@@ -1768,9 +1804,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("mapAddressBook.size() = %u\n",  pwalletMain ? pwalletMain->mapAddressBook.size() : 0);
 #endif
 
-    if (GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
-        StartTorControl(threadGroup, scheduler);
-
     StartNode(threadGroup, scheduler);
 
     // Monitor the chain, and alert if we get blocks much quicker or slower than expected
@@ -1806,13 +1839,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // SENDALERT
     threadGroup.create_thread(boost::bind(ThreadSendAlert));
-
-    threadGroup.create_thread([]() {
-        MilliSleep(100);
-        torHandleSIGTERM = signal(SIGINT, HandleSIGTERM);
-        signal(SIGTERM, HandleSIGTERM);
-        signal(SIGQUIT, SIG_DFL);
-    });
 
     return !fRequestShutdown;
 }

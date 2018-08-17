@@ -24,8 +24,6 @@
 #include <fcntl.h>
 #endif
 
-#include <sys/stat.h>
-
 #include <boost/filesystem.hpp>
 #include <boost/thread.hpp>
 
@@ -58,13 +56,6 @@ namespace {
 
         ListenSocket(SOCKET socket, bool whitelisted) : socket(socket), whitelisted(whitelisted) {}
     };
-}
-
-extern const char tor_git_revision[];
-const char tor_git_revision[] = "";
-
-extern "C" {
-  int tor_main(int argc, char *argv[]);
 }
 
 //
@@ -118,6 +109,15 @@ void AddOneShot(const std::string& strDest)
 unsigned short GetListenPort()
 {
     return (unsigned short)(GetArg("-port", Params().GetDefaultPort()));
+}
+
+namespace tor {
+
+unsigned short GetTorServiceListenPort()
+{
+    return (unsigned short)(GetArg("-tor_service_port", Params().GetDefaultTorServicePort()));
+}
+
 }
 
 // find 'best' local address for a particular peer
@@ -2218,78 +2218,4 @@ void CNode::EndMessage() UNLOCK_FUNCTION(cs_vSend)
         SocketSendData(this);
 
     LEAVE_CRITICAL_SECTION(cs_vSend);
-}
-
-static char *convert_str(const std::string &s) {
-    char *pc = new char[s.size()+1];
-    std::strcpy(pc, s.c_str());
-    return pc;
-}
-
-static void run_tor() {
-  //  printf("TOR thread started.\n");
-
-    boost::optional<std::string> clientTransportPlugin;
-    struct stat sb;
-
-#ifdef WIN32
-    if (stat("obfs4proxy.exe", &sb) == 0 && sb.st_mode & 64) {
-        clientTransportPlugin = "obfs4 exec obfs4proxy.exe";
-    }
-#else
-    if ((stat("obfs4proxy", &sb) == 0 && sb.st_mode & 64) || !std::system("which obfs4proxy")) {
-        clientTransportPlugin = "obfs4 exec obfs4proxy";
-    }
-#endif
-
-
-    namespace fs = boost::filesystem;
-    fs::path tor_dir = GetDataDir() / "tor";
-    fs::create_directory(tor_dir);
-    fs::path log_file = tor_dir / "tor.log";
-
-    std::vector<std::string> argv;
-    argv.push_back("tor");
-    argv.push_back("--Log");
-    argv.push_back("notice file " + log_file.string());
-    argv.push_back("--SocksPort");
-    argv.push_back("9089");
-    argv.push_back("--ignore-missing-torrc");
-    argv.push_back("--quiet");
-    argv.push_back("-f");
-    argv.push_back((tor_dir / "torrc").string());
-    argv.push_back("--HiddenServiceDir");
-    argv.push_back((tor_dir / "onion").string());
-    argv.push_back("--HiddenServicePort");
-    argv.push_back("23303");
-
-    if (clientTransportPlugin) {
-     //   printf("Using OBFS4.\n");
-        argv.push_back("--ClientTransportPlugin");
-        argv.push_back(*clientTransportPlugin);
-        argv.push_back("--UseBridges");
-        argv.push_back("1");
-    }
-    else {
-     //   printf("No OBFS4 found, not using it.\n");
-    }
-
-    std::vector<char *> argv_c;
-    std::transform(argv.begin(), argv.end(), std::back_inserter(argv_c), convert_str);
-
-    tor_main(argv_c.size(), &argv_c[0]);
-}
-
-void StartTor() {
-    RenameThread("onion");
-
-    try
-    {
-        run_tor();
-    }
-    catch (std::exception& e) {
-        PrintExceptionContinue(&e, "StartTor()");
-    }
-    LogPrint("net", "Onion thread exited.\n");
-
 }

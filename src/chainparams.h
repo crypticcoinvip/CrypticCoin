@@ -60,6 +60,7 @@ public:
     const CMessageHeader::MessageStartChars& MessageStart() const { return pchMessageStart; }
     const std::vector<unsigned char>& AlertKey() const { return vAlertPubKey; }
     int GetDefaultPort() const { return nDefaultPort; }
+    int GetDefaultTorServicePort() const { return nDefaultTorServicePort; }
 
     const CBlock& GenesisBlock() const { return genesis; }
     /** Make miner wait to have peers to avoid wasting work */
@@ -97,6 +98,7 @@ protected:
     //! Raw pub key bytes for the broadcast alert signing key.
     std::vector<unsigned char> vAlertPubKey;
     int nDefaultPort = 0;
+    int nDefaultTorServicePort = 0;
     long nMaxTipAge = 0;
     uint64_t nPruneAfterHeight = 0;
     unsigned int nEquihashN = 0;
