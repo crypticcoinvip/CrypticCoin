@@ -378,7 +378,7 @@ UniValue importwallet_impl(const UniValue& params, bool fHelp, bool fImportZKeys
     if (!fGood)
         throw JSONRPCError(RPC_WALLET_ERROR, "Error adding some keys to wallet");
 
-    return NullUniValue;
+    return params[0].get_str();
 }
 
 UniValue dumpprivkey(const UniValue& params, bool fHelp)
