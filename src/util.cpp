@@ -894,7 +894,7 @@ std::string PrivacyInfo()
 {
     return "\n" +
            FormatParagraph(strprintf(_("In order to ensure you are adequately protecting your privacy when using Crypticcoin, please see <%s>."),
-                                     "https://z.cash/support/security/")) + "\n";
+                                     "https://crypticcoin.io/support/security/")) + "\n";
 }
 
 std::string LicenseInfo()

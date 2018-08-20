@@ -4,7 +4,7 @@ Crypticcoin 1.1.0
 What is Crypticcoin?
 --------------
 
-[Crypticcoin](https://z.cash/) is an implementation of the "Zerocash" protocol.
+[Crypticcoin](https://crypticcoin.io/) is an implementation of the "Zerocash" protocol.
 Based on Bitcoin's code, it intends to offer a far higher standard of privacy
 through a sophisticated zero-knowledge proving scheme that preserves
 confidentiality of transaction metadata. Technical details are available
@@ -19,7 +19,7 @@ Security Warnings
 -----------------
 
 See important security warnings on the
-[Security Information page](https://z.cash/support/security/).
+[Security Information page](https://crypticcoin.io/support/security/).
 
 **Crypticcoin is experimental and a work-in-progress.** Use at your own risk.
 
