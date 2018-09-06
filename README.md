@@ -1,4 +1,4 @@
-Crypticcoin 1.1.0
+Crypticcoin 1.1.1
 =============
 
 What is Crypticcoin?
@@ -53,12 +53,7 @@ Build Crypticcoin along with most dependencies from source by running
 ./zcutil/build.sh. Currently only Linux is officially supported.
 
 ## Windows
-$ sudo apt install mingw-w64
-$ sudo update-alternatives --config x86_64-w64-mingw32-gcc
-(configure to use POSIX variant)
-$ sudo update-alternatives --config x86_64-w64-mingw32-g++
-(configure to use POSIX variant)
-$ HOST=x86_64-w64-mingw32 ./zcutil/build.sh
+See mingw64 branch
 
 ## Mac
 LIBTOOLIZE=glibtoolize ./zcutil/build.sh
