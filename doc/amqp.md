@@ -7,7 +7,7 @@ brokerless messaging.  AMQP 1.0 is an open standard and has been
 ratified as ISO/IEC 19464.
 
 The Crypticcoin daemon can be configured to act as a trusted "border
-router", implementing the Crypticcoin P2P protocol and relay, making
+router", implementing the Zcash P2P protocol and relay, making
 consensus decisions, maintaining the local blockchain database,
 broadcasting locally generated transactions into the network, and
 providing a queryable RPC interface to interact on a polled basis for

@@ -10,7 +10,7 @@ Miners, Mining pools, Online wallets
 
 ## Background
 
-The current Crypticcoin protocol includes a consensus rule that coinbase rewards must be sent to a shielded address.
+The current Zcash protocol includes a consensus rule that coinbase rewards must be sent to a shielded address.
 
 ## User Experience Challenges
 
@@ -46,7 +46,7 @@ Sweep up with a fee of 0.1 CRYP and set limit on the maximum number of UTXOs to 
 
 ### Asynchronous Call
 
-The `z_shieldcoinbase` RPC call is an asynchronous call, so you can queue up multiple operations. 
+The `z_shieldcoinbase` RPC call is an asynchronous call, so you can queue up multiple operations.
 
 When you invoke
 

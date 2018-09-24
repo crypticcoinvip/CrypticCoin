@@ -5,7 +5,7 @@ Incoming viewing keys
 ---------------------
 
 Support for incoming viewing keys, as described in
-[the Crypticcoin protocol spec](https://github.com/crypticcoin/zips/blob/master/protocol/protocol.pdf),
+[the Crypticcoin protocol spec](https://github.com/zcash/zips/blob/master/protocol/protocol.pdf),
 has been added to the wallet.
 
 Use the `z_exportviewingkey` RPC method to obtain the incoming viewing key for a
@@ -28,7 +28,7 @@ watch-only addresses.
   cannot detect spends, and so the "balance" is just the sum of all received
   notes, including ones that have been spent. Some future use-cases for incoming
   viewing keys will include synchronization data to keep their balances accurate
-  (e.g. [#2542](https://github.com/crypticcoin/crypticcoin/issues/2542)).
+  (e.g. [#2542](https://github.com/zcash/zcash/issues/2542)).
 
 Changelog
 =========

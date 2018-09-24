@@ -102,16 +102,9 @@ signed. **CAUTION:** Remember the `v` at the beginning here:
     $ git tag -s v1.0.9
     $ git push origin v1.0.9
 
-## Make and deploy deterministic builds
-
-- Run the [Gitian deterministic build environment](https://github.com/crypticcoin/crypticcoin-gitian)
-- Compare the uploaded [build manifests on gitian.sigs](https://github.com/crypticcoin/gitian.sigs)
-- If all is well, the DevOps engineer will build the Debian packages and update the
-  [apt.z.cash package repository](https://apt.z.cash).
-
 ## Add release notes to GitHub
 
-- Go to the [GitHub tags page](https://github.com/crypticcoin/crypticcoin/tags).
+- Go to the [GitHub tags page](https://github.com/crypticcoinvip/crypticcoin/tags).
 - Click "Add release notes" beside the tag for this release.
 - Copy the release blog post into the release description, and edit to suit
   publication on GitHub. See previous release notes for examples.
@@ -137,12 +130,6 @@ Notify the Crypticcoin DevOps engineer/sysadmin that the release has been tagged
 * possible manual steps: blowing away the `testnet3` dir, deleting old parameters, restarting DNS seeder
 
 Then, verify that nodes can connect to the testnet server, and update the guide on the wiki to ensure the correct hostname is listed in the recommended crypticcoin.conf.
-
-### Update the 1.0 User Guide
-
-This also means updating [the translations](https://github.com/crypticcoin/crypticcoin-docs).
-Coordinate with the translation team for now. Suggestions for improving this
-part of the process should be added to #2596.
 
 ### Publish the release announcement (blog, github, crypticcoin-dev, slack)
 

@@ -1,13 +1,6 @@
 Security Warnings
 ====================
 
-Security Audit
---------------
-
-Crypticcoin has been subjected to a formal third-party security review. For security
-announcements, audit results and other general security information, see
-https://z.cash/support/security.html
-
 x86-64 Linux Only
 -----------------------
 
@@ -36,8 +29,8 @@ Wallet encryption is disabled, for several reasons:
 
 - We were concerned about the resistance of the algorithm used to derive wallet
   encryption keys (inherited from [Bitcoin](https://bitcoin.org/en/secure-your-wallet))
-  to dictionary attacks by a powerful attacker. If and when we re-enable wallet 
-  encryption, it is likely to be with a modern passphrase-based key derivation 
+  to dictionary attacks by a powerful attacker. If and when we re-enable wallet
+  encryption, it is likely to be with a modern passphrase-based key derivation
   algorithm designed for greater resistance to dictionary attack, such as Argon2i.
 
 You should use full-disk encryption (or encryption of your home directory) to
@@ -105,6 +98,6 @@ potential mistakes in our modifications to Bitcoin Core, it is also possible
 that there were potential changes we were supposed to make to Bitcoin Core but
 didn't, either because we didn't even consider making those changes, or we ran
 out of time. We have brainstormed and documented a variety of such possibilities
-in [issue #826](https://github.com/crypticcoin/crypticcoin/issues/826), and believe that we
+in [issue #826](https://github.com/zcash/zcash/issues/826), and believe that we
 have changed or done everything that was necessary for the 1.0.0 launch. Users
 may want to review this list themselves.
