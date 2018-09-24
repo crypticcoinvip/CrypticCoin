@@ -1,6 +1,10 @@
 Crypticcoin Contributors
 ==================
 
+
+Zcash Contributors
+==================
+
 Jack Grigg (648)
 Simon Liu (311)
 Sean Bowe (193)

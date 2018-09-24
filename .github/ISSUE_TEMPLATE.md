@@ -2,18 +2,18 @@
 
 This issue tracker is only for technical issues related to crypticcoind.
 
-General Crypticcoin questions and/or support requests and are best directed to the [Crypticcoin Forums](https://forum.crypticcoin.io) or [Community Rocket.Chat](https://chat.crypticcoincommunity.com).
+General Crypticcoin questions and/or support requests and are best directed to the [Crypticcoin Forums](https://forum.crypticcoin.io)
 
-For reporting security vulnerabilities or for sensitive discussions with our security team, please contact [info@crypticcoin.io](mailto:info@crypticcoin.io). You can use the [GPG key](https://z.cash/gpg-pubkeys/security.asc) (fingerprint: `AF85 0445 546C 18B7 86F9  2C62 88FB 8B86 D8B5 A68C`) to send an encrypted message. The key and fingerprint are duplicated on our [Public Keys page](https://z.cash/support/pubkeys.html).
+For reporting security vulnerabilities or for sensitive discussions with our security team, please contact [info@crypticcoin.io](mailto:info@crypticcoin.io).
 
 ### Describe the issue
 Please provide a general summary of the issue you're experiencing
 
 ### Can you reliably reproduce the issue?
 #### If so, please list the steps to reproduce below:
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ### Expected behaviour
 Tell us what should happen

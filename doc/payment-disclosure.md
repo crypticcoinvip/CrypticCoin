@@ -22,9 +22,9 @@ All nodes that generate or validate payment disclosures must run with `txindex=1
 
 Payment Disclosure is an implementation of the work-in-progress Payment Disclosure ZIP [1].
 
-The ZIP describes a method of proving that a payment was sent to a shielded address. In the typical case, this means enabling a sender to present a proof that they transferred funds to a recipient's shielded address. 
+The ZIP describes a method of proving that a payment was sent to a shielded address. In the typical case, this means enabling a sender to present a proof that they transferred funds to a recipient's shielded address.
 
-[1] https://github.com/crypticcoin/zips/pull/119
+[1] https://github.com/zcash/zips/pull/119
 
 ### Example Use Case
 
@@ -51,7 +51,7 @@ To validate a payment disclosure, the following RPC call can be used:
 Generate a payment disclosure for the first joinsplit, second output (index starts from zero):
 
     crypticcoin-cli z_getpaymentdisclosure 79189528d611e811a1c7bb0358dd31343033d14b4c1e998d7c4799c40f8b652b 0 1 "Hello"
-    
+
 This returns a payment disclosure in the form of a hex string:
 
     706462ff000a3722aafa8190cdf9710bfad6da2af6d3a74262c1fc96ad47df814b0cd5641c2b658b0fc499477c8d991e4c4bd133303431dd5803bbc7a111e811d6289518790000000000000000017e861adb829d8cb1cbcf6330b8c2e25fb0d08041a67a857815a136f0227f8a5342bce5b3c0d894e2983000eb594702d3c1580817d0374e15078528e56bb6f80c0548656c6c6f59a7085395c9e706d82afe3157c54ad4ae5bf144fcc774a8d9c921c58471402019c156ec5641e2173c4fb6467df5f28530dc4636fa71f4d0e48fc5c560fac500
@@ -59,7 +59,7 @@ This returns a payment disclosure in the form of a hex string:
 To validate the payment disclosure:
 
     crypticcoin-cli z_validatepaymentdisclosure HEXDATA
-    
+
 This returns data related to the payment and the payment disclosure:
 
     {
@@ -89,7 +89,7 @@ For nodes that only validate payment disclosures, no data is stored locally.
 For nodes that generate payment disclosures, a LevelDB database is created in the node's datadir.  For most users, this would be in the folder:
 
     $HOME/.crypticcoin/paymentdisclosure
-    
+
 If you decide you don't want to use payment disclosure, it is safe to shut down your node and delete the database folder.
 
 ### Security Properties

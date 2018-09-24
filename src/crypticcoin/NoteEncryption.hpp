@@ -1,6 +1,6 @@
 /*
 See the Crypticcoin protocol specification for more information.
-https://github.com/crypticcoin/zips/blob/master/protocol/protocol.pdf
+https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
 */
 
 #ifndef ZC_NOTE_ENCRYPTION_H_
@@ -42,7 +42,7 @@ public:
     }
 
     // Encrypts `message` with `pk_enc` and returns the ciphertext.
-    // This is only called ZC_NUM_JS_OUTPUTS times for a given instantiation; 
+    // This is only called ZC_NUM_JS_OUTPUTS times for a given instantiation;
     // but can be called 255 times before the nonce-space runs out.
     Ciphertext encrypt(const uint256 &pk_enc,
                        const Plaintext &message

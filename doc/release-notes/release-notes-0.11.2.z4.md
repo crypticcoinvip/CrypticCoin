@@ -12,7 +12,7 @@ Jack Grigg (21):
       Fix failing miner test
       Add Crypticcoin revision to version strings
       Bitcoin -> Crypticcoin in version and help text
-      Add Crypticcoin Developers to CLI copyright notice
+      Add ZCash Developers to CLI copyright notice
       Minor error message tweak
       Refactor StepRow to make optimisation easier
       Cleanups
