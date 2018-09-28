@@ -858,7 +858,7 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
 
 /**
  * Check a transaction contextually against a set of consensus rules valid at a given block height.
- * 
+ *
  * Notes:
  * 1. AcceptToMemoryPool calls CheckTransaction and this function.
  * 2. ProcessNewBlock calls AcceptBlock, which calls CheckBlock (which calls CheckTransaction)
@@ -894,7 +894,7 @@ bool ContextualCheckTransaction(const CTransaction& tx, CValidationState &state,
             return state.DoS(dosLevel, error("ContextualCheckTransaction: overwinter is active"),
                             REJECT_INVALID, "tx-overwinter-active");
         }
-    
+
         // Check that all transactions are unexpired
         if (IsExpiredTx(tx, nHeight)) {
             // Don't increase banscore if the transaction only just expired
@@ -1530,23 +1530,24 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex)
 
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
-    CAmount nSubsidy = 1655;
+    CAmount nSubsidy = 1655 * COIN;
 
     int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
 
-    if (halvings >= 8)
+    if (halvings >= 11)
         return 0;
 
     if (nHeight == 2)
     {
         nSubsidy = consensusParams.PREMINE_AMOUNT + consensusParams.FREECO_AMOUNT + consensusParams.AMB_FREECO_AMOUNT;
     }
-    else if (nHeight > 1)
+    else if (Params().NetworkIDString() == "test" && nHeight > 250)
     {
-        nSubsidy >>= halvings;
+        nSubsidy /= 10;
     }
 
-    nSubsidy *= COIN;
+    nSubsidy >>= halvings;
+
     return nSubsidy;
 }
 

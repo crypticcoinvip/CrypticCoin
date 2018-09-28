@@ -76,6 +76,7 @@ static CBlock CreateGenesisBlock(uint32_t nTime, const uint256& nNonce, const st
  * + Contains no strange transactions
  */
 
+
 const arith_uint256 maxUint = UintToArith256(uint256S("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
 
 class CMainParams : public CChainParams {
@@ -85,7 +86,7 @@ public:
         strCurrencyUnits = "CRYP";
         consensus.fCoinbaseMustBeProtected = true;
         consensus.nSubsidySlowStartInterval = 20000;
-        consensus.nSubsidyHalvingInterval = 1048320;
+        consensus.nSubsidyHalvingInterval = 10483200;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 4000;
@@ -151,7 +152,7 @@ public:
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
-        fMiningRequiresPeers = false;
+        fMiningRequiresPeers = true;
         fDefaultConsistencyChecks = false;
         fRequireStandard = true;
         fMineBlocksOnDemand = false;
@@ -187,7 +188,7 @@ public:
         strCurrencyUnits = "TAС";
         consensus.fCoinbaseMustBeProtected = true;
         consensus.nSubsidySlowStartInterval = 20000;
-        consensus.nSubsidyHalvingInterval = 1048320;
+        consensus.nSubsidyHalvingInterval = 10483200;
         consensus.nMajorityEnforceBlockUpgrade = 51;
         consensus.nMajorityRejectBlockOutdated = 75;
         consensus.nMajorityWindow = 400;
