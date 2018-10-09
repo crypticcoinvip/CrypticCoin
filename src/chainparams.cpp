@@ -76,6 +76,7 @@ static CBlock CreateGenesisBlock(uint32_t nTime, const uint256& nNonce, const st
  * + Contains no strange transactions
  */
 
+
 const arith_uint256 maxUint = UintToArith256(uint256S("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
 
 class CMainParams : public CChainParams {
@@ -85,7 +86,7 @@ public:
         strCurrencyUnits = "CRYP";
         consensus.fCoinbaseMustBeProtected = true;
         consensus.nSubsidySlowStartInterval = 20000;
-        consensus.nSubsidyHalvingInterval = 1048320;
+        consensus.nSubsidyHalvingInterval = 10483200;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 4000;
@@ -151,7 +152,7 @@ public:
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
-        fMiningRequiresPeers = false;
+        fMiningRequiresPeers = true;
         fDefaultConsistencyChecks = false;
         fRequireStandard = true;
         fMineBlocksOnDemand = false;
@@ -162,8 +163,9 @@ public:
             (0, consensus.hashGenesisBlock)
             (1, uint256S("0x0006af774e069a29f346889a52c737f9b054de1649801241b3ec60e84484ecde"))
             (2590, uint256S("0x000517e541aa6743b39fead56b3254bef4f8119b5cdb249c24e0146f188365eb"))
-            (10000, uint256S("0x0000264991d920934cf2d70303c99e203fc00e8a271658a3e6bac68ca922124c")),
-            1536097775,     // * UNIX timestamp of last checkpoint block
+            (10000, uint256S("0x0000264991d920934cf2d70303c99e203fc00e8a271658a3e6bac68ca922124c"))
+            (25000, uint256S("0x0000000977377c91961efa4da9c23688de3172493ba31513b1e1e0aeff122822")),
+            1538433865,     // * UNIX timestamp of last checkpoint block
             15924,  // * total number of transactions between genesis and last checkpoint
                    //   (the tx=... number in the SetBestChain debug.log lines)
             1.0    // * estimated number of transactions per day after checkpoint
@@ -187,7 +189,7 @@ public:
         strCurrencyUnits = "TAС";
         consensus.fCoinbaseMustBeProtected = true;
         consensus.nSubsidySlowStartInterval = 20000;
-        consensus.nSubsidyHalvingInterval = 1048320;
+        consensus.nSubsidyHalvingInterval = 10483200;
         consensus.nMajorityEnforceBlockUpgrade = 51;
         consensus.nMajorityRejectBlockOutdated = 75;
         consensus.nMajorityWindow = 400;

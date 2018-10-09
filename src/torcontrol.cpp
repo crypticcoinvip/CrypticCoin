@@ -818,7 +818,7 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& path
     std::string args_str;
     args_str.reserve(200);
     args_str += "--quiet ";
-    args_str += "-f " + tor_config_path.string() + " ";
+    args_str += "-f \"" + tor_config_path.string() + "\" ";
 
     /**
     * Tor config
@@ -838,6 +838,7 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& path
     /**
     * Exec tor
     */
+    LogPrint("tor", "Tor is starting...");
     static boost::process::child tor_process; // precess-scope var
     std::error_code ec;
     const std::string executable = pathes.tor_exe_path.string();

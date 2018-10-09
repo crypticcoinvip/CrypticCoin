@@ -1,4 +1,4 @@
-Crypticcoin 1.1.1
+Crypticcoin 1.1.2
 =============
 
 What is Crypticcoin?
@@ -8,7 +8,7 @@ What is Crypticcoin?
 Based on Bitcoin's code, it intends to offer a far higher standard of privacy
 through a sophisticated zero-knowledge proving scheme that preserves
 confidentiality of transaction metadata. Technical details are available
-in our [Protocol Specification](https://github.com/crypticcoin/zips/raw/master/protocol/protocol.pdf).
+in our [Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
 
 This software is the Crypticcoin client. It downloads and stores the entire history
 of Crypticcoin transactions; depending on the speed of your computer and network
@@ -31,15 +31,9 @@ is an automatic deprecation shutdown feature which will halt the node some
 time after this 16 week time period. The automatic feature is based on block
 height and can be explicitly disabled.
 
-Where do I begin?
------------------
-We have a guide for joining the main Crypticcoin network:
-https://github.com/crypticcoin/crypticcoin/wiki/1.0-User-Guide
 
 ### Need Help?
 
-* See the documentation at the [Crypticcoin Wiki](https://github.com/crypticcoin/crypticcoin/wiki)
-  for help and more information.
 * Ask for help on the [Crypticcoin](https://forum.crypticcoin.io/) forum.
 
 Participation in the Crypticcoin project is subject to a

@@ -25,7 +25,7 @@ packages:
 - "wget"
 - "zlib1g-dev"
 remotes:
-- "url": "https://github.com/crypticcoin/crypticcoin.git"
+- "url": "https://github.com/crypticcoinvip/crypticcoin.git"
   "dir": "crypticcoin"
 files: []
 script: |

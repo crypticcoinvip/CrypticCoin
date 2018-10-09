@@ -292,7 +292,7 @@ def gen_release_notes(release, releasefrom):
 @phase('Updating debian changelog.')
 def update_debian_changelog(release):
     os.environ['DEBEMAIL'] = 'info@crypticcoin.io'
-    os.environ['DEBFULLNAME'] = 'Crypticcoin Company'
+    os.environ['DEBFULLNAME'] = 'Crypticcoin Community'
     sh_log(
         'debchange',
         '--newversion', release.debversion,

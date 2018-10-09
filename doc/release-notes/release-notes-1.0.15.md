@@ -5,11 +5,11 @@ Overwinter network upgrade
 --------------------------
 
 The code preparations for the Overwinter network upgrade, as described in [ZIP
-200](https://github.com/crypticcoin/zips/blob/master/zip-0200.rst), [ZIP
-201](https://github.com/crypticcoin/zips/blob/master/zip-0201.rst), [ZIP
-202](https://github.com/crypticcoin/zips/blob/master/zip-0202.rst), [ZIP
-203](https://github.com/crypticcoin/zips/blob/master/zip-0203.rst), and [ZIP
-143](https://github.com/crypticcoin/zips/blob/master/zip-0143.rst) are
+200](https://github.com/zcash/zips/blob/master/zip-0200.rst), [ZIP
+201](https://github.com/zcash/zips/blob/master/zip-0201.rst), [ZIP
+202](https://github.com/zcash/zips/blob/master/zip-0202.rst), [ZIP
+203](https://github.com/zcash/zips/blob/master/zip-0203.rst), and [ZIP
+143](https://github.com/zcash/zips/blob/master/zip-0143.rst) are
 finished and included in this release. Overwinter will activate on testnet at
 height 207500, and can also be activated at a specific height in regtest mode
 by setting the config option `-nuparams=5ba81b19:HEIGHT`.
@@ -62,7 +62,7 @@ memory). Users on low-memory systems (such as systems with 1GB or less) should
 consider specifying a lower value for this parameter.
 
 Additional information relating to running on low-memory systems can be found
-here: [reducing-memory-usage.md](https://github.com/crypticcoin/crypticcoin/blob/master/doc/reducing-memory-usage.md).
+here: [reducing-memory-usage.md](https://github.com/zcash/zcash/blob/master/doc/reducing-memory-usage.md).
 
 Changelog
 =========

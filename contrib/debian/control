@@ -1,14 +1,14 @@
 Source: crypticcoin
 Section: utils
 Priority: optional
-Maintainer: Crypticcoin Company <info@crypticcoin.io>
+Maintainer: CrypticCoin Community <info@crypticcoin.io>
 Homepage: https://crypticcoin.io
 Build-Depends: autoconf, automake, bsdmainutils, build-essential,
  git, g++-multilib, libc6-dev, libtool,
  m4, ncurses-dev, pkg-config, python,
  unzip, wget, zlib1g-dev
-Vcs-Git: https://github.com/crypticcoin/crypticcoin.git
-Vcs-Browser: https://github.com/crypticcoin/crypticcoin
+Vcs-Git: https://github.com/crypticcoinvip/crypticcoin.git
+Vcs-Browser: https://github.com/crypticcoinvip/crypticcoin
 
 Package: crypticcoin
 Architecture: amd64
