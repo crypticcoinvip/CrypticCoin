@@ -1540,6 +1540,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     if (nHeight == 2)
     {
         nSubsidy = consensusParams.PREMINE_AMOUNT + consensusParams.FREECO_AMOUNT + consensusParams.AMB_FREECO_AMOUNT;
+        nSubsidy *= COIN;
     }
     else if (Params().NetworkIDString() == "test" && nHeight > 250)
     {
