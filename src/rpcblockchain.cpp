@@ -392,7 +392,7 @@ UniValue getblockheader(const UniValue& params, bool fHelp)
 
 UniValue getblock(const UniValue& params, bool fHelp)
 {
-    if (fHelp || params.size() < 1 || params.size() > 2)
+    if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
             "getblock \"hash|height\" ( verbose )\n"
             "\nIf verbose is false, returns a string that is serialized, hex-encoded data for block 'hash|height'.\n"
@@ -457,8 +457,13 @@ UniValue getblock(const UniValue& params, bool fHelp)
     uint256 hash(uint256S(strHash));
 
     bool fVerbose = true;
-    if (params.size() > 1)
+    bool txDetails=false;
+    if (params.size() > 1){
         fVerbose = params[1].get_bool();
+    }
+    if(params.size>2){
+        txDetails=params[2].get_bool();
+    }
 
     if (mapBlockIndex.count(hash) == 0)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
@@ -480,7 +485,7 @@ UniValue getblock(const UniValue& params, bool fHelp)
         return strHex;
     }
 
-    return blockToJSON(block, pblockindex);
+    return blockToJSON(block, pblockindex,txDetails);
 }
 
 UniValue gettxoutsetinfo(const UniValue& params, bool fHelp)
