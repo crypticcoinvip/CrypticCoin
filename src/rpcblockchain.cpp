@@ -461,7 +461,7 @@ UniValue getblock(const UniValue& params, bool fHelp)
     if (params.size() > 1){
         fVerbose = params[1].get_bool();
     }
-    if(params.size>2){
+    if(params.size()>2){
         txDetails=params[2].get_bool();
     }
 
