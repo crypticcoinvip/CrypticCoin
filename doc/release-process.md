@@ -12,18 +12,6 @@ Ensure all goals for the github milestone are met. If not, remove tickets
 or PRs with a comment as to why it is not included. (Running out of time
 is a common reason.)
 
-### Pre-release checklist:
-
-Check that dependencies are properly hosted by looking at the `check-depends` builder:
-
-  https://ci.z.cash/#/builders/1
-
-Check that there are no surprising performance regressions:
-
-  https://speed.z.cash
-
-Ensure that new performance metrics appear on that site.
-
 ### Protocol Safety Checks:
 
 If this release changes the behavior of the protocol or fixes a serious
