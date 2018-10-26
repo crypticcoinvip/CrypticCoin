@@ -607,7 +607,7 @@ fi
 if test x$use_boost = xyes; then
 
 dnl Check for boost libs
-dnl We need Boost >= 1.62 to fix a potential security bug (https://github.com/zcash/zcash/issues/1241)
+dnl We need Boost >= 1.62 to fix a potential security bug
 AX_BOOST_BASE([1.62])
 AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
