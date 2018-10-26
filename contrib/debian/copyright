@@ -4,12 +4,14 @@ Upstream-Contact: Crypticcoin Community <info@crypticcoin.io>
 Source: https://github.com/crypticcoinvip/crypticcoin
 
 Files: *
-Copyright: 2016-2017, The Zcash developers
+Copyright: 2018, The CrypticCoin developers
+ 2016-2018, The Zcash developers
  2009-2017, Bitcoin Core developers
 License: Expat
 Comment: The Bitcoin Core developers encompasses the current developers listed on bitcoin.org,
  as well as the numerous contributors to the project.
  The Zcash developers are listed at https://z.cash/team.html.
+ The CrypticCoin developers are listed at https://crypticcoin.io/team/.
 
 Files: depends/sources/libsodium-*.tar.gz
 Copyright: 2013-2016 Frank Denis
