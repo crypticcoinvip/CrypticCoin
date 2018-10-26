@@ -125,7 +125,7 @@ the marking to see what GitHub wants to be done.
 Notify the Crypticcoin DevOps engineer/sysadmin that the release has been tagged. They update some variables in the company's automation code and then run an Ansible playbook, which:
 
 * builds Crypticcoin based on the specified branch
-* deploys it as a public service (e.g. betatestnet.z.cash, mainnet.z.cash)
+* deploys it as a public service
 * often the same server can be re-used, and the role idempotently handles upgrades, but if not then they also need to update DNS records
 * possible manual steps: blowing away the `testnet3` dir, deleting old parameters, restarting DNS seeder
 
