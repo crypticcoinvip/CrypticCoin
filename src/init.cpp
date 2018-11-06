@@ -900,9 +900,16 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
                 auto err_str = tor::StartTor(tor_cfg);
                 if (err_str) {
-                    return InitError(*err_str);
+                    auto error_log = strprintf("Tor execution error: %s. Please check access rights on the files and dirs (%s, %s). Check log files.",
+                                               *err_str,
+                                               tor::GetTorDir().string(),
+                                               tor_cfg.tor_exe_path.string());
+                    LogPrintf("%s \n", error_log);
+                    return InitError(error_log);
                 } else {
-                    LogPrint("tor", "Tor (%s) has started (check tor/tor.log for details)\n", tor_cfg.tor_exe_path.string());
+                    LogPrint("tor", "Tor (%s) has started (check %s for details)\n",
+                             tor_cfg.tor_exe_path.string(),
+                             (tor::GetTorDir() / "tor.log").string());
                 }
             }
         }
