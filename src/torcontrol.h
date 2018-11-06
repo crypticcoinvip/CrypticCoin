@@ -30,7 +30,7 @@ void StopTorControl();
 struct TorSettings {
     boost::filesystem::path tor_exe_path;
     boost::filesystem::path tor_obfs4_exe_path;
-    bool generate_tor_config;
+    bool tor_generate_config;
     unsigned short public_port;
     unsigned short hidden_port;
 };

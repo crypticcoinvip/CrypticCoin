@@ -816,7 +816,7 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorSettings& cfg) 
     /**
     * Tor config
     */
-    if (cfg.generate_tor_config || !fs::exists(tor_config_path)) {
+    if (cfg.tor_generate_config || !fs::exists(tor_config_path)) {
         std::ofstream tor_config(tor_config_path.string());
         tor_config << "SOCKSPort " << onion_port << '\n'; ///< Open SOCKS proxy on this port
         tor_config << "SOCKSPolicy accept 127.0.0.1/8" << '\n'; ///< Accept only localhost on the tor proxy
