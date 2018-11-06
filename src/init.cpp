@@ -395,7 +395,8 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-maxsendbuffer=<n>", strprintf(_("Maximum per-connection send buffer, <n>*1000 bytes (default: %u)"), 1000));
     strUsage += HelpMessageOpt("-onion=<ip:port>", strprintf(_("Use separate SOCKS5 proxy to reach peers via Tor hidden services (default: %s)"), "-proxy"));
     strUsage += HelpMessageOpt("-tor_exe_path=<path>", strprintf(_("[if -listenonion] Path to tor executable. Daemon will execute it (default: '%s')"), ""));
-    strUsage += HelpMessageOpt("-tor_obfs4_exe_path=<path>", strprintf(_("[if -tor_exe_path] Path to obfs4 executable. Tor will execute it (default: '%s')"), ""));
+    strUsage += HelpMessageOpt("-tor_obfs4_exe_path=<path>", strprintf(_("[if -tor_generate_config] Path to obfs4 executable. It'll be added in tor config (default: '%s')"), ""));
+    strUsage += HelpMessageOpt("-tor_generate_config", strprintf(_("[if -tor_exe_path] Regenerate tor config file (even if already exists) (default: '%s')"), "1"));
     strUsage += HelpMessageOpt("-onlynet=<net>", _("Only connect to nodes in network <net> (ipv4, ipv6 or onion)"));
     strUsage += HelpMessageOpt("-permitbaremultisig", strprintf(_("Relay non-P2SH multisig (default: %u)"), 1));
     strUsage += HelpMessageOpt("-peerbloomfilters", strprintf(_("Support filtering of blocks and transaction with Bloom filters (default: %u)"), 1));
@@ -887,14 +888,25 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (GetBoolArg("-listenonion", tor::DEFAULT_LISTEN_ONION)) {
         { // exec tor
             if (!GetArg("-tor_exe_path", "").empty()) {
-                tor::TorExePathes tor_pathes;
-                tor_pathes.tor_exe_path = {GetArg("-tor_exe_path", "")};
-                tor_pathes.tor_obfs4_exe_path = {GetArg("-tor_obfs4_exe_path", "")};
-                auto err_str = tor::StartTor(tor_pathes);
+                tor::TorSettings tor_cfg;
+                tor_cfg.tor_exe_path = {GetArg("-tor_exe_path", "")};
+                tor_cfg.tor_obfs4_exe_path = {GetArg("-tor_obfs4_exe_path", "")};
+                tor_cfg.tor_generate_config = GetBoolArg("-tor_generate_config", true);
+                tor_cfg.public_port = (unsigned short)(GetArg("-tor_service_port", Params().GetDefaultTorServicePort()));
+                tor_cfg.hidden_port = GetListenPort();
+
+                auto err_str = tor::StartTor(tor_cfg);
                 if (err_str) {
-                    return InitError(*err_str);
+                    auto error_log = strprintf("Tor execution error: %s. Please check access rights on the files and dirs (%s, %s). Check log files.",
+                                               *err_str,
+                                               tor::GetTorDir().string(),
+                                               tor_cfg.tor_exe_path.string());
+                    LogPrintf("%s \n", error_log);
+                    return InitError(error_log);
                 } else {
-                    LogPrint("tor", "Tor (%s) has started (check tor/tor.log for details)\n", tor_pathes.tor_exe_path.string());
+                    LogPrint("tor", "Tor (%s) has started (check %s for details)\n",
+                             tor_cfg.tor_exe_path.string(),
+                             (tor::GetTorDir() / "tor.log").string());
                 }
             }
         }
@@ -1315,38 +1327,33 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // -proxy sets a proxy for all outgoing network traffic
     // -noproxy (or -proxy=0) as well as the empty string can be used to not set a proxy, this is the default
     std::string proxyArg = GetArg("-proxy", "");
+    SetLimited(NET_TOR);
+    if (proxyArg != "" && proxyArg != "0") {
+        proxyType addrProxy = proxyType(CService(proxyArg, 9050), proxyRandomize);
+        if (!addrProxy.IsValid())
+            return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
 
-    if (proxyArg != "0"){
-        if (proxyArg != "") {
-            proxyType addrProxy = proxyType(CService(proxyArg, tor::onion_port), proxyRandomize);
-            if (!addrProxy.IsValid())
-                return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
-
-            SetProxy(NET_IPV4, addrProxy);
-            SetProxy(NET_IPV6, addrProxy);
-            SetProxy(NET_TOR, addrProxy);
-            SetNameProxy(addrProxy);
-        }else{
-            proxyType addrOnion;
-
-            addrOnion = proxyType(CService("127.0.0.1", tor::onion_port), proxyRandomize);
-
-            SetProxy(NET_TOR, addrOnion);
-            SetNameProxy(addrOnion);
-        }
-        SetLimited(NET_TOR, false);
+        SetProxy(NET_IPV4, addrProxy);
+        SetProxy(NET_IPV6, addrProxy);
+        SetProxy(NET_TOR, addrProxy);
+        SetNameProxy(addrProxy);
+        SetLimited(NET_TOR, false); // by default, -proxy sets onion as reachable, unless -noonion later
     }
 
     // -onion can be used to set only a proxy for .onion, or override normal proxy for .onion addresses
     // -noonion (or -onion=0) disables connecting to .onion entirely
     // An empty string is used to not override the onion proxy (in which case it defaults to -proxy set above, or none)
-    std::string onionArg = GetArg("-onion", "");
-
-    if (onionArg != "" && onionArg != "0") {
-        proxyType addrOnion = proxyType(CService(onionArg, tor::onion_port), proxyRandomize);
-
-        if (!addrOnion.IsValid())
-            return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
+    std::string onionArg = GetArg("-onion", "127.0.0.1");
+    if (onionArg != "") {
+        if (onionArg == "0") { // Handle -noonion/-onion=0
+            SetLimited(NET_TOR); // set onions as unreachable
+        } else {
+            proxyType addrOnion = proxyType(CService(onionArg, tor::onion_port), proxyRandomize);
+            if (!addrOnion.IsValid())
+                return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
+            SetProxy(NET_TOR, addrOnion);
+            SetLimited(NET_TOR, false);
+        }
     }
 
     // see Step 2: parameter interactions for more information about these
@@ -1380,6 +1387,15 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
         if (!fBound)
             return InitError(_("Failed to listen on any port. Use -listen=0 if you want this."));
+    }
+
+    if (mapArgs.count("-externalip")) {
+        BOOST_FOREACH(const std::string& strAddr, mapMultiArgs["-externalip"]) {
+            CService addrLocal(strAddr, GetListenPort(), fNameLookup);
+            if (!addrLocal.IsValid())
+                return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr));
+            AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
+        }
     }
 
     BOOST_FOREACH(const std::string& strDest, mapMultiArgs["-seednode"])

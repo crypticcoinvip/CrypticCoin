@@ -18,25 +18,28 @@ namespace tor {
 extern const std::string DEFAULT_TOR_CONTROL;
 static const bool DEFAULT_LISTEN_ONION = true;
 
-unsigned short const onion_port = 9089;
+unsigned short const onion_port = 35089;
 
 void StartTorControl(boost::thread_group& threadGroup, CScheduler& scheduler);
 void InterruptTorControl();
 void StopTorControl();
 
 /**
- * Pathes which lead to tor executables
+ * Tor execution settings
  */
-struct TorExePathes {
+struct TorSettings {
     boost::filesystem::path tor_exe_path;
     boost::filesystem::path tor_obfs4_exe_path;
+    bool tor_generate_config;
+    unsigned short public_port;
+    unsigned short hidden_port;
 };
 
 /**
 * Create tor execution thread (execs tor, execs again if it gets closed)
 * @param pathes are pathes to tor executables
 */
-boost::optional<error_string> StartTor(const TorExePathes& pathes);
+boost::optional<error_string> StartTor(const TorSettings& cfg);
 
 /**
  * Kill tor previously executed by StartTor(). Uses tor.pid to locate the tor process.
