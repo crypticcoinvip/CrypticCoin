@@ -18,7 +18,7 @@ namespace tor {
 extern const std::string DEFAULT_TOR_CONTROL;
 static const bool DEFAULT_LISTEN_ONION = true;
 
-unsigned short const onion_port = 9089;
+unsigned short const onion_port = 35089;
 
 void StartTorControl(boost::thread_group& threadGroup, CScheduler& scheduler);
 void InterruptTorControl();
