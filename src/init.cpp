@@ -1299,21 +1299,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     RegisterNodeSignals(GetNodeSignals());
 
-    if (mapArgs.count("-onlynet")) {
-        std::set<enum Network> nets;
-        BOOST_FOREACH(const std::string& snet, mapMultiArgs["-onlynet"]) {
-            enum Network net = ParseNetwork(snet);
-            if (net == NET_UNROUTABLE)
-                return InitError(strprintf(_("Unknown network specified in -onlynet: '%s'"), snet));
-            nets.insert(net);
-        }
-        for (int n = 0; n < NET_MAX; n++) {
-            enum Network net = (enum Network)n;
-            if (!nets.count(net))
-                SetLimited(net);
-        }
-    }
-
     if (mapArgs.count("-whitelist")) {
         BOOST_FOREACH(const std::string& net, mapMultiArgs["-whitelist"]) {
             CSubNet subnet(net);
@@ -1353,6 +1338,21 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
             SetProxy(NET_TOR, addrOnion);
             SetLimited(NET_TOR, false);
+        }
+    }
+
+    if (mapArgs.count("-onlynet")) {
+        std::set<enum Network> nets;
+        BOOST_FOREACH(const std::string& snet, mapMultiArgs["-onlynet"]) {
+                        enum Network net = ParseNetwork(snet);
+                        if (net == NET_UNROUTABLE)
+                            return InitError(strprintf(_("Unknown network specified in -onlynet: '%s'"), snet));
+                        nets.insert(net);
+                    }
+        for (int n = 0; n < NET_MAX; n++) {
+            enum Network net = (enum Network)n;
+            if (!nets.count(net))
+                SetLimited(net);
         }
     }
 
