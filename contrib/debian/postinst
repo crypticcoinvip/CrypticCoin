@@ -33,13 +33,14 @@ rpcpassword=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26 ; echo '')
 tor_exe_path=/usr/bin/tor
 bind=127.0.0.1
 onlynet=onion
-rpcallowip=127.0.0.1
+rpcallowip=127.0.0.1/8
 rpcport=23202
 port=23303
 daemon=0
 listen=1
 server=1
-addnode=2yt4fstq5oacwwh5.onion
+addnode=5wa52xtesl4yjnhp.onion:23303
+addnode=axjnhxwkhaqle7dh.onion:23303
 EOF
 
     if [ ! -z ${SUDO_USER:-} ]; then
