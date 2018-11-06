@@ -42,8 +42,6 @@ cp $SRC_PATH/src/crypticcoind $DEB_BIN
 cp $SRC_PATH/src/crypticcoin-cli $DEB_BIN
 cp $SRC_PATH/zcutil/fetch-params.sh $DEB_BIN/crypticcoin-fetch-params
 # Copy docs
-cp $SRC_PATH/doc/release-notes/release-notes-1.0.0.md $DEB_DOC/changelog
-cp $SRC_DEB/changelog $DEB_DOC/changelog.Debian
 cp $SRC_DEB/copyright $DEB_DOC
 cp -r $SRC_DEB/examples $DEB_DOC
 # Copy manpages
@@ -54,8 +52,6 @@ cp $SRC_DOC/man/crypticcoin-fetch-params.1 $DEB_MAN
 cp $SRC_PATH/contrib/crypticcoind.bash-completion $DEB_CMP/crypticcoind
 cp $SRC_PATH/contrib/crypticcoin-cli.bash-completion $DEB_CMP/crypticcoin-cli
 # Gzip files
-gzip --best -n $DEB_DOC/changelog
-gzip --best -n $DEB_DOC/changelog.Debian
 gzip --best -n $DEB_MAN/crypticcoind.1
 gzip --best -n $DEB_MAN/crypticcoin-cli.1
 gzip --best -n $DEB_MAN/crypticcoin-fetch-params.1
