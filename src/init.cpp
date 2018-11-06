@@ -1331,38 +1331,33 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // -proxy sets a proxy for all outgoing network traffic
     // -noproxy (or -proxy=0) as well as the empty string can be used to not set a proxy, this is the default
     std::string proxyArg = GetArg("-proxy", "");
+    SetLimited(NET_TOR);
+    if (proxyArg != "" && proxyArg != "0") {
+        proxyType addrProxy = proxyType(CService(proxyArg, 9050), proxyRandomize);
+        if (!addrProxy.IsValid())
+            return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
 
-    if (proxyArg != "0"){
-        if (proxyArg != "") {
-            proxyType addrProxy = proxyType(CService(proxyArg, tor::onion_port), proxyRandomize);
-            if (!addrProxy.IsValid())
-                return InitError(strprintf(_("Invalid -proxy address: '%s'"), proxyArg));
-
-            SetProxy(NET_IPV4, addrProxy);
-            SetProxy(NET_IPV6, addrProxy);
-            SetProxy(NET_TOR, addrProxy);
-            SetNameProxy(addrProxy);
-        }else{
-            proxyType addrOnion;
-
-            addrOnion = proxyType(CService("127.0.0.1", tor::onion_port), proxyRandomize);
-
-            SetProxy(NET_TOR, addrOnion);
-            SetNameProxy(addrOnion);
-        }
-        SetLimited(NET_TOR, false);
+        SetProxy(NET_IPV4, addrProxy);
+        SetProxy(NET_IPV6, addrProxy);
+        SetProxy(NET_TOR, addrProxy);
+        SetNameProxy(addrProxy);
+        SetLimited(NET_TOR, false); // by default, -proxy sets onion as reachable, unless -noonion later
     }
 
     // -onion can be used to set only a proxy for .onion, or override normal proxy for .onion addresses
     // -noonion (or -onion=0) disables connecting to .onion entirely
     // An empty string is used to not override the onion proxy (in which case it defaults to -proxy set above, or none)
-    std::string onionArg = GetArg("-onion", "");
-
-    if (onionArg != "" && onionArg != "0") {
-        proxyType addrOnion = proxyType(CService(onionArg, tor::onion_port), proxyRandomize);
-
-        if (!addrOnion.IsValid())
-            return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
+    std::string onionArg = GetArg("-onion", "127.0.0.1");
+    if (onionArg != "") {
+        if (onionArg == "0") { // Handle -noonion/-onion=0
+            SetLimited(NET_TOR); // set onions as unreachable
+        } else {
+            proxyType addrOnion = proxyType(CService(onionArg, tor::onion_port), proxyRandomize);
+            if (!addrOnion.IsValid())
+                return InitError(strprintf(_("Invalid -onion address: '%s'"), onionArg));
+            SetProxy(NET_TOR, addrOnion);
+            SetLimited(NET_TOR, false);
+        }
     }
 
     // see Step 2: parameter interactions for more information about these
@@ -1396,6 +1391,15 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
         if (!fBound)
             return InitError(_("Failed to listen on any port. Use -listen=0 if you want this."));
+    }
+
+    if (mapArgs.count("-externalip")) {
+        BOOST_FOREACH(const std::string& strAddr, mapMultiArgs["-externalip"]) {
+            CService addrLocal(strAddr, GetListenPort(), fNameLookup);
+            if (!addrLocal.IsValid())
+                return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr));
+            AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
+        }
     }
 
     BOOST_FOREACH(const std::string& strDest, mapMultiArgs["-seednode"])
