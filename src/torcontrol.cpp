@@ -810,6 +810,8 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorSettings& cfg) 
     fs::path log_file_path = tor_dir_path / "tor.log";
     fs::path tor_config_path = tor_dir_path / "torrc";
     fs::path tor_hidden_service_path = GetTorHiddenServiceDir();
+    fs::create_directory(tor_hidden_service_path);
+    fs::create_directory(tor_hidden_service_path / "data");
 
     /**
     * Tor config
@@ -899,7 +901,7 @@ boost::optional<error_string> KillTor() {
         // try to kill with SIGTERM (terminate on win)
         if (ec = ask_to_stop(prev_tor))
             return {error_string{} + ec.message()};
-        // give it 100ms to stop after SIGTERM
+        // give it 1500ms to stop after SIGTERM
         bool stopped = prev_tor.wait_for(std::chrono::milliseconds(1500));
         if (stopped)
             return {};
