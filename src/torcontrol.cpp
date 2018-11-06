@@ -812,14 +812,6 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorSettings& cfg) 
     fs::path tor_hidden_service_path = GetTorHiddenServiceDir();
 
     /**
-    * Tor argument (-f is config path, --quiet is quiet mode)
-    */
-    std::string args_str;
-    args_str.reserve(200);
-    args_str += "--quiet ";
-    args_str += "-f \"" + tor_config_path.string() + "\" ";
-
-    /**
     * Tor config
     */
     if (cfg.generate_tor_config) {
@@ -842,10 +834,12 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorSettings& cfg) 
     */
     LogPrint("tor", "Tor is starting...");
     static boost::process::child tor_process; // precess-scope var
-    std::error_code ec;
     const std::string executable = cfg.tor_exe_path.string();
-    tor_process = boost::process::child(executable + " " + args_str, ec);
+    // (-f is config path, --quiet is quiet mode)
+    tor_process = boost::process::child(executable, "--quiet", "-f", tor_config_path.string());
 
+    std::error_code ec;
+    tor_process.running(ec); // check errors
     return {ec, tor_process.id()};
 }
 
