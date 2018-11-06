@@ -905,7 +905,7 @@ boost::optional<error_string> KillTor() {
         if (ec = ask_to_stop(prev_tor))
             return {error_string{} + ec.message()};
         // give it 100ms to stop after SIGTERM
-        bool stopped = prev_tor.wait_for(std::chrono::milliseconds(100));
+        bool stopped = prev_tor.wait_for(std::chrono::milliseconds(1500));
         if (stopped)
             return {};
         // kill it with terminate otherwise
