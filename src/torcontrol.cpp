@@ -791,15 +791,14 @@ void StopTorControl()
 * @param public_port is -tor_service_port from daemon config
 * @param pathes are pathes to tor executables
 */
-static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& pathes, unsigned short public_port, unsigned short hidden_port) {
+static std::pair<std::error_code, boost_pid_t> exec_tor(const TorSettings& cfg) {
     namespace fs = boost::filesystem;
     /**
-    * Find obfs4
+    * Add obfs4
     */
     boost::optional<std::string> clientTransportPlugin;
-    auto obfs_err = check_executable_path(pathes.tor_obfs4_exe_path);
-    if (!obfs_err) {
-        clientTransportPlugin = {"obfs4 exec " + pathes.tor_obfs4_exe_path.string()};
+    if (cfg.tor_obfs4_exe_path != boost::filesystem::path{}) {
+        clientTransportPlugin = {"obfs4 exec " + cfg.tor_obfs4_exe_path.string()};
     }
 
     /**
@@ -823,17 +822,19 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& path
     /**
     * Tor config
     */
-    std::ofstream tor_config(tor_config_path.string());
-    tor_config << "SOCKSPort " << onion_port << '\n'; ///< Open SOCKS proxy on this port
-    tor_config << "SOCKSPolicy accept 127.0.0.1/8" << '\n'; ///< Accept only localhost on the tor proxy
-    tor_config << "Log notice file " << log_file_path.string() << '\n'; ///< Log file path
-    tor_config << "HiddenServiceDir " << tor_hidden_service_path.string() << '\n'; ///< directory to store tor HiddenService data
-    tor_config << "HiddenServicePort " << public_port << " 127.0.0.1:" << hidden_port << '\n'; ///< tor will listen on %port and redirect the data to 127.0.0.1:%port
+    if (cfg.generate_tor_config) {
+        std::ofstream tor_config(tor_config_path.string());
+        tor_config << "SOCKSPort " << onion_port << '\n'; ///< Open SOCKS proxy on this port
+        tor_config << "SOCKSPolicy accept 127.0.0.1/8" << '\n'; ///< Accept only localhost on the tor proxy
+        tor_config << "Log notice file " << log_file_path.string() << '\n'; ///< Log file path
+        tor_config << "HiddenServiceDir " << tor_hidden_service_path.string() << '\n'; ///< directory to store tor HiddenService data
+        tor_config << "HiddenServicePort " << cfg.public_port << " 127.0.0.1:" << cfg.hidden_port << '\n'; ///< tor will listen on %port and redirect the data to 127.0.0.1:%port
 
-    if (clientTransportPlugin) {
-        tor_config << "ClientTransportPlugin " << *clientTransportPlugin << '\n';
+        if (clientTransportPlugin) {
+            tor_config << "ClientTransportPlugin " << *clientTransportPlugin << '\n';
+        }
+        tor_config.close();
     }
-    tor_config.close();
 
     /**
     * Exec tor
@@ -841,7 +842,7 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorExePathes& path
     LogPrint("tor", "Tor is starting...");
     static boost::process::child tor_process; // precess-scope var
     std::error_code ec;
-    const std::string executable = pathes.tor_exe_path.string();
+    const std::string executable = cfg.tor_exe_path.string();
     tor_process = boost::process::child(executable + " " + args_str, ec);
 
     return {ec, tor_process.id()};
@@ -873,7 +874,7 @@ static boost::optional<boost_pid_t> load_pid(boost::filesystem::path file_path) 
 /**
  * sends SIGTERM on unix, terminates on win
  */
-static std::error_code kill_softly(boost::process::child& proccess) {
+static std::error_code ask_to_stop(boost::process::child& proccess) {
     std::error_code ec;
     // try to kill with SIGTERM (terminate on win)
 #ifdef WIN32
@@ -901,7 +902,7 @@ boost::optional<error_string> KillTor() {
             return {};
 
         // try to kill with SIGTERM (terminate on win)
-        if (ec = kill_softly(prev_tor))
+        if (ec = ask_to_stop(prev_tor))
             return {error_string{} + ec.message()};
         // give it 100ms to stop after SIGTERM
         bool stopped = prev_tor.wait_for(std::chrono::milliseconds(100));
@@ -917,16 +918,21 @@ boost::optional<error_string> KillTor() {
     return {};
 }
 
-boost::optional<error_string> StartTor(const TorExePathes& pathes) {
+boost::optional<error_string> StartTor(const TorSettings& cfg) {
     try {
-        auto err = check_executable_path(pathes.tor_exe_path);
+        auto err = check_executable_path(cfg.tor_exe_path);
         if (err)
             return {"Tor execution error: " + *err};
+        if (cfg.tor_obfs4_exe_path != boost::filesystem::path{}) {
+            auto err = check_executable_path(cfg.tor_obfs4_exe_path);
+            if (err)
+                return {"Tor execution error: specified obfs4 doesn't exist: " + *err};
+        }
 
         // kill prev. tor
         KillTor();
 
-        auto ret = exec_tor(pathes, GetTorServiceListenPort(), GetListenPort());
+        auto ret = exec_tor(cfg);
         if (ret.first) {
             return {ret.first.message()};
         }

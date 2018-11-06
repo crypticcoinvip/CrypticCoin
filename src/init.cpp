@@ -891,14 +891,18 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (GetBoolArg("-listenonion", tor::DEFAULT_LISTEN_ONION)) {
         { // exec tor
             if (!GetArg("-tor_exe_path", "").empty()) {
-                tor::TorExePathes tor_pathes;
-                tor_pathes.tor_exe_path = {GetArg("-tor_exe_path", "")};
-                tor_pathes.tor_obfs4_exe_path = {GetArg("-tor_obfs4_exe_path", "")};
-                auto err_str = tor::StartTor(tor_pathes);
+                tor::TorSettings tor_cfg;
+                tor_cfg.tor_exe_path = {GetArg("-tor_exe_path", "")};
+                tor_cfg.tor_obfs4_exe_path = {GetArg("-tor_obfs4_exe_path", "")};
+                tor_cfg.generate_tor_config = true;
+                tor_cfg.public_port = (unsigned short)(GetArg("-tor_service_port", Params().GetDefaultTorServicePort()));
+                tor_cfg.hidden_port = GetListenPort();
+
+                auto err_str = tor::StartTor(tor_cfg);
                 if (err_str) {
                     return InitError(*err_str);
                 } else {
-                    LogPrint("tor", "Tor (%s) has started (check tor/tor.log for details)\n", tor_pathes.tor_exe_path.string());
+                    LogPrint("tor", "Tor (%s) has started (check tor/tor.log for details)\n", tor_cfg.tor_exe_path.string());
                 }
             }
         }

@@ -25,18 +25,21 @@ void InterruptTorControl();
 void StopTorControl();
 
 /**
- * Pathes which lead to tor executables
+ * Tor execution settings
  */
-struct TorExePathes {
+struct TorSettings {
     boost::filesystem::path tor_exe_path;
     boost::filesystem::path tor_obfs4_exe_path;
+    bool generate_tor_config;
+    unsigned short public_port;
+    unsigned short hidden_port;
 };
 
 /**
 * Create tor execution thread (execs tor, execs again if it gets closed)
 * @param pathes are pathes to tor executables
 */
-boost::optional<error_string> StartTor(const TorExePathes& pathes);
+boost::optional<error_string> StartTor(const TorSettings& cfg);
 
 /**
  * Kill tor previously executed by StartTor(). Uses tor.pid to locate the tor process.
