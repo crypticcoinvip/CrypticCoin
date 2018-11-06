@@ -828,6 +828,7 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorSettings& cfg) 
         tor_config << "SOCKSPolicy accept 127.0.0.1/8" << '\n'; ///< Accept only localhost on the tor proxy
         tor_config << "Log notice file " << log_file_path.string() << '\n'; ///< Log file path
         tor_config << "HiddenServiceDir " << tor_hidden_service_path.string() << '\n'; ///< directory to store tor HiddenService data
+        tor_config << "DataDirectory " << (tor_hidden_service_path / "data").string() << '\n'; ///< directory to store tor HiddenService internal data
         tor_config << "HiddenServicePort " << cfg.public_port << " 127.0.0.1:" << cfg.hidden_port << '\n'; ///< tor will listen on %port and redirect the data to 127.0.0.1:%port
 
         if (clientTransportPlugin) {
