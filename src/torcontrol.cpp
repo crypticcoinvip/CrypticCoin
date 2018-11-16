@@ -881,6 +881,7 @@ static std::error_code ask_to_stop(boost::process::child& proccess) {
         ec = std::make_error_code(static_cast<std::errc>(errno));
     }
 #endif
+    return ec;
 }
 
 boost::optional<error_string> KillTor() {
