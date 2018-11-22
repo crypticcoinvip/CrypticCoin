@@ -10,7 +10,7 @@
 #include "streams.h"
 #include "support/allocators/secure.h"
 #include "crypticcoin/Address.hpp"
-#include "zcash/zip32.h"
+#include "crypticcoin/zip32.h"
 
 class uint256;
 

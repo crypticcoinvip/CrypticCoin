@@ -5,7 +5,7 @@
 #include "main.h"
 #include "pubkey.h"
 #include "transaction_builder.h"
-#include "zcash/Address.hpp"
+#include "crypticcoin/Address.hpp"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

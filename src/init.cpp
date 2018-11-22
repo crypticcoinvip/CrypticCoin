@@ -11,10 +11,6 @@
 #include "crypto/common.h"
 #include "addrman.h"
 #include "amount.h"
-/// @maxb our, key_io.h in zcash
-// #ifdef ENABLE_MINING
-// #include "base58.h"
-// #endif
 #include "checkpoints.h"
 #include "compat/sanity.h"
 #include "consensus/upgrades.h"
@@ -897,7 +893,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     signal(SIGPIPE, SIG_IGN);
 #endif
     
-    /// @maxb new from zcash
     std::set_new_handler(new_handler_terminate);
 
     // ********************************************************* Step 2: parameter interactions
@@ -1091,11 +1086,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         fPruneMode = true;
     }
 
-    /// @maxb new from zcash
     RegisterAllCoreRPCCommands(tableRPC);
 #ifdef ENABLE_WALLET
     bool fDisableWallet = GetBoolArg("-disablewallet", false);
-    /// @maxb new from zcash
     if (!fDisableWallet)
         RegisterWalletRPCCommands(tableRPC);
 #endif
@@ -1313,7 +1306,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     libsnark::inhibit_profiling_counters = true;
 
     // Initialize Crypticcoin circuit parameters
-    ZC_LoadParams(chainparams); /// @maxb param unused
+    ZC_LoadParams(chainparams);
 
     /* Start the RPC server already.  It will be started in "warmup" mode
      * and not really process calls already (but it will signify connections
@@ -1352,7 +1345,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     RegisterNodeSignals(GetNodeSignals());
 
-    /// @maxb new from zcash
     // sanitize comments per BIP-0014, format user agent and check total size
     std::vector<string> uacomments;
     BOOST_FOREACH(string cmt, mapMultiArgs["-uacomment"])
@@ -1731,7 +1723,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             pwalletMain->SetMaxVersion(nMaxVersion);
         }
 	
-	/// @maxb new from zcash
         if (!pwalletMain->HaveHDSeed())
         {
             // generate a new HD seed
@@ -1891,10 +1882,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("mapWallet.size() = %u\n",       pwalletMain ? pwalletMain->mapWallet.size() : 0);
     LogPrintf("mapAddressBook.size() = %u\n",  pwalletMain ? pwalletMain->mapAddressBook.size() : 0);
 #endif
-
-    /// @maxb was in both: old&new zcash
-//    if (GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
-//        StartTorControl(threadGroup, scheduler);
 
     StartNode(threadGroup, scheduler);
 

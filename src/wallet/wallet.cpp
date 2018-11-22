@@ -21,7 +21,7 @@
 #include "utilmoneystr.h"
 #include "crypticcoin/Note.hpp"
 #include "crypter.h"
-#include "zcash/zip32.h"
+#include "crypticcoin/zip32.h"
 
 #include <assert.h>
 
@@ -2776,6 +2776,21 @@ CAmount CWallet::GetBalance() const
         {
             const CWalletTx* pcoin = &(*it).second;
             if (pcoin->IsTrusted())
+                nTotal += pcoin->GetAvailableCredit();
+        }
+    }
+
+    return nTotal;
+}
+
+CAmount CWallet::GetCoinbaseBalance() const {
+    CAmount nTotal = 0;
+    {
+        LOCK2(cs_main, cs_wallet);
+        for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
+        {
+            const CWalletTx* pcoin = &(*it).second;
+            if (pcoin->IsCoinBase() && pcoin->IsTrusted())
                 nTotal += pcoin->GetAvailableCredit();
         }
     }

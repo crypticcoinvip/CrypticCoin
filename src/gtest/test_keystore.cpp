@@ -8,7 +8,7 @@
 #include "wallet/crypter.h"
 #endif
 #include "crypticcoin/Address.hpp"
-#include "zcash/zip32.h"
+#include "crypticcoin/zip32.h"
 
 #include "json_test_vectors.h"
 

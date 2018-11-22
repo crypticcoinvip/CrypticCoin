@@ -13,7 +13,7 @@
 #include "sync.h"
 #include "crypticcoin/Address.hpp"
 #include "crypticcoin/NoteEncryption.hpp"
-#include "zcash/zip32.h"
+#include "crypticcoin/zip32.h"
 
 #include <boost/signals2/signal.hpp>
 #include <boost/variant.hpp>
@@ -28,7 +28,6 @@ protected:
 public:
     virtual ~CKeyStore() {}
 
-    /// @maxb new from zcash
     //! Set the HD seed for this keystore
     virtual bool SetHDSeed(const HDSeed& seed) =0;
     virtual bool HaveHDSeed() const =0;

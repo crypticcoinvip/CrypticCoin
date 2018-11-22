@@ -4,7 +4,7 @@
 #include "uint256.h"
 #include "uint252.h"
 #include "serialize.h"
-#include "Zcash.h"
+#include "Crypticcoin.h"
 
 #include <boost/variant.hpp>
 

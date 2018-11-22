@@ -83,7 +83,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_ZMQ) \
   $(LIBBITCOIN_PROTON) \
-  $(LIBZCASH)
+  $(LIBCRYPTICCOIN)
 
 lib_LTLIBRARIES = $(LIBZCASH_CONSENSUS)
 
@@ -109,7 +109,7 @@ LIBCRYPTICCOIN_H = \
   crypticcoin/Proof.hpp \
   crypticcoin/util.h \
   crypticcoin/Crypticcoin.h \
-  zcash/zip32.h
+  ctypticcoin/zip32.h
 
 .PHONY: FORCE collate-libsnark check-symbols check-security
 # bitcoin core #
@@ -521,7 +521,7 @@ libzcash_a_SOURCES = \
   crypticcoin/Note.cpp \
   crypticcoin/prf.cpp \
   crypticcoin/util.cpp \
-  zcash/zip32.cpp \
+  crypticcoin/zip32.cpp \
   crypticcoin/circuit/commitment.tcc \
   crypticcoin/circuit/gadget.tcc \
   crypticcoin/circuit/merkle.tcc \

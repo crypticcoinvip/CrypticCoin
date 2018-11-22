@@ -38,7 +38,7 @@ PedersenHash PedersenHash::uncommitted() {
 SHA256Compress SHA256Compress::combine(
     const SHA256Compress& a,
     const SHA256Compress& b,
-    size_t depth	// @maxb: нафига оно? unused
+    size_t depth
 )
 {
     SHA256Compress res = SHA256Compress();

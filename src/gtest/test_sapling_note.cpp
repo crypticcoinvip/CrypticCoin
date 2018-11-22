@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "zcash/Address.hpp"
-#include "zcash/Note.hpp"
+#include "crypticcoin/Address.hpp"
+#include "crypticcoin/Note.hpp"
 
 #include "amount.h"
 #include "random.h"

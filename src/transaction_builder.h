@@ -11,10 +11,10 @@
 #include "script/script.h"
 #include "script/standard.h"
 #include "uint256.h"
-#include "zcash/Address.hpp"
-#include "zcash/IncrementalMerkleTree.hpp"
-#include "zcash/Note.hpp"
-#include "zcash/NoteEncryption.hpp"
+#include "crypticcoin/Address.hpp"
+#include "crypticcoin/IncrementalMerkleTree.hpp"
+#include "crypticcoin/Note.hpp"
+#include "crypticcoin/NoteEncryption.hpp"
 
 #include <boost/optional.hpp>
 

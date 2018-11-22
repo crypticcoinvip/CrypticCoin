@@ -29,7 +29,7 @@ void PRF_ock(
     memcpy(block+96, epk.begin(), 32);
 
     unsigned char personalization[crypto_generichash_blake2b_PERSONALBYTES] = {};
-    memcpy(personalization, "Zcash_Derive_ock", 16);
+    memcpy(personalization, "Crypt_Derive_ock", 16);
 
     if (crypto_generichash_blake2b_salt_personal(K, NOTEENCRYPTION_CIPHER_KEYSIZE,
                                                  block, 128,
@@ -53,7 +53,7 @@ void KDF_Sapling(
     memcpy(block+32, epk.begin(), 32);
 
     unsigned char personalization[crypto_generichash_blake2b_PERSONALBYTES] = {};
-    memcpy(personalization, "Zcash_SaplingKDF", 16);
+    memcpy(personalization, "Crypt_SaplingKDF", 16);
 
     if (crypto_generichash_blake2b_salt_personal(K, NOTEENCRYPTION_CIPHER_KEYSIZE,
                                                  block, 64,

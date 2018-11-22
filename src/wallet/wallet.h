@@ -23,7 +23,7 @@
 #include "wallet/walletdb.h"
 #include "wallet/rpcwallet.h"
 #include "crypticcoin/Address.hpp"
-#include "zcash/zip32.h"
+#include "crypticcoin/zip32.h"
 #include "base58.h"
 
 #include <algorithm>
@@ -1129,7 +1129,6 @@ public:
     void ResendWalletTransactions(int64_t nBestBlockTime);
     std::vector<uint256> ResendWalletTransactionsBefore(int64_t nTime);
     CAmount GetBalance() const;
-    /// @maxb next one from us (remove?)
     CAmount GetCoinbaseBalance() const;
     CAmount GetUnconfirmedBalance() const;
     CAmount GetImmatureBalance() const;

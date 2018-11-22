@@ -5,7 +5,7 @@
 #include <array>
 #include <librustzcash.h>
 
-const unsigned char ZCASH_EXPANDSEED_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] = {'Z','c','a','s','h','_','E','x','p','a','n','d','S','e','e','d'};
+const unsigned char ZCASH_EXPANDSEED_PERSONALIZATION[crypto_generichash_blake2b_PERSONALBYTES] = {'C','r','y','p','t','_','E','x','p','a','n','d','S','e','e','d'};
 
 // Sapling 
 std::array<unsigned char, 64> PRF_expand(const uint256& sk, unsigned char t)

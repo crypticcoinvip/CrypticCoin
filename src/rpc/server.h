@@ -180,6 +180,8 @@ extern std::string HelpExampleRpc(const std::string& methodname, const std::stri
 
 extern void EnsureWalletIsUnlocked();
 
+extern CAmount getBalanceZaddr(std::string address, int minDepth = 1, bool ignoreUnspendable = true);
+
 bool StartRPC();
 void InterruptRPC();
 void StopRPC();
