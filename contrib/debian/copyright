@@ -6,7 +6,8 @@ Source: https://github.com/crypticcoinvip/crypticcoin
 Files: *
 Copyright: 2018, The CrypticCoin developers
  2016-2018, The Zcash developers
- 2009-2017, Bitcoin Core developers
+ 2009-2018, Bitcoin Core developers
+ 2009-2018, Bitcoin Developers
 License: Expat
 Comment: The Bitcoin Core developers encompasses the current developers listed on bitcoin.org,
  as well as the numerous contributors to the project.

@@ -17,15 +17,20 @@
 
 using namespace std;
 
-static const char DB_ANCHOR = 'A';
+// NOTE: Per issue #3277, do not use the prefix 'X' or 'x' as they were
+// previously used by DB_SAPLING_ANCHOR and DB_BEST_SAPLING_ANCHOR.
+static const char DB_SPROUT_ANCHOR = 'A';
+static const char DB_SAPLING_ANCHOR = 'Z';
 static const char DB_NULLIFIER = 's';
+static const char DB_SAPLING_NULLIFIER = 'S';
 static const char DB_COINS = 'c';
 static const char DB_BLOCK_FILES = 'f';
 static const char DB_TXINDEX = 't';
 static const char DB_BLOCK_INDEX = 'b';
 
 static const char DB_BEST_BLOCK = 'B';
-static const char DB_BEST_ANCHOR = 'a';
+static const char DB_BEST_SPROUT_ANCHOR = 'a';
+static const char DB_BEST_SAPLING_ANCHOR = 'z';
 static const char DB_FLAG = 'F';
 static const char DB_REINDEX_FLAG = 'R';
 static const char DB_LAST_BLOCK = 'l';
@@ -39,23 +44,44 @@ CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(Get
 }
 
 
-bool CCoinsViewDB::GetAnchorAt(const uint256 &rt, ZCIncrementalMerkleTree &tree) const {
-    if (rt == ZCIncrementalMerkleTree::empty_root()) {
-        ZCIncrementalMerkleTree new_tree;
+bool CCoinsViewDB::GetSproutAnchorAt(const uint256 &rt, SproutMerkleTree &tree) const {
+    if (rt == SproutMerkleTree::empty_root()) {
+        SproutMerkleTree new_tree;
         tree = new_tree;
         return true;
     }
 
-    bool read = db.Read(make_pair(DB_ANCHOR, rt), tree);
+    bool read = db.Read(make_pair(DB_SPROUT_ANCHOR, rt), tree);
 
     return read;
 }
 
-bool CCoinsViewDB::GetNullifier(const uint256 &nf) const {
-    bool spent = false;
-    bool read = db.Read(make_pair(DB_NULLIFIER, nf), spent);
+bool CCoinsViewDB::GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &tree) const {
+    if (rt == SaplingMerkleTree::empty_root()) {
+        SaplingMerkleTree new_tree;
+        tree = new_tree;
+        return true;
+    }
+
+    bool read = db.Read(make_pair(DB_SAPLING_ANCHOR, rt), tree);
 
     return read;
+}
+
+bool CCoinsViewDB::GetNullifier(const uint256 &nf, ShieldedType type) const {
+    bool spent = false;
+    char dbChar;
+    switch (type) {
+        case SPROUT:
+            dbChar = DB_NULLIFIER;
+            break;
+        case SAPLING:
+            dbChar = DB_SAPLING_NULLIFIER;
+            break;
+        default:
+            throw runtime_error("Unknown shielded type");
+    }
+    return db.Read(make_pair(dbChar, nf), spent);
 }
 
 bool CCoinsViewDB::GetCoins(const uint256 &txid, CCoins &coins) const {
@@ -73,18 +99,67 @@ uint256 CCoinsViewDB::GetBestBlock() const {
     return hashBestChain;
 }
 
-uint256 CCoinsViewDB::GetBestAnchor() const {
+uint256 CCoinsViewDB::GetBestAnchor(ShieldedType type) const {
     uint256 hashBestAnchor;
-    if (!db.Read(DB_BEST_ANCHOR, hashBestAnchor))
-        return ZCIncrementalMerkleTree::empty_root();
+    
+    switch (type) {
+        case SPROUT:
+            if (!db.Read(DB_BEST_SPROUT_ANCHOR, hashBestAnchor))
+                return SproutMerkleTree::empty_root();
+            break;
+        case SAPLING:
+            if (!db.Read(DB_BEST_SAPLING_ANCHOR, hashBestAnchor))
+                return SaplingMerkleTree::empty_root();
+            break;
+        default:
+            throw runtime_error("Unknown shielded type");
+    }
+
     return hashBestAnchor;
+}
+
+void BatchWriteNullifiers(CDBBatch& batch, CNullifiersMap& mapToUse, const char& dbChar)
+{
+    for (CNullifiersMap::iterator it = mapToUse.begin(); it != mapToUse.end();) {
+        if (it->second.flags & CNullifiersCacheEntry::DIRTY) {
+            if (!it->second.entered)
+                batch.Erase(make_pair(dbChar, it->first));
+            else
+                batch.Write(make_pair(dbChar, it->first), true);
+            // TODO: changed++? ... See comment in CCoinsViewDB::BatchWrite. If this is needed we could return an int
+        }
+        CNullifiersMap::iterator itOld = it++;
+        mapToUse.erase(itOld);
+    }
+}
+
+template<typename Map, typename MapIterator, typename MapEntry, typename Tree>
+void BatchWriteAnchors(CDBBatch& batch, Map& mapToUse, const char& dbChar)
+{
+    for (MapIterator it = mapToUse.begin(); it != mapToUse.end();) {
+        if (it->second.flags & MapEntry::DIRTY) {
+            if (!it->second.entered)
+                batch.Erase(make_pair(dbChar, it->first));
+            else {
+                if (it->first != Tree::empty_root()) {
+                    batch.Write(make_pair(dbChar, it->first), it->second.tree);
+                }
+            }
+            // TODO: changed++?
+        }
+        MapIterator itOld = it++;
+        mapToUse.erase(itOld);
+    }
 }
 
 bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins,
                               const uint256 &hashBlock,
-                              const uint256 &hashAnchor,
-                              CAnchorsMap &mapAnchors,
-                              CNullifiersMap &mapNullifiers) {
+                              const uint256 &hashSproutAnchor,
+                              const uint256 &hashSaplingAnchor,
+                              CAnchorsSproutMap &mapSproutAnchors,
+                              CAnchorsSaplingMap &mapSaplingAnchors,
+                              CNullifiersMap &mapSproutNullifiers,
+                              CNullifiersMap &mapSaplingNullifiers) {
     CDBBatch batch(db);
     size_t count = 0;
     size_t changed = 0;
@@ -101,35 +176,18 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins,
         mapCoins.erase(itOld);
     }
 
-    for (CAnchorsMap::iterator it = mapAnchors.begin(); it != mapAnchors.end();) {
-        if (it->second.flags & CAnchorsCacheEntry::DIRTY) {
-            if (!it->second.entered)
-                batch.Erase(make_pair(DB_ANCHOR, it->first));
-            else {
-                batch.Write(make_pair(DB_ANCHOR, it->first), it->second.tree);
-            }
-            // TODO: changed++?
-        }
-        CAnchorsMap::iterator itOld = it++;
-        mapAnchors.erase(itOld);
-    }
+    ::BatchWriteAnchors<CAnchorsSproutMap, CAnchorsSproutMap::iterator, CAnchorsSproutCacheEntry, SproutMerkleTree>(batch, mapSproutAnchors, DB_SPROUT_ANCHOR);
+    ::BatchWriteAnchors<CAnchorsSaplingMap, CAnchorsSaplingMap::iterator, CAnchorsSaplingCacheEntry, SaplingMerkleTree>(batch, mapSaplingAnchors, DB_SAPLING_ANCHOR);
 
-    for (CNullifiersMap::iterator it = mapNullifiers.begin(); it != mapNullifiers.end();) {
-        if (it->second.flags & CNullifiersCacheEntry::DIRTY) {
-            if (!it->second.entered)
-                batch.Erase(make_pair(DB_NULLIFIER, it->first));
-            else
-                batch.Write(make_pair(DB_NULLIFIER, it->first), true);
-            // TODO: changed++?
-        }
-        CNullifiersMap::iterator itOld = it++;
-        mapNullifiers.erase(itOld);
-    }
+    ::BatchWriteNullifiers(batch, mapSproutNullifiers, DB_NULLIFIER);
+    ::BatchWriteNullifiers(batch, mapSaplingNullifiers, DB_SAPLING_NULLIFIER);
 
     if (!hashBlock.IsNull())
         batch.Write(DB_BEST_BLOCK, hashBlock);
-    if (!hashAnchor.IsNull())
-        batch.Write(DB_BEST_ANCHOR, hashAnchor);
+    if (!hashSproutAnchor.IsNull())
+        batch.Write(DB_BEST_SPROUT_ANCHOR, hashSproutAnchor);
+    if (!hashSaplingAnchor.IsNull())
+        batch.Write(DB_BEST_SAPLING_ANCHOR, hashSaplingAnchor);
 
     LogPrint("coindb", "Committing %u changed transactions (out of %u) to coin database...\n", (unsigned int)changed, (unsigned int)count);
     return db.WriteBatch(batch);
@@ -267,10 +325,10 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->nFile          = diskindex.nFile;
                 pindexNew->nDataPos       = diskindex.nDataPos;
                 pindexNew->nUndoPos       = diskindex.nUndoPos;
-                pindexNew->hashAnchor     = diskindex.hashAnchor;
+                pindexNew->hashSproutAnchor     = diskindex.hashSproutAnchor;
                 pindexNew->nVersion       = diskindex.nVersion;
                 pindexNew->hashMerkleRoot = diskindex.hashMerkleRoot;
-                pindexNew->hashReserved   = diskindex.hashReserved;
+                pindexNew->hashFinalSaplingRoot   = diskindex.hashFinalSaplingRoot;
                 pindexNew->nTime          = diskindex.nTime;
                 pindexNew->nBits          = diskindex.nBits;
                 pindexNew->nNonce         = diskindex.nNonce;

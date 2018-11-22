@@ -68,21 +68,21 @@ double AtomicTimer::rate(const AtomicCounter& count)
     return duration > 0 ? (double)count.get() / duration : 0;
 }
 
-CCriticalSection cs_metrics;
+static CCriticalSection cs_metrics;
 
-boost::synchronized_value<int64_t> nNodeStartTime;
-boost::synchronized_value<int64_t> nNextRefresh;
+static boost::synchronized_value<int64_t> nNodeStartTime;
+static boost::synchronized_value<int64_t> nNextRefresh;
 AtomicCounter transactionsValidated;
 AtomicCounter ehSolverRuns;
 AtomicCounter solutionTargetChecks;
-AtomicCounter minedBlocks;
+static AtomicCounter minedBlocks;
 AtomicTimer miningTimer;
 
-boost::synchronized_value<std::list<uint256>> trackedBlocks;
+static boost::synchronized_value<std::list<uint256>> trackedBlocks;
 
-boost::synchronized_value<std::list<std::string>> messageBox;
-boost::synchronized_value<std::string> initMessage;
-bool loaded = false;
+static boost::synchronized_value<std::list<std::string>> messageBox;
+static boost::synchronized_value<std::string> initMessage;
+static bool loaded = false;
 
 extern int64_t GetNetworkHashPS(int lookup, int height);
 
@@ -452,6 +452,7 @@ void ThreadShowMetricsScreen()
 #ifdef WIN32
         enableVTMode();
 #endif
+
         // Clear screen
         std::cout << "\e[2J";
 
@@ -477,8 +478,9 @@ void ThreadShowMetricsScreen()
         if (isTTY) {
 #ifdef WIN32
             CONSOLE_SCREEN_BUFFER_INFO csbi;
-            GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-            cols = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+            if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi) != 0) {
+                cols = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+            }
 #else
             struct winsize w;
             w.ws_col = 0;

@@ -59,7 +59,7 @@ TEST(founders_reward_test, create_testnet_2of3multisig) {
         pWallet->AddCScript(result);
         pWallet->SetAddressBook(innerID, "", "receive");
 
-        std::string address = CBitcoinAddress(innerID).ToString();
+        std::string address = EncodeDestination(innerID);
         addresses.push_back(address);
     }
     
@@ -163,8 +163,8 @@ TEST(founders_reward_test, slow_start_subsidy) {
         CAmount nSubsidy = GetBlockSubsidy(nHeight, params.GetConsensus()) / 5;
         totalSubsidy += nSubsidy;
     }
-
-    ASSERT_EQ(totalSubsidy, MAX_MONEY/10.0);
+    
+    ASSERT_TRUE(totalSubsidy == MAX_MONEY/10.0);
 }
 
 
