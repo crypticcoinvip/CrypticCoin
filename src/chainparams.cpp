@@ -157,9 +157,9 @@ public:
         // guarantees the first 4 characters, when base58 encoded, are "CCSK"
         base58Prefixes[ZCSPENDING_KEY]     = {0x03,0xE2,0xA8,0x58};
 
-        bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "zs";
-        bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviews";
-        bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "zivks";
+        bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "cs";
+        bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "cviews";
+        bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "civks";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "secret-extended-key-main";
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
@@ -270,9 +270,9 @@ public:
         // guarantees the first 4 characters, when base58 encoded, are "TCSK"
         base58Prefixes[ZCSPENDING_KEY]     = {0x09,0x17,0x1F,0xBA};
 
-        bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "ztestsapling";
-        bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviewtestsapling";
-        bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "zivktestsapling";
+        bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "ctestsapling";
+        bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "cviewtestsapling";
+        bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "civktestsapling";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "secret-extended-key-test";
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
@@ -385,9 +385,9 @@ public:
         base58Prefixes[ZCVIEWING_KEY]      = {0xA8,0xAC,0x0C};
         base58Prefixes[ZCSPENDING_KEY]     = {0xAC,0x08};
 
-        bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "zregtestsapling";
-        bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviewregtestsapling";
-        bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "zivkregtestsapling";
+        bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "cregtestsapling";
+        bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "cviewregtestsapling";
+        bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "civkregtestsapling";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "secret-extended-key-regtest";
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
