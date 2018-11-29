@@ -18,9 +18,19 @@
 // the i*n 0s, each bucket having 4 * 2^RESTBITS slots,
 // twice the number of subtrees expected to land there.
 
+#ifndef EQUI_MINER_H
+#define EQUI_MINER_H
+
 #include "pow/tromp/equi.h"
+
+/// @maxb Moved from equi.h. BTW, it's better to add pthread.h with "#else"
+#ifdef __APPLE__
+#include "pow/tromp/osx_barrier.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h> // for functions memcpy
 #include <pthread.h>
 #include <assert.h>
 
@@ -145,12 +155,12 @@ typedef bucket0 digit0[NBUCKETS];
 typedef bucket1 digit1[NBUCKETS];
 
 // size (in bytes) of hash in round 0 <= r < WK
-u32 hashsize(const u32 r) {
-  const u32 hashbits = WN - (r+1) * DIGITBITS + RESTBITS;
-  return (hashbits + 7) / 8;
+u32 constexpr hashsize(const u32 r) {
+//  const u32 hashbits = WN - (r+1) * DIGITBITS + RESTBITS;
+  return ((WN - (r+1) * DIGITBITS + RESTBITS) + 7) / 8;
 }
 
-u32 hashwords(u32 bytes) {
+u32 constexpr hashwords(u32 bytes) {
   return (bytes + 3) / 4;
 }
 
@@ -199,10 +209,6 @@ struct htalloc {
 
 typedef au32 bsizes[NBUCKETS];
 
-u32 min(const u32 a, const u32 b) {
-  return a < b ? a : b;
-}
-
 struct equi {
   crypto_generichash_blake2b_state blake_ctx;
   htalloc hta;
@@ -242,7 +248,7 @@ struct equi {
   }
   u32 getnslots(const u32 r, const u32 bid) { // SHOULD BE METHOD IN BUCKET STRUCT
     au32 &nslot = nslots[r&1][bid];
-    const u32 n = min(nslot, NSLOTS);
+    const u32 n = static_cast<u32 const>(nslot) < NSLOTS ? static_cast<u32 const>(nslot) : NSLOTS;
     nslot = 0;
     return n;
   }
@@ -594,51 +600,4 @@ nc++,       candidate(tree(bucketid, s0, s1));
   }
 };
 
-typedef struct {
-  u32 id;
-  pthread_t thread;
-  equi *eq;
-} thread_ctx;
-
-void barrier(pthread_barrier_t *barry) {
-  const int rc = pthread_barrier_wait(barry);
-  if (rc != 0 && rc != PTHREAD_BARRIER_SERIAL_THREAD) {
-//    printf("Could not wait on barrier\n");
-    pthread_exit(NULL);
-  }
-}
-
-void *worker(void *vp) {
-  thread_ctx *tp = (thread_ctx *)vp;
-  equi *eq = tp->eq;
-
-  if (tp->id == 0)
-//    printf("Digit 0\n");
-  barrier(&eq->barry);
-  eq->digit0(tp->id);
-  barrier(&eq->barry);
-  if (tp->id == 0) {
-    eq->xfull = eq->bfull = eq->hfull = 0;
-    eq->showbsizes(0);
-  }
-  barrier(&eq->barry);
-  for (u32 r = 1; r < WK; r++) {
-    if (tp->id == 0)
-//      printf("Digit %d", r);
-    barrier(&eq->barry);
-    r&1 ? eq->digitodd(r, tp->id) : eq->digiteven(r, tp->id);
-    barrier(&eq->barry);
-    if (tp->id == 0) {
-//      printf(" x%d b%d h%d\n", eq->xfull, eq->bfull, eq->hfull);
-      eq->xfull = eq->bfull = eq->hfull = 0;
-      eq->showbsizes(r);
-    }
-    barrier(&eq->barry);
-  }
-  if (tp->id == 0)
-//    printf("Digit %d\n", WK);
-  eq->digitK(tp->id);
-  barrier(&eq->barry);
-  pthread_exit(NULL);
-  return 0;
-}
+#endif // EQUI_MINER_H

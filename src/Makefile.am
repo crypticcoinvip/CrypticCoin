@@ -344,7 +344,11 @@ crypto_libbitcoin_crypto_a_SOURCES = \
 
 if ENABLE_MINING
 EQUIHASH_TROMP_SOURCES = \
+  pow/tromp/trompsolver.cpp \
+  pow/tromp/trompsolver.h \
+  pow/tromp/equi_miner.cpp \
   pow/tromp/equi_miner.h \
+  pow/tromp/equi.cpp \
   pow/tromp/equi.h \
   pow/tromp/osx_barrier.h
 

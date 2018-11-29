@@ -10,6 +10,7 @@
 #include "core_io.h"
 #ifdef ENABLE_MINING
 #include "crypto/equihash.h"
+#include "pow/tromp/trompsolver.h"
 #endif
 #include "init.h"
 #include "main.h"
@@ -186,6 +187,8 @@ UniValue generate(const UniValue& params, bool fHelp)
     if (!Params().MineBlocksOnDemand())
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This method can only be used on regtest");
 
+    std::string solver = GetArg("-equihashsolver", "default");
+
     int nHeightStart = 0;
     int nHeightEnd = 0;
     int nHeight = 0;
@@ -250,10 +253,20 @@ UniValue generate(const UniValue& params, bool fHelp)
                 solutionTargetChecks.increment();
                 return CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus());
             };
-            bool found = EhBasicSolveUncancellable(n, k, curr_state, validBlock);
-            ehSolverRuns.increment();
-            if (found) {
-                goto endloop;
+
+            // TODO: factor this out into a function with the same API for each solver.
+            if (solver == "tromp") {
+                if (TrompSolve(curr_state, validBlock))
+                {
+                    /// @maxb ehSolverRuns wasn't increased here, because it's logic from original miner
+                    goto endloop;
+                }
+            } else {
+                bool found = EhBasicSolveUncancellable(n, k, curr_state, validBlock);
+                ehSolverRuns.increment();
+                if (found) {
+                    goto endloop;
+                }
             }
         }
 endloop:
