@@ -6,8 +6,7 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
-    start_nodes, start_node, connect_nodes_bi, bitcoind_processes, \
-    summSubsidy_noPremine, summSubsidy_premine
+    start_nodes, start_node, connect_nodes_bi, bitcoind_processes
 
 
 class ZapWalletTXesTest (BitcoinTestFramework):
@@ -31,7 +30,7 @@ class ZapWalletTXesTest (BitcoinTestFramework):
         self.nodes[1].generate(101)
         self.sync_all()
 
-        assert_equal(self.nodes[0].getbalance(), summSubsidy_premine(4))
+        assert_equal(self.nodes[0].getbalance(), 40)
 
         txid0 = self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), 11)
         txid1 = self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), 10)
@@ -54,7 +53,7 @@ class ZapWalletTXesTest (BitcoinTestFramework):
         tx3 = self.nodes[0].gettransaction(txid3)
         assert_equal(tx3['txid'], txid3) # tx3 must be available (unconfirmed)
 
-        # restart crypticcoind
+        # restart zcashd
         self.nodes[0].stop()
         bitcoind_processes[0].wait()
         self.nodes[0] = start_node(0,self.options.tmpdir)
@@ -65,7 +64,7 @@ class ZapWalletTXesTest (BitcoinTestFramework):
         self.nodes[0].stop()
         bitcoind_processes[0].wait()
 
-        # restart crypticcoind with zapwallettxes
+        # restart zcashd with zapwallettxes
         self.nodes[0] = start_node(0,self.options.tmpdir, ["-zapwallettxes=1"])
 
         aException = False

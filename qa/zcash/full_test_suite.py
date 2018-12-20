@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 #
-# Execute all of the automated tests related to Crypticcoin.
+# Execute all of the automated tests related to Zcash.
 #
 
 import argparse
@@ -32,7 +32,7 @@ RE_FORTIFY_USED = re.compile('Binary compiled with FORTIFY_SOURCE support.*Yes')
 
 def test_rpath_runpath(filename):
     output = subprocess.check_output(
-        [repofile('qa/crypticcoin/checksec.sh'), '--file', repofile(filename)]
+        [repofile('qa/zcash/checksec.sh'), '--file', repofile(filename)]
     )
     if RE_RPATH_RUNPATH.search(output):
         print('PASS: %s has no RPATH or RUNPATH.' % filename)
@@ -44,7 +44,7 @@ def test_rpath_runpath(filename):
 
 def test_fortify_source(filename):
     proc = subprocess.Popen(
-        [repofile('qa/crypticcoin/checksec.sh'), '--fortify-file', repofile(filename)],
+        [repofile('qa/zcash/checksec.sh'), '--fortify-file', repofile(filename)],
         stdout=subprocess.PIPE,
     )
     line1 = proc.stdout.readline()
@@ -63,21 +63,26 @@ def check_security_hardening():
     # PIE, RELRO, Canary, and NX are tested by make check-security.
     ret &= subprocess.call(['make', '-C', repofile('src'), 'check-security']) == 0
 
-    ret &= test_rpath_runpath('src/crypticcoind')
-    ret &= test_rpath_runpath('src/crypticcoin-cli')
-    ret &= test_rpath_runpath('src/crypticcoin-gtest')
-    ret &= test_rpath_runpath('src/crypticcoin-tx')
+    # The remaining checks are only for ELF binaries
+    # Assume that if zcashd is an ELF binary, they all are
+    with open(repofile('src/zcashd'), 'rb') as f:
+        magic = f.read(4)
+        if not magic.startswith(b'\x7fELF'):
+            return ret
+
+    ret &= test_rpath_runpath('src/zcashd')
+    ret &= test_rpath_runpath('src/zcash-cli')
+    ret &= test_rpath_runpath('src/zcash-gtest')
+    ret &= test_rpath_runpath('src/zcash-tx')
     ret &= test_rpath_runpath('src/test/test_bitcoin')
-    ret &= test_rpath_runpath('src/crypticcoin/GenerateParams')
 
     # NOTE: checksec.sh does not reliably determine whether FORTIFY_SOURCE
     # is enabled for the entire binary. See issue #915.
-    ret &= test_fortify_source('src/crypticcoind')
-    ret &= test_fortify_source('src/crypticcoin-cli')
-    ret &= test_fortify_source('src/crypticcoin-gtest')
-    ret &= test_fortify_source('src/crypticcoin-tx')
+    ret &= test_fortify_source('src/zcashd')
+    ret &= test_fortify_source('src/zcash-cli')
+    ret &= test_fortify_source('src/zcash-gtest')
+    ret &= test_fortify_source('src/zcash-tx')
     ret &= test_fortify_source('src/test/test_bitcoin')
-    ret &= test_fortify_source('src/crypticcoin/GenerateParams')
 
     return ret
 
@@ -103,7 +108,7 @@ def ensure_no_dot_so_in_depends():
                 exit_code = 1
     else:
         exit_code = 2
-        print "arch-specific build dir not present: {}".format(arch_dir)
+        print "arch-specific build dir not present"
         print "Did you build the ./depends tree?"
         print "Are you on a currently unsupported architecture?"
 
@@ -140,7 +145,7 @@ STAGES = [
 
 STAGE_COMMANDS = {
     'btest': [repofile('src/test/test_bitcoin'), '-p'],
-    'gtest': [repofile('src/crypticcoin-gtest')],
+    'gtest': [repofile('src/zcash-gtest')],
     'sec-hard': check_security_hardening,
     'no-dot-so': ensure_no_dot_so_in_depends,
     'util-test': util_test,

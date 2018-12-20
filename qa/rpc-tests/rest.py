@@ -350,5 +350,4 @@ class RESTTest (BitcoinTestFramework):
         assert_equal(json_obj['bestblockhash'], bb_hash)
 
 if __name__ == '__main__':
-    print "RESTTest is disabled"
-    #RESTTest().main()
+    RESTTest().main()

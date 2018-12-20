@@ -165,5 +165,4 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         assert_equal(result["versiongroupid"], "03c48270")
 
 if __name__ == '__main__':
-    print "WalletOverwinterTxTest is disabled"
-    #WalletOverwinterTxTest().main()
+    WalletOverwinterTxTest().main()

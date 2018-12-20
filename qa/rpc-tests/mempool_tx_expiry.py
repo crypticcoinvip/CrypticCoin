@@ -10,7 +10,7 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, \
     connect_nodes_bi, sync_blocks, start_nodes, \
-    wait_and_assert_operationid_status, getBlockSubsidy_noPremine
+    wait_and_assert_operationid_status
 
 from decimal import Decimal
 
@@ -81,9 +81,8 @@ class MempoolTxExpiryTest(BitcoinTestFramework):
         # Get balance on node 0
         bal = self.nodes[0].z_gettotalbalance()
         print "Balance before zsend, after shielding 10: ", bal
-        assert_equal(Decimal(bal["private"]), Decimal(getBlockSubsidy_noPremine() - 0.0001))
+        assert_equal(Decimal(bal["private"]), Decimal("9.9999"))
 
-        return #not fixed yet
         print "Splitting network..."
         self.split_network()
 

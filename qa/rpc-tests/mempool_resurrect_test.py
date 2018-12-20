@@ -82,5 +82,4 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
 
 
 if __name__ == '__main__':
-    print "MempoolCoinbaseTest is disabled"
-    #MempoolCoinbaseTest().main()
+    MempoolCoinbaseTest().main()

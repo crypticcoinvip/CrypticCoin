@@ -102,5 +102,4 @@ class WalletTreeStateTest (BitcoinTestFramework):
 
 
 if __name__ == '__main__':
-    print "WalletTreeStateTest is disabled"
-    #WalletTreeStateTest().main()
+    WalletTreeStateTest().main()

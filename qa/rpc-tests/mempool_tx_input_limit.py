@@ -133,5 +133,4 @@ class MempoolTxInputLimitTest(BitcoinTestFramework):
         wait_and_assert_operationid_status(self.nodes[0], myopid)
 
 if __name__ == '__main__':
-    print "MempoolTxInputLimitTest is disabled"
-    #MempoolTxInputLimitTest().main()
+    MempoolTxInputLimitTest().main()

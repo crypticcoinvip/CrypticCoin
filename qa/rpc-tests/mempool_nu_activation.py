@@ -39,7 +39,7 @@ class MempoolUpgradeActivationTest(BitcoinTestFramework):
         self.nodes[0].generate(97)
         self.sync_all()
 
-        # Shield some CRYP
+        # Shield some ZEC
         node1_taddr = self.nodes[1].getnewaddress()
         node0_zaddr = self.nodes[0].z_getnewaddress()
         recipients = [{'address': node0_zaddr, 'amount': Decimal('10')}]
@@ -143,5 +143,4 @@ class MempoolUpgradeActivationTest(BitcoinTestFramework):
         # Current height = 215
 
 if __name__ == '__main__':
-    print "MempoolUpgradeActivationTest is disabled"
-    #MempoolUpgradeActivationTest().main()
+    MempoolUpgradeActivationTest().main()
