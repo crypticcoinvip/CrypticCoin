@@ -1715,8 +1715,42 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex)
     return true;
 }
 
+CAmount GetBlockSubsidyRegTest(int nHeight, const Consensus::Params& consensusParams)
+{
+    CAmount nSubsidy = 12.5 * COIN;
+
+    // Mining slow start
+    // The subsidy is ramped up linearly, skipping the middle payout of
+    // MAX_SUBSIDY/2 to keep the monetary curve consistent with no slow start.
+    if (nHeight < consensusParams.nSubsidySlowStartInterval / 2) {
+        nSubsidy /= consensusParams.nSubsidySlowStartInterval;
+        nSubsidy *= nHeight;
+        return nSubsidy;
+    } else if (nHeight < consensusParams.nSubsidySlowStartInterval) {
+        nSubsidy /= consensusParams.nSubsidySlowStartInterval;
+        nSubsidy *= (nHeight+1);
+        return nSubsidy;
+    }
+
+    assert(nHeight > consensusParams.SubsidySlowStartShift());
+    int halvings = (nHeight - consensusParams.SubsidySlowStartShift()) / consensusParams.nSubsidyHalvingInterval;
+    // Force block reward to zero when right shift is undefined.
+    if (halvings >= 64)
+        return 0;
+
+    // Subsidy is cut in half every 840,000 blocks which will occur approximately every 4 years.
+    nSubsidy >>= halvings;
+    return nSubsidy;
+}
+
+
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
+    if (Params().NetworkIDString() == "regtest")
+    {
+        return GetBlockSubsidyRegTest(nHeight, consensusParams);
+    }
+
     CAmount nSubsidy = 1655 * COIN;
 
     int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
@@ -3602,22 +3636,27 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
     // reward block is reached, with exception of the genesis block.
     // The last founders reward block is defined as the block just before the
     // first subsidy halving block, which occurs at halving_interval + slow_start_shift
-//    if ((nHeight > 0) && (nHeight <= consensusParams.GetLastFoundersRewardBlockHeight())) {
-//        bool found = false;
-//
-//        BOOST_FOREACH(const CTxOut& output, block.vtx[0].vout) {
-//            if (output.scriptPubKey == Params().GetFoundersRewardScriptAtHeight(nHeight)) {
-//                if (output.nValue == (GetBlockSubsidy(nHeight, consensusParams) / 5)) {
-//                    found = true;
-//                    break;
-//                }
-//            }
-//        }
-//
-//        if (!found) {
-//            return state.DoS(100, error("%s: founders reward missing", __func__), REJECT_INVALID, "cb-no-founders-reward");
-//        }
-//    }
+
+    // Now, it's ONLY for regtest:
+    if (Params().NetworkIDString() == "regtest")
+    {
+        if ((nHeight > 0) && (nHeight <= consensusParams.GetLastFoundersRewardBlockHeight(true))) {
+            bool found = false;
+
+            BOOST_FOREACH(const CTxOut& output, block.vtx[0].vout) {
+                if (output.scriptPubKey == Params().GetFoundersRewardScriptAtHeight(nHeight)) {
+                    if (output.nValue == (GetBlockSubsidy(nHeight, consensusParams) / 5)) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found) {
+                return state.DoS(100, error("%s: founders reward missing", __func__), REJECT_INVALID, "cb-no-founders-reward");
+            }
+        }
+    }
 
     return true;
 }

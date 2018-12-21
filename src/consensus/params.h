@@ -87,7 +87,11 @@ struct Params {
      */
     int SubsidySlowStartShift() const { return nSubsidySlowStartInterval / 2; }
     int nSubsidyHalvingInterval;
-    int GetLastFoundersRewardBlockHeight() const {
+    int GetLastFoundersRewardBlockHeight(bool isRegTest) const {
+        if (isRegTest)
+        {
+            return nSubsidyHalvingInterval + SubsidySlowStartShift() - 1;
+        }
         return 0;
     }
     /** Used to check majorities for block version upgrade */

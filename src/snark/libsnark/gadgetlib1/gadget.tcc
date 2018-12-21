@@ -14,9 +14,10 @@ template<typename FieldT>
 gadget<FieldT>::gadget(protoboard<FieldT> &pb, const std::string &annotation_prefix) :
     pb(pb), annotation_prefix(annotation_prefix)
 {
-#ifdef DEBUG
-    assert(annotation_prefix != "");
-#endif
+    // killed cause unnesessary, issue in zcash
+//#ifdef DEBUG
+//    assert(annotation_prefix != "");
+//#endif
 }
 
 } // libsnark

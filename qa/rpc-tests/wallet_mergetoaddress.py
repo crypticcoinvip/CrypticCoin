@@ -103,7 +103,8 @@ class WalletMergeToAddressTest (BitcoinTestFramework):
 
         # Merging will fail because fee is larger than MAX_MONEY
         try:
-            self.nodes[0].z_mergetoaddress(["*"], myzaddr, Decimal('21000000.00000001'))
+            # changed, cause Decimal hasn't enough precision to represent '4200000000.00000001'
+            self.nodes[0].z_mergetoaddress(["*"], myzaddr, Decimal('4200000000.1')) 
             assert(False)
         except JSONRPCException,e:
             errorString = e.error['message']

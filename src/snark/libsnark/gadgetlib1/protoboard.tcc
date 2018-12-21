@@ -36,12 +36,13 @@ void protoboard<FieldT>::clear_values()
 template<typename FieldT>
 var_index_t protoboard<FieldT>::allocate_var_index(const std::string &annotation)
 {
-#ifdef DEBUG
-    assert(annotation != "");
-    constraint_system.variable_annotations[next_free_var] = annotation;
-#else
+    // killed cause unnesessary, issue in zcash
+//#ifdef DEBUG
+//    assert(annotation != "");
+//    constraint_system.variable_annotations[next_free_var] = annotation;
+//#else
     UNUSED(annotation);
-#endif
+//#endif
     ++constraint_system.auxiliary_input_size;
     values.emplace_back(FieldT::zero());
     return next_free_var++;
@@ -99,12 +100,13 @@ FieldT protoboard<FieldT>::lc_val(const pb_linear_combination<FieldT> &lc) const
 template<typename FieldT>
 void protoboard<FieldT>::add_r1cs_constraint(const r1cs_constraint<FieldT> &constr, const std::string &annotation)
 {
-#ifdef DEBUG
-    assert(annotation != "");
-    constraint_system.constraint_annotations[constraint_system.constraints.size()] = annotation;
-#else
+    // killed cause unnesessary, issue in zcash
+//#ifdef DEBUG
+//    assert(annotation != "");
+//    constraint_system.constraint_annotations[constraint_system.constraints.size()] = annotation;
+//#else
     UNUSED(annotation);
-#endif
+//#endif
     constraint_system.constraints.emplace_back(constr);
 }
 
