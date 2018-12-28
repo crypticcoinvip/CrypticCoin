@@ -826,7 +826,11 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorSettings& cfg) 
         tor_config << "HiddenServicePort " << cfg.public_port << " 127.0.0.1:" << cfg.hidden_port << '\n'; ///< tor will listen on %port and redirect the data to 127.0.0.1:%port
 
         if (clientTransportPlugin) {
+            tor_config << "UseBridges 1" << '\n';
             tor_config << "ClientTransportPlugin " << *clientTransportPlugin << '\n';
+            for (auto bridge : cfg.tor_bridges) {
+                tor_config << "Bridge " << bridge << '\n';
+            }
         }
         tor_config.close();
     }

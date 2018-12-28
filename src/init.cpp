@@ -401,6 +401,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-onion=<ip:port>", strprintf(_("Use separate SOCKS5 proxy to reach peers via Tor hidden services (default: %s)"), "-proxy"));
     strUsage += HelpMessageOpt("-tor_exe_path=<path>", strprintf(_("[if -listenonion] Path to tor executable. Daemon will execute it (default: '%s')"), ""));
     strUsage += HelpMessageOpt("-tor_obfs4_exe_path=<path>", strprintf(_("[if -tor_generate_config] Path to obfs4 executable. It'll be added in tor config (default: '%s')"), ""));
+    strUsage += HelpMessageOpt("-add_obfs4_bridge=obfs4 <addr> <fingerprint> [params]", strprintf(_("[if -tor_obfs4_exe_path] Config string for Tor obfuscated bridge. You SHOULD add one or more bridge if you want obfs4 works properly (see https://www.torproject.org/docs/bridges.html.en#FindingMore). It'll be added in tor config (default: '%s')"), ""));
     strUsage += HelpMessageOpt("-tor_generate_config", strprintf(_("[if -tor_exe_path] Regenerate tor config file (even if already exists) (default: '%s')"), "1"));
     strUsage += HelpMessageOpt("-onlynet=<net>", _("Only connect to nodes in network <net> (ipv4, ipv6 or onion)"));
     strUsage += HelpMessageOpt("-permitbaremultisig", strprintf(_("Relay non-P2SH multisig (default: %u)"), 1));
@@ -932,6 +933,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 tor::TorSettings tor_cfg;
                 tor_cfg.tor_exe_path = {GetArg("-tor_exe_path", "")};
                 tor_cfg.tor_obfs4_exe_path = {GetArg("-tor_obfs4_exe_path", "")};
+                tor_cfg.tor_bridges = mapMultiArgs["-add_obfs4_bridge"];
+                if (tor_cfg.tor_bridges.empty() && !tor_cfg.tor_obfs4_exe_path.empty() && !tor_cfg.tor_exe_path.empty()) {
+                    auto error_log = "You SHOULD add one or more bridge by '-add_obfs4_bridge=obfs4 <addr> <fingerprint> [params]' if you want obfs4 works properly (see https://www.torproject.org/docs/bridges.html.en#FindingMore)\n";
+                    LogPrint("tor", error_log);
+                    return InitError(error_log);
+                }
                 tor_cfg.tor_generate_config = GetBoolArg("-tor_generate_config", true);
                 tor_cfg.public_port = (unsigned short)(GetArg("-tor_service_port", Params().GetDefaultTorServicePort()));
                 tor_cfg.hidden_port = GetListenPort();

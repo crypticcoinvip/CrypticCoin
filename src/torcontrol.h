@@ -8,6 +8,8 @@
 #ifndef BITCOIN_TORCONTROL_H
 #define BITCOIN_TORCONTROL_H
 
+#include <string>
+#include <vector>
 #include "scheduler.h"
 #include <boost/filesystem.hpp>
 #include <boost/optional.hpp>
@@ -30,6 +32,7 @@ void StopTorControl();
 struct TorSettings {
     boost::filesystem::path tor_exe_path;
     boost::filesystem::path tor_obfs4_exe_path;
+    std::vector<std::string> tor_bridges;
     bool tor_generate_config;
     unsigned short public_port;
     unsigned short hidden_port;
