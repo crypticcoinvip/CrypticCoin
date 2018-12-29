@@ -828,7 +828,7 @@ static std::pair<std::error_code, boost_pid_t> exec_tor(const TorSettings& cfg) 
         if (clientTransportPlugin) {
             tor_config << "UseBridges 1" << '\n';
             tor_config << "ClientTransportPlugin " << *clientTransportPlugin << '\n';
-            for (auto bridge : cfg.tor_bridges) {
+            for (const auto& bridge : cfg.tor_bridges) {
                 tor_config << "Bridge " << bridge << '\n';
             }
         }
