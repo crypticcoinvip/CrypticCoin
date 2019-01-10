@@ -1,5 +1,5 @@
 ---
-name: "crypticcoin-1.1.1"
+name: "crypticcoin-2.0.0"
 enable_cache: true
 distro: "debian"
 suites:
