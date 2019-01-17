@@ -18,9 +18,9 @@ Possible options:
 
 ```
 -h, --help       show this help message and exit
-  --nocleanup      Leave zcashds and test.* datadir on exit or error
+  --nocleanup      Leave crypticcoinds and test.* datadir on exit or error
   --noshutdown     Don't stop bitcoinds after the test execution
-  --srcdir=SRCDIR  Source directory containing zcashd/zcash-cli (default:
+  --srcdir=SRCDIR  Source directory containing crypticcoind/crypticcoin-cli (default:
                    ../../src)
   --tmpdir=TMPDIR  Root directory for datadirs
   --tracerpc       Print out all RPC calls as they are made

@@ -82,5 +82,4 @@ class MempoolSpendCoinbaseTest(BitcoinTestFramework):
         assert_greater_than(mempoolinfo['usage'], mempoolinfo['bytes'])
 
 if __name__ == '__main__':
-    print "MempoolSpendCoinbaseTest is disabled"
-    #MempoolSpendCoinbaseTest().main()
+    MempoolSpendCoinbaseTest().main()

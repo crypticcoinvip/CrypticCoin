@@ -19,19 +19,19 @@ from test_framework.util import initialize_chain_clean, start_nodes, \
 import time
 
 #
-# In this test we connect Sprout, Overwinter, and Sapling mininodes to a crypticcoind
+# In this test we connect Sprout, Overwinter, and Sapling mininodes to a Crypticcoind
 # node which will activate Overwinter at block 10 and Sapling at block 15.
 #
 # We test:
-# 1. the mininodes stay connected to Zcash with Sprout consensus rules
+# 1. the mininodes stay connected to Crypticcoin with Sprout consensus rules
 # 2. when Overwinter activates, the Sprout mininodes are dropped
-# 3. new Overwinter and Sapling nodes can connect to Zcash
-# 4. new Sprout nodes cannot connect to Zcash
+# 3. new Overwinter and Sapling nodes can connect to Crypticcoin
+# 4. new Sprout nodes cannot connect to Crypticcoin
 # 5. when Sapling activates, the Overwinter mininodes are dropped
-# 6. new Sapling nodes can connect to Zcash
-# 7. new Sprout and Overwinter nodes cannot connect to Zcash
+# 6. new Sapling nodes can connect to Crypticcoin
+# 7. new Sprout and Overwinter nodes cannot connect to Crypticcoin
 #
-# This test *does not* verify that prior to each activation, the crypticcoind
+# This test *does not* verify that prior to each activation, the Crypticcoind
 # node will prefer connections with NU-aware nodes, with an eviction process
 # that prioritizes non-NU-aware connections.
 #

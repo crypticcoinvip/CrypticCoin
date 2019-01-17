@@ -23,38 +23,6 @@ import re
 
 from authproxy import AuthServiceProxy
 
-def getBlockSubsidy_noPremine():
-    """
-    Get BlockSubsidy (without premine reward)
-    """
-    return 1655
-
-def summSubsidy_noPremine(blocksNum):
-    """
-    Calculate subsidy for n blocks (without premine reward)
-    """
-    return getBlockSubsidy_noPremine() * blocksNum
-
-def getBlockSubsidy_premine(blockHeight):
-    """
-    Get BlockSubsidy (from GetBlockSubsidy() in main.cpp)
-    """
-    specialSubsidy = 4179234070
-
-    if blockHeight == 2:
-        return specialSubsidy
-    return getBlockSubsidy_noPremine()
-
-def summSubsidy_premine(blocksNum):
-    """
-    Calculate subsidy for n blocks (with premine reward)
-    """
-    balance = 0
-    for b in range(blocksNum):
-        balance += getBlockSubsidy_premine(b)
-    return balance
-
-
 def p2p_port(n):
     return 11000 + n + os.getpid()%999
 def rpc_port(n):
@@ -387,11 +355,11 @@ def random_transaction(nodes, amount, min_fee, fee_increment, fee_variants):
 
     return (txid, signresult["hex"], fee)
 
-def assert_equal(expected, actual, message = ""):
+def assert_equal(expected, actual, message=""):
     if expected != actual:
         if message:
-            message = "%s; " % message 
-        raise AssertionError("%sexpected: <%s> but was: <%s>" % (message, str(expected), str(actual)))
+            message = "; %s" % message 
+        raise AssertionError("(left == right)%s\n  left: <%s>\n right: <%s>" % (message, str(expected), str(actual)))
 
 def assert_true(condition, message = ""):
     if not condition:
@@ -413,6 +381,9 @@ def assert_raises(exc, fun, *args, **kwds):
         raise AssertionError("Unexpected exception raised: "+type(e).__name__)
     else:
         raise AssertionError("No exception raised")
+
+def fail(message=""):
+    raise AssertionError(message)
 
 # Returns txid if operation was a success or None
 def wait_and_assert_operationid_status(node, myopid, in_status='success', in_errormsg=None, timeout=300):

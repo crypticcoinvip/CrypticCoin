@@ -18,13 +18,13 @@ class WalletChangeIndicatorTest (BitcoinTestFramework):
     # Tests
     def run_test(self):
         taddr = self.nodes[1].getnewaddress()
-        zaddr1 = self.nodes[1].z_getnewaddress()
-        zaddr2 = self.nodes[1].z_getnewaddress()
+        zaddr1 = self.nodes[1].z_getnewaddress('sprout')
+        zaddr2 = self.nodes[1].z_getnewaddress('sprout')
 
         self.nodes[0].sendtoaddress(taddr, Decimal('1.0'))
         self.generate_and_sync()
 
-        # Send 1 ZEC to a zaddr
+        # Send 1 CRYP to a zaddr
         wait_and_assert_operationid_status(self.nodes[1], self.nodes[1].z_sendmany(taddr, [{'address': zaddr1, 'amount': 1.0, 'memo': 'c0ffee01'}], 1, 0))
         self.generate_and_sync()
 

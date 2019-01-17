@@ -8,10 +8,9 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, assert_greater_than, \
     initialize_chain_clean, start_nodes, start_node, connect_nodes_bi, \
-    stop_nodes, sync_blocks, sync_mempools, wait_bitcoinds, wait_and_assert_operationid_status, \
-    summSubsidy_noPremine, summSubsidy_premine, getBlockSubsidy_noPremine
+    stop_nodes, sync_blocks, sync_mempools, wait_and_assert_operationid_status, \
+    wait_bitcoinds
 
-import time
 from decimal import Decimal
 
 class WalletTest (BitcoinTestFramework):
@@ -34,25 +33,24 @@ class WalletTest (BitcoinTestFramework):
         self.nodes[0].generate(4)
 
         walletinfo = self.nodes[0].getwalletinfo()
-        assert_equal(walletinfo['immature_balance'], summSubsidy_premine(4))
+        assert_equal(walletinfo['immature_balance'], 40)
         assert_equal(walletinfo['balance'], 0)
 
         self.sync_all()
         self.nodes[1].generate(101)
         self.sync_all()
 
-        assert_equal(self.nodes[0].getbalance(), summSubsidy_premine(4))
-        assert_equal(self.nodes[1].getbalance(), summSubsidy_noPremine(1))
-        assert_equal(self.nodes[2].getbalance(), summSubsidy_noPremine(0))
-        assert_equal(self.nodes[0].getbalance("*"), summSubsidy_premine(4))
-        assert_equal(self.nodes[1].getbalance("*"), summSubsidy_noPremine(1))
-        assert_equal(self.nodes[2].getbalance("*"), summSubsidy_noPremine(0))
+        assert_equal(self.nodes[0].getbalance(), 40)
+        assert_equal(self.nodes[1].getbalance(), 10)
+        assert_equal(self.nodes[2].getbalance(), 0)
+        assert_equal(self.nodes[0].getbalance("*"), 40)
+        assert_equal(self.nodes[1].getbalance("*"), 10)
+        assert_equal(self.nodes[2].getbalance("*"), 0)
 
-        # Send 21 CRYP from 0 to 2 using sendtoaddress call.
+        # Send 21 BTC from 0 to 2 using sendtoaddress call.
         # Second transaction will be child of first, and will require a fee
-        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), getBlockSubsidy_noPremine() + 1)
-        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), getBlockSubsidy_noPremine())
-        spent = getBlockSubsidy_noPremine() * 2 + 1
+        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), 11)
+        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), 10)
 
         walletinfo = self.nodes[0].getwalletinfo()
         assert_equal(walletinfo['immature_balance'], 0)
@@ -66,14 +64,12 @@ class WalletTest (BitcoinTestFramework):
         self.nodes[1].generate(100)
         self.sync_all()
 
-        node0income = summSubsidy_premine(5)
-        # node0 should end up with summSubsidy_premine(5) CRYP in block rewards plus fees, but
+        # node0 should end up with 50 btc in block rewards plus fees, but
         # minus the 21 plus fees sent to node2
-        assert_equal(self.nodes[0].getbalance(), node0income - spent)
-        assert_equal(self.nodes[2].getbalance(), spent)
-        assert_equal(self.nodes[0].getbalance("*"), node0income - spent)
-        assert_equal(self.nodes[2].getbalance("*"), spent)
-        return # not fixed
+        assert_equal(self.nodes[0].getbalance(), 50-21)
+        assert_equal(self.nodes[2].getbalance(), 21)
+        assert_equal(self.nodes[0].getbalance("*"), 50-21)
+        assert_equal(self.nodes[2].getbalance("*"), 21)
 
         # Node0 should have three unspent outputs.
         # Create a couple of transactions to send them to node2, submit them through
@@ -286,7 +282,7 @@ class WalletTest (BitcoinTestFramework):
         assert_equal(0, len(myvjoinsplits))
 
         # z_sendmany is expected to fail if tx size breaks limit
-        myzaddr = self.nodes[0].z_getnewaddress()
+        myzaddr = self.nodes[0].z_getnewaddress('sprout')
 
         recipients = []
         num_t_recipients = 3000
@@ -320,7 +316,7 @@ class WalletTest (BitcoinTestFramework):
             newtaddr = self.nodes[2].getnewaddress()
             recipients.append({"address":newtaddr, "amount":amount_per_recipient})
         for i in xrange(0,num_z_recipients):
-            newzaddr = self.nodes[2].z_getnewaddress()
+            newzaddr = self.nodes[2].z_getnewaddress('sprout')
             recipients.append({"address":newzaddr, "amount":amount_per_recipient})
 
         # Issue #2759 Workaround START
@@ -338,7 +334,7 @@ class WalletTest (BitcoinTestFramework):
         amount_per_recipient = Decimal('0.00000001')
         errorString = ''
         for i in xrange(0,num_z_recipients):
-            newzaddr = self.nodes[2].z_getnewaddress()
+            newzaddr = self.nodes[2].z_getnewaddress('sprout')
             recipients.append({"address":newzaddr, "amount":amount_per_recipient})
         try:
             self.nodes[0].z_sendmany(myzaddr, recipients)
@@ -347,7 +343,7 @@ class WalletTest (BitcoinTestFramework):
         assert("Invalid parameter, too many zaddr outputs" in errorString)
 
         # add zaddr to node 2
-        myzaddr = self.nodes[2].z_getnewaddress()
+        myzaddr = self.nodes[2].z_getnewaddress('sprout')
 
         # send node 2 taddr to zaddr
         recipients = []
@@ -441,7 +437,7 @@ class WalletTest (BitcoinTestFramework):
 
         assert_equal("not an integer" in errorString, True)
 
-        myzaddr     = self.nodes[0].z_getnewaddress()
+        myzaddr     = self.nodes[0].z_getnewaddress('sprout')
         recipients  = [ {"address": myzaddr, "amount": Decimal('0.0') } ]
         errorString = ''
 

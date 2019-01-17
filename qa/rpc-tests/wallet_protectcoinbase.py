@@ -75,7 +75,7 @@ class WalletProtectCoinbaseTest (BitcoinTestFramework):
 
         # Prepare to send taddr->zaddr
         mytaddr = self.nodes[0].getnewaddress()
-        myzaddr = self.nodes[0].z_getnewaddress()
+        myzaddr = self.nodes[0].z_getnewaddress('sprout')
 
         # Node 3 will test that watch only address utxos are not selected
         self.nodes[3].importaddress(mytaddr)
@@ -217,7 +217,7 @@ class WalletProtectCoinbaseTest (BitcoinTestFramework):
         # UTXO selection in z_sendmany sorts in ascending order, so smallest utxos are consumed first.
         # At this point in time, unspent notes all have a value of 10.0 and standard z_sendmany fee is 0.0001.
         recipients = []
-        amount = Decimal('10.0') - Decimal('0.00010000') - Decimal('0.00000001')    # this leaves change at 1 cryptoshi less than dust threshold
+        amount = Decimal('10.0') - Decimal('0.00010000') - Decimal('0.00000001')    # this leaves change at 1 zatoshi less than dust threshold
         recipients.append({"address":self.nodes[0].getnewaddress(), "amount":amount })
         myopid = self.nodes[0].z_sendmany(mytaddr, recipients)
         wait_and_assert_operationid_status(self.nodes[0], myopid, "failed", "Insufficient transparent funds, have 10.00, need 0.00000053 more to avoid creating invalid change output 0.00000001 (dust threshold is 0.00000054)")
@@ -300,7 +300,8 @@ class WalletProtectCoinbaseTest (BitcoinTestFramework):
 
         # Send will fail because fee is larger than MAX_MONEY
         try:
-            self.nodes[0].z_sendmany(myzaddr, recipients, 1, Decimal('21000000.00000001'))
+            # changed, cause Decimal hasn't enough precision to represent '4200000000.00000001'
+            self.nodes[0].z_sendmany(myzaddr, recipients, 1, Decimal('4200000000.1'))
         except JSONRPCException,e:
             errorString = e.error['message']
         assert_equal("Amount out of range" in errorString, True)
@@ -335,7 +336,7 @@ class WalletProtectCoinbaseTest (BitcoinTestFramework):
         custom_fee = Decimal('0.00012345')
         zbalance = self.nodes[0].z_getbalance(myzaddr)
         for i in xrange(0,num_recipients):
-            newzaddr = self.nodes[2].z_getnewaddress()
+            newzaddr = self.nodes[2].z_getnewaddress('sprout')
             recipients.append({"address":newzaddr, "amount":amount_per_recipient})
         myopid = self.nodes[0].z_sendmany(myzaddr, recipients, minconf, custom_fee)
         wait_and_assert_operationid_status(self.nodes[0], myopid)
@@ -361,5 +362,4 @@ class WalletProtectCoinbaseTest (BitcoinTestFramework):
         assert_equal(Decimal(resp), sum_of_notes)
 
 if __name__ == '__main__':
-    print "WalletProtectCoinbaseTest is disabled"
-    #WalletProtectCoinbaseTest().main()
+    WalletProtectCoinbaseTest().main()

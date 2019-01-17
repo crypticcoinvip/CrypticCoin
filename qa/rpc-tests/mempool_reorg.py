@@ -102,5 +102,4 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
         assert_equal(set(self.nodes[0].getrawmempool()), set())
 
 if __name__ == '__main__':
-    print "MempoolCoinbaseTest is disabled"
-    #MempoolCoinbaseTest().main()
+    MempoolCoinbaseTest().main()

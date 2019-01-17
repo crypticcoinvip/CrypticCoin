@@ -6,8 +6,7 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_nodes, stop_nodes, connect_nodes_bi, \
-    wait_and_assert_operationid_status, wait_bitcoinds, \
-    summSubsidy_noPremine, summSubsidy_premine, getBlockSubsidy_noPremine
+    wait_and_assert_operationid_status, wait_bitcoinds
 from decimal import Decimal
 
 class WalletAnchorForkTest (BitcoinTestFramework):
@@ -30,24 +29,24 @@ class WalletAnchorForkTest (BitcoinTestFramework):
         self.nodes[0].generate(4)
 
         walletinfo = self.nodes[0].getwalletinfo()
-        assert_equal(walletinfo['immature_balance'], summSubsidy_premine(4))
+        assert_equal(walletinfo['immature_balance'], 40)
         assert_equal(walletinfo['balance'], 0)
 
         self.sync_all()
         self.nodes[1].generate(102)
         self.sync_all()
 
-        assert_equal(self.nodes[0].getbalance(), summSubsidy_premine(4))
-        assert_equal(self.nodes[1].getbalance(), summSubsidy_noPremine(2))
-        assert_equal(self.nodes[2].getbalance(), summSubsidy_noPremine(0))
+        assert_equal(self.nodes[0].getbalance(), 40)
+        assert_equal(self.nodes[1].getbalance(), 20)
+        assert_equal(self.nodes[2].getbalance(), 0)
 
         # At this point in time, commitment tree is the empty root
 
         # Node 0 creates a joinsplit transaction
         mytaddr0 = self.nodes[0].getnewaddress()
-        myzaddr0 = self.nodes[0].z_getnewaddress()
+        myzaddr0 = self.nodes[0].z_getnewaddress('sprout')
         recipients = []
-        recipients.append({"address":myzaddr0, "amount": Decimal(getBlockSubsidy_noPremine()) - Decimal('0.0001')})
+        recipients.append({"address":myzaddr0, "amount": Decimal('10.0') - Decimal('0.0001')})
         myopid = self.nodes[0].z_sendmany(mytaddr0, recipients)
         wait_and_assert_operationid_status(self.nodes[0], myopid)
 
@@ -71,7 +70,7 @@ class WalletAnchorForkTest (BitcoinTestFramework):
 
         # Partition A, node 0 creates a joinsplit transaction
         recipients = []
-        recipients.append({"address":myzaddr0, "amount": Decimal(getBlockSubsidy_noPremine()) - Decimal('0.0001')})
+        recipients.append({"address":myzaddr0, "amount": Decimal('10.0') - Decimal('0.0001')})
         myopid = self.nodes[0].z_sendmany(mytaddr0, recipients)
         txid = wait_and_assert_operationid_status(self.nodes[0], myopid)
         rawhex = self.nodes[0].getrawtransaction(txid)
@@ -100,10 +99,10 @@ class WalletAnchorForkTest (BitcoinTestFramework):
 
         # Mine a new block and let it propagate
         self.nodes[1].generate(1)
-
+        
         # Due to a bug in v1.0.0-1.0.3, node 0 will die with a tree root assertion, so sync_all() will throw an exception.
         self.sync_all()
-
+      
         # v1.0.4 will reach here safely
         assert_equal( self.nodes[0].getbestblockhash(), self.nodes[1].getbestblockhash())
         assert_equal( self.nodes[1].getbestblockhash(), self.nodes[2].getbestblockhash())

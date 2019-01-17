@@ -7,7 +7,7 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_node, connect_nodes_bi, sync_blocks, sync_mempools, \
-    wait_and_assert_operationid_status, summSubsidy_noPremine, summSubsidy_premine
+    wait_and_assert_operationid_status
 
 from decimal import Decimal
 
@@ -38,7 +38,7 @@ class WalletMergeToAddressTest (BitcoinTestFramework):
 
         self.nodes[0].generate(4)
         walletinfo = self.nodes[0].getwalletinfo()
-        assert_equal(walletinfo['immature_balance'], summSubsidy_premine(5))
+        assert_equal(walletinfo['immature_balance'], 50)
         assert_equal(walletinfo['balance'], 0)
         self.sync_all()
         self.nodes[2].generate(1)
@@ -49,12 +49,12 @@ class WalletMergeToAddressTest (BitcoinTestFramework):
         self.sync_all()
         self.nodes[1].generate(101)
         self.sync_all()
-        assert_equal(self.nodes[0].getbalance(), summSubsidy_premine(5))
-        assert_equal(self.nodes[1].getbalance(), summSubsidy_noPremine(1))
-        assert_equal(self.nodes[2].getbalance(), summSubsidy_noPremine(3))
+        assert_equal(self.nodes[0].getbalance(), 50)
+        assert_equal(self.nodes[1].getbalance(), 10)
+        assert_equal(self.nodes[2].getbalance(), 30)
 
         # Shield the coinbase
-        myzaddr = self.nodes[0].z_getnewaddress()
+        myzaddr = self.nodes[0].z_getnewaddress('sprout')
         result = self.nodes[0].z_shieldcoinbase("*", myzaddr, 0)
         wait_and_assert_operationid_status(self.nodes[0], result['opid'])
         self.sync_all()
@@ -70,7 +70,7 @@ class WalletMergeToAddressTest (BitcoinTestFramework):
             {'address': mytaddr, 'amount': 10},
             {'address': mytaddr2, 'amount': 10},
             {'address': mytaddr3, 'amount': 10},
-        ], 1, 0)
+            ], 1, 0)
         wait_and_assert_operationid_status(self.nodes[0], result)
         self.sync_all()
         self.nodes[1].generate(1)
@@ -101,11 +101,10 @@ class WalletMergeToAddressTest (BitcoinTestFramework):
             errorString = e.error['message']
         assert_equal("Amount out of range" in errorString, True)
 
-        return # not fixed yet
-
         # Merging will fail because fee is larger than MAX_MONEY
         try:
-            self.nodes[0].z_mergetoaddress(["*"], myzaddr, Decimal('21000000.00000001'))
+            # changed, cause Decimal hasn't enough precision to represent '4200000000.00000001'
+            self.nodes[0].z_mergetoaddress(["*"], myzaddr, Decimal('4200000000.1')) 
             assert(False)
         except JSONRPCException,e:
             errorString = e.error['message']
@@ -174,7 +173,7 @@ class WalletMergeToAddressTest (BitcoinTestFramework):
         assert_equal(self.nodes[2].getbalance(), 30)
 
         # Shield all notes to another z-addr
-        myzaddr2 = self.nodes[0].z_getnewaddress()
+        myzaddr2 = self.nodes[0].z_getnewaddress('sprout')
         result = self.nodes[0].z_mergetoaddress(["ANY_ZADDR"], myzaddr2, 0)
         assert_equal(result["mergingUTXOs"], Decimal('0'))
         assert_equal(result["remainingUTXOs"], Decimal('0'))

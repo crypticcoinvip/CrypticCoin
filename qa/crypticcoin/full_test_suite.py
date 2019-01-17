@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 #
-# Execute all of the automated tests related to Crypticcoin.
+# Execute all of the automated tests related to Crypticcoin
 #
 
 import argparse
@@ -63,12 +63,18 @@ def check_security_hardening():
     # PIE, RELRO, Canary, and NX are tested by make check-security.
     ret &= subprocess.call(['make', '-C', repofile('src'), 'check-security']) == 0
 
+    # The remaining checks are only for ELF binaries
+    # Assume that if crypticcoind is an ELF binary, they all are
+    with open(repofile('src/crypticcoind'), 'rb') as f:
+        magic = f.read(4)
+        if not magic.startswith(b'\x7fELF'):
+            return ret
+
     ret &= test_rpath_runpath('src/crypticcoind')
     ret &= test_rpath_runpath('src/crypticcoin-cli')
     ret &= test_rpath_runpath('src/crypticcoin-gtest')
     ret &= test_rpath_runpath('src/crypticcoin-tx')
     ret &= test_rpath_runpath('src/test/test_bitcoin')
-    ret &= test_rpath_runpath('src/crypticcoin/GenerateParams')
 
     # NOTE: checksec.sh does not reliably determine whether FORTIFY_SOURCE
     # is enabled for the entire binary. See issue #915.
@@ -77,7 +83,6 @@ def check_security_hardening():
     ret &= test_fortify_source('src/crypticcoin-gtest')
     ret &= test_fortify_source('src/crypticcoin-tx')
     ret &= test_fortify_source('src/test/test_bitcoin')
-    ret &= test_fortify_source('src/crypticcoin/GenerateParams')
 
     return ret
 
@@ -103,7 +108,7 @@ def ensure_no_dot_so_in_depends():
                 exit_code = 1
     else:
         exit_code = 2
-        print "arch-specific build dir not present: {}".format(arch_dir)
+        print "arch-specific build dir not present"
         print "Did you build the ./depends tree?"
         print "Are you on a currently unsupported architecture?"
 
