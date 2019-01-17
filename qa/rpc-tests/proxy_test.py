@@ -107,6 +107,7 @@ class ProxyTest(BitcoinTestFramework):
             assert_equal(cmd.atyp, AddressType.DOMAINNAME)
             assert_equal(cmd.addr, "bitcoinostk4e4re.onion")
             assert_equal(cmd.port, 8333)
+
             if not auth:
                 assert_equal(cmd.username, None)
                 assert_equal(cmd.password, None)
@@ -129,10 +130,8 @@ class ProxyTest(BitcoinTestFramework):
     def run_test(self):
         # basic -proxy
         self.node_test(self.nodes[0], [self.serv1, self.serv1, self.serv1, self.serv1], False)
-
         # -proxy plus -onion
         self.node_test(self.nodes[1], [self.serv1, self.serv1, self.serv2, self.serv1], False)
-
         # -proxy plus -onion, -proxyrandomize
         rv = self.node_test(self.nodes[2], [self.serv2, self.serv2, self.serv2, self.serv2], True)
         # Check that credentials as used for -proxyrandomize connections are unique

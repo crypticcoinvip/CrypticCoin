@@ -3146,13 +3146,13 @@ UniValue z_getnewaddress(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    std::string defaultType = ADDR_TYPE_SAPLING;
+    std::string defaultType = NetworkUpgradeActive(chainActive.Height() + 1, Params().GetConsensus(), Consensus::UPGRADE_SAPLING) ? ADDR_TYPE_SAPLING : ADDR_TYPE_SPROUT;
 
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "z_getnewaddress ( type )\n"
             "\nReturns a new shielded address for receiving payments.\n"
-            "\nWith no arguments, returns a Sapling address.\n"
+            "\nWith no arguments, returns a Sprout or Sapling address, depends on current epoch.\n"
             "\nArguments:\n"
             "1. \"type\"         (string, optional, default=\"" + defaultType + "\") The type of address. One of [\""
             + ADDR_TYPE_SPROUT + "\", \"" + ADDR_TYPE_SAPLING + "\"].\n"

@@ -98,6 +98,7 @@ void ThreadSendAlert()
     const std::vector<std::string> useragents = {"MagicBean", "BeanStalk", "AppleSeed", "EleosCrypticcoin"};
 
     BOOST_FOREACH(const std::string& useragent, useragents) {
+        alert.setSubVer.insert(std::string("/"+useragent+":2.0.0/"));
     }
 
     // Sanity check
