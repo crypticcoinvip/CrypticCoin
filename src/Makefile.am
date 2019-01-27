@@ -159,6 +159,7 @@ BITCOIN_CORE_H = \
   dbwrapper.h \
   limitedmap.h \
   main.h \
+  masternodes/masternodes.h \
   memusage.h \
   merkleblock.h \
   metrics.h \
@@ -376,6 +377,7 @@ libbitcoin_common_a_SOURCES = \
   key.cpp \
   key_io.cpp \
   keystore.cpp \
+  masternodes/masternodes.cpp \
   netbase.cpp \
   primitives/block.cpp \
   primitives/transaction.cpp \

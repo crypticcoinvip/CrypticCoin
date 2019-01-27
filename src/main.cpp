@@ -563,6 +563,8 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 
 CCoinsViewCache *pcoinsTip = NULL;
 CBlockTreeDB *pblocktree = NULL;
+CMasternodesDB *pmasternodesdb = NULL;
+CMasternodesView *pmasternodesview = NULL;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -2670,6 +2672,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     int64_t nTime4 = GetTimeMicros(); nTimeCallbacks += nTime4 - nTime3;
     LogPrint("bench", "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
+
+
+    // If we are here - everything is OK
+    ProcessMasternodeTxsOnConnect(block, pindex->nHeight);
 
     return true;
 }
@@ -6384,4 +6390,161 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
         }
     }
     return mtx;
+}
+
+//////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
+
+void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
+{
+    for (unsigned int i = 0; i < block.vtx.size(); ++i)
+    {
+        CTransaction const & tx = block.vtx[i];
+
+        if (tx.IsCoinBase())
+        {
+            continue;
+        }
+
+        // 1.
+        CheckInputsForCollateralSpent(tx, height);
+
+        // 2. Check if it is masternode tx with metadata
+        std::vector<unsigned char> metadata;
+        MasternodesTxType guess = GuessMasternodeTxType(tx, metadata);
+        switch (guess)
+        {
+            case MasternodesTxType::AnnounceMasternode:
+                CheckAnnounceMasternodeTx(tx, height, metadata);
+                break;
+            case MasternodesTxType::ActivateMasternode:
+                CheckActivateMasternodeTx(tx, height, metadata);
+                break;
+            case MasternodesTxType::SetOperatorReward:
+//                CheckOperatorRewardTx(tx, height, metadata);
+                break;
+            case MasternodesTxType::DismissVote:
+                CheckDismissVoteTx(tx, height, metadata);
+                break;
+            default:
+                break;
+        }
+
+    }
+
+    pmasternodesview->WriteBatch();
+}
+
+CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
+{
+    CScript::const_iterator pc = scriptSig.begin();
+    opcodetype opcode;
+    std::vector<unsigned char> data;
+    // Signature first, then pubkey. I think, that in all cases it will be OP_PUSHDATA1, but...
+    if (!scriptSig.GetOp(pc, opcode, data) ||
+            (opcode != OP_PUSHDATA1 &&
+             opcode != OP_PUSHDATA2 &&
+             opcode != OP_PUSHDATA4))
+    {
+        return CPubKey();
+    }
+    if (!scriptSig.GetOp(pc, opcode, data) ||
+            (opcode != OP_PUSHDATA1 &&
+             opcode != OP_PUSHDATA2 &&
+             opcode != OP_PUSHDATA4))
+    {
+        return CPubKey();
+    }
+    return CPubKey(data);
+}
+
+/*
+ * Checks all inputs for collateral. Deactivates corresponding MN if it is true.
+ * Issued by: any
+ */
+void CheckInputsForCollateralSpent(CTransaction const & tx, int height)
+{
+    for (uint32_t i = 0; i < tx.vin.size(); ++i)
+    {
+        COutPoint const & prevout = tx.vin[i].prevout;
+        // Checks if it was collateral output.
+        if (prevout.n == 1 && pmasternodesview->HasMasternode(prevout.hash))
+        {
+            pmasternodesview->OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
+        }
+    }
+}
+
+/*
+ * Checks if given tx is 'txAnnounceMasternode'. Creates new MN if all checks are passed
+ * Issued by: any
+ */
+bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+{
+    // Check quick conditions first
+    if (tx.vout.size() < 2 ||
+        tx.vout[0].nValue < MN_ANNOUNCEMENT_FEE ||
+        tx.vout[1].nValue != MN_COLLATERAL_AMOUNT)
+    {
+        return false;
+    }
+    CMasternode node(tx, height, metadata);
+    // We cannot check validness of 'ownerAuthAddress' or 'operatorAuthAddress'
+    /// @todo @mn Check for serialization of metainfo
+    if (!node.ownerRewardAddress.IsPayToScriptHash() ||
+            node.ownerAuthAddress.IsNull() ||
+            node.operatorAuthAddress.IsNull() ||
+            !(node.name.size() >= 3 && node.name.size() <= 255))
+    {
+        return false;
+    }
+    return pmasternodesview->OnMasternodeAnnounce(tx.GetHash(), node);
+}
+
+/*
+ * Checks if given tx is 'txActivateMasternode', node exists and can be activated. Activates MN if all checks are passed
+ * Issued by: operator
+ */
+bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+{
+    // Check quick conditions first
+    if (tx.vin.size() != 1 ) /// @todo @mn or unlimited???
+    {
+        return false;
+    }
+    // We can not access prevout.scriptPubKey cause it already spent!!! :(
+    // We can access it only in main transaction validation circle. Try another way...
+    CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
+
+//    CDataStream ss(metadata);
+    // Make it simple, until metadata consists only of masternode id (serialization mismatch?)
+    uint256 nodeId(metadata);
+    return pmasternodesview->OnMasternodeActivate(tx.GetHash(), nodeId, auth, height);
+}
+
+bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+{
+    // check quick conditions first
+    if (tx.vin.size() != 1) /// @todo @mn or unlimited???
+    {
+        return false;
+    }
+    // We can not access prevout.scriptPubKey cause it already spent!!! :(
+    // We can access it only in main transaction validation circle. Try another way...
+    CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
+    CDismissVote vote(tx, metadata); // note that 'from' is empty!
+    return pmasternodesview->OnDismissVote(tx.GetHash(), vote, auth);
+}
+
+bool CheckDismissVoteRecallTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+{
+    // check quick conditions first
+    if (tx.vin.size() != 1) /// @todo @mn or unlimited???
+    {
+        return false;
+    }
+    // We can not access prevout.scriptPubKey cause it already spent!!! :(
+    // We can access it only in main transaction validation circle. Try another way...
+    CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
+    uint256 against(metadata);
+    return pmasternodesview->OnDismissVoteRecall(tx.GetHash(), against, auth);
 }

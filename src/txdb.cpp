@@ -19,22 +19,37 @@ using namespace std;
 
 // NOTE: Per issue #3277, do not use the prefix 'X' or 'x' as they were
 // previously used by DB_SAPLING_ANCHOR and DB_BEST_SAPLING_ANCHOR.
+
+// Prefixes for the coin database (chainstate/)
 static const char DB_SPROUT_ANCHOR = 'A';
 static const char DB_SAPLING_ANCHOR = 'Z';
 static const char DB_NULLIFIER = 's';
 static const char DB_SAPLING_NULLIFIER = 'S';
 static const char DB_COINS = 'c';
-static const char DB_BLOCK_FILES = 'f';
-static const char DB_TXINDEX = 't';
-static const char DB_BLOCK_INDEX = 'b';
-
 static const char DB_BEST_BLOCK = 'B';
 static const char DB_BEST_SPROUT_ANCHOR = 'a';
 static const char DB_BEST_SAPLING_ANCHOR = 'z';
+
+// Prefixes to the block database (blocks/index/)
+static const char DB_BLOCK_FILES = 'f';
+static const char DB_TXINDEX = 't';
+static const char DB_BLOCK_INDEX = 'b';
 static const char DB_FLAG = 'F';
 static const char DB_REINDEX_FLAG = 'R';
 static const char DB_LAST_BLOCK = 'l';
 
+// Prefixes to the masternodes database (masternodes/)
+static const char DB_MASTERNODES = 'M';
+//static const char DB_MASTERNODESBYOWNER = 'O';
+//static const char DB_MASTERNODESBYOPERATOR = 'o';
+//static const char DB_MASTERNODESPRUNEINDEX = 'P';
+static const char DB_MASTERNODESUNDO = 'U';
+
+static const char DB_DISMISSVOTES = 'V';
+//static const char DB_DISMISSVOTESFROM = 'f';
+//static const char DB_DISMISSVOTESAGAINST = 'a';
+//static const char DB_COLLATERALSPENT = 'S';
+//static const char DB_COLLATERALSPENTFOR = 's';
 
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
 }
@@ -42,7 +57,6 @@ CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, 
 CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe) 
 {
 }
-
 
 bool CCoinsViewDB::GetSproutAnchorAt(const uint256 &rt, SproutMerkleTree &tree) const {
     if (rt == SproutMerkleTree::empty_root()) {
@@ -193,29 +207,6 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins,
     return db.WriteBatch(batch);
 }
 
-CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe) {
-}
-
-bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {
-    return Read(make_pair(DB_BLOCK_FILES, nFile), info);
-}
-
-bool CBlockTreeDB::WriteReindexing(bool fReindexing) {
-    if (fReindexing)
-        return Write(DB_REINDEX_FLAG, '1');
-    else
-        return Erase(DB_REINDEX_FLAG);
-}
-
-bool CBlockTreeDB::ReadReindexing(bool &fReindexing) {
-    fReindexing = Exists(DB_REINDEX_FLAG);
-    return true;
-}
-
-bool CBlockTreeDB::ReadLastBlockFile(int &nFile) {
-    return Read(DB_LAST_BLOCK, nFile);
-}
-
 bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
     /* It seems that there are no "const iterators" for LevelDB.  Since we
        only need read operations on it, use a const-cast to get around
@@ -260,6 +251,29 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
     stats.hashSerialized = ss.GetHash();
     stats.nTotalAmount = nTotalAmount;
     return true;
+}
+
+CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe) {
+}
+
+bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {
+    return Read(make_pair(DB_BLOCK_FILES, nFile), info);
+}
+
+bool CBlockTreeDB::WriteReindexing(bool fReindexing) {
+    if (fReindexing)
+        return Write(DB_REINDEX_FLAG, '1');
+    else
+        return Erase(DB_REINDEX_FLAG);
+}
+
+bool CBlockTreeDB::ReadReindexing(bool &fReindexing) {
+    fReindexing = Exists(DB_REINDEX_FLAG);
+    return true;
+}
+
+bool CBlockTreeDB::ReadLastBlockFile(int &nFile) {
+    return Read(DB_LAST_BLOCK, nFile);
 }
 
 bool CBlockTreeDB::WriteBatchSync(const std::vector<std::pair<int, const CBlockFileInfo*> >& fileInfo, int nLastFile, const std::vector<const CBlockIndex*>& blockinfo) {
@@ -357,4 +371,203 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
     }
 
     return true;
+}
+
+
+CMasternodesDB::CMasternodesDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "masternodes", nCacheSize, fMemory, fWipe)
+{
+}
+
+//bool CMasternodesDB::ExistsMasternode(uint256 const & txid) const
+//{
+//    return db.Exists(make_pair(DB_MASTERNODES, txid));
+//}
+
+//bool CMasternodesDB::ReadMasternode(uint256 const & txid, CMasternode & node) const
+//{
+//    return Read(make_pair(DB_MASTERNODES, txid), node);
+//}
+
+//class CBatchWrapper
+//{
+//private:
+//    CDBWrapper & db;
+//    CDBBatch * batch;
+//    boost::scoped_ptr<CDBBatch> local;
+
+//public:
+//    CBatchWrapper(CDBBatch * batch_, CDBWrapper & db_) : batch(batch_), db(db_)
+//    {
+//        if (batch == nullptr)
+//        {
+//            local.reset(new CDBBatch(db));
+//            batch = local.get();
+//        }
+//    }
+
+//    bool WriteLocal() { if (local) return db.WriteBatch(*batch); return true; }
+//    CDBBatch * operator->() { return batch; }
+//    ~CBatchWrapper() { }
+//};
+
+void CMasternodesDB::WriteMasternode(uint256 const & txid, CMasternode const & node, CDBBatch & batch)
+{
+    batch.Write(make_pair(DB_MASTERNODES, txid), node);
+}
+
+
+void CMasternodesDB::WriteUndo(uint256 const & txid, uint256 const & affectedItem, char undoType, CDBBatch & batch)
+{
+    batch.Write(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem), undoType);
+}
+
+//bool CMasternodesDB::EraseMasternode(uint256 const & txid)
+//{
+//    CMasternode node;
+//    if (!ReadMasternode(txid, node))
+//    {
+//        return false;
+//    }
+//    CDBBatch batch(db);
+//    batch.Erase(make_pair(DB_MASTERNODESBYOWNER, node.ownerAuthAddress));
+//    batch.Erase(make_pair(DB_MASTERNODESBYOPERATOR, node.operatorAuthAddress));
+//    batch.Erase(make_pair(DB_MASTERNODES, txid));
+//    return db.WriteBatch(batch); // Sync?
+//}
+
+//bool CMasternodesDB::ExistsMasternodeByOwner(CKeyID const & auth) const
+//{
+//    return db.Exists(make_pair(DB_MASTERNODESBYOWNER, auth));
+//}
+
+//bool CMasternodesDB::ExistsMasternodeByOperator(CKeyID const & auth) const
+//{
+//    return db.Exists(make_pair(DB_MASTERNODESBYOPERATOR, auth));
+//}
+
+//bool CMasternodesDB::ReadMasternodeIdByOwner(CKeyID const & auth, uint256 & txid) const
+//{
+//    return db.Read(make_pair(DB_MASTERNODESBYOWNER, auth), txid);
+//}
+
+//bool CMasternodesDB::ReadMasternodeIdByOperator(CKeyID const & auth, uint256 & txid) const
+//{
+//    return db.Read(make_pair(DB_MASTERNODESBYOPERATOR, auth), txid);
+//}
+
+//bool CMasternodesDB::ReadMasternodeByOwner(CKeyID const & auth, CMasternode & node) const
+//{
+//    uint256 txid;
+//    return ReadMasternodeIdByOwner(auth, txid) && ReadMasternode(txid, node);
+//}
+
+//bool CMasternodesDB::ReadMasternodeByOperator(CKeyID const & auth, CMasternode & node) const
+//{
+//    uint256 txid;
+//    return ReadMasternodeIdByOperator(auth, txid) && ReadMasternode(txid, node);
+//}
+
+
+void CMasternodesDB::WriteVote(uint256 const & txid, CDismissVote const & vote, CDBBatch & batch)
+{
+    batch.Write(make_pair(DB_DISMISSVOTES, txid), vote);
+}
+
+//bool CMasternodesDB::ReadVote(uint256 const & txid, CDismissVote & vote) const
+//{
+//    return db.Read(make_pair(DB_DISMISSVOTES, txid), vote);
+//}
+
+bool CMasternodesDB::LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode)
+{
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    pcursor->Seek(DB_MASTERNODES);
+
+    while (pcursor->Valid())
+    {
+        boost::this_thread::interruption_point();
+        std::pair<char, uint256> key;
+        if (pcursor->GetKey(key) && key.first == DB_MASTERNODES)
+        {
+            CMasternode node;
+            if (pcursor->GetValue(node))
+            {
+                onNode(key.second, node);
+            }
+            else
+            {
+                return error("CMasternodesDB::LoadMasternodes() : unable to read value");
+            }
+        }
+        else
+        {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+bool CMasternodesDB::LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote)
+{
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+//    char dbPrefix(indexType == VotesFrom ? DB_DISMISSVOTESFROM : DB_DISMISSVOTESAGAINST);
+    pcursor->Seek(DB_DISMISSVOTES);
+
+    while (pcursor->Valid())
+    {
+        boost::this_thread::interruption_point();
+        std::pair<char, uint256> key;
+        if (pcursor->GetKey(key) && key.first == DB_DISMISSVOTES)
+        {
+            CDismissVote vote;
+            if (pcursor->GetValue(vote))
+            {
+                onVote(key.second, vote);
+            }
+            else
+            {
+                return error("CMasternodesDB::LoadVotes() : unable to read value");
+            }
+        }
+        else
+        {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo)
+{
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+//    char dbPrefix(indexType == VotesFrom ? DB_DISMISSVOTESFROM : DB_DISMISSVOTESAGAINST);
+    pcursor->Seek(DB_MASTERNODESUNDO);
+
+    while (pcursor->Valid())
+    {
+        boost::this_thread::interruption_point();
+        std::pair<std::pair<char, uint256>, uint256> key;
+        if (pcursor->GetKey(key) && key.first.first == DB_MASTERNODESUNDO)
+        {
+//            batch.Write(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedNode), undoType);
+            char undoType;
+            if (pcursor->GetValue(undoType))
+            {
+                onUndo(key.first.second, key.second, undoType);
+            }
+            else
+            {
+                return error("CMasternodesDB::LoadVotes() : unable to read value");
+            }
+        }
+        else
+        {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+
 }

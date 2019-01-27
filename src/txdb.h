@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2018-2019 Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,6 +9,7 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
+#include "masternodes/masternodes.h"
 
 #include <map>
 #include <string>
@@ -73,6 +75,61 @@ public:
     bool WriteFlag(const std::string &name, bool fValue);
     bool ReadFlag(const std::string &name, bool &fValue);
     bool LoadBlockIndexGuts();
+};
+
+/** Access to the masternodes database (masternodes/) */
+class CMasternodesDB : public CDBWrapper
+{
+private:
+//    CDBWrapper db;
+
+public:
+    enum VoteIndexType { VotesFrom, VotesAgainst };
+//    enum UndoType { CollateralSpent, Activation, Finalize };
+    static const char UNDO_COLLATERAL = 'C';
+    static const char UNDO_ANNOUNCE = 'a';
+    static const char UNDO_ACTIVATION = 'A';
+    static const char UNDO_FINALIZE = 'F';
+
+    CMasternodesDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+
+private:
+    CMasternodesDB(CMasternodesDB const &);
+    void operator=(CMasternodesDB const &);
+
+public:
+    //! Masternodes methods
+//    bool ExistsMasternode(uint256 const & txid) const;
+//    bool ReadMasternode(uint256 const & txid, CMasternode & node) const;
+    void WriteMasternode(uint256 const & txid, CMasternode const & node, CDBBatch & batch);
+
+//    bool EraseMasternode(uint256 const & txid);
+
+//    bool ExistsMasternodeByOwner(CKeyID const & auth) const;
+//    bool ExistsMasternodeByOperator(CKeyID const & auth) const;
+//    bool ReadMasternodeIdByOwner(CKeyID const & auth, uint256 & txid) const;
+//    bool ReadMasternodeIdByOperator(CKeyID const & auth, uint256 & txid) const;
+//    bool ReadMasternodeByOwner(CKeyID const & auth, CMasternode & node) const;
+//    bool ReadMasternodeByOperator(CKeyID const & auth, CMasternode & node) const;
+
+    void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType, CDBBatch & batch);
+
+
+//    //! DismissVotes methods
+//    bool ReadVote(uint256 const & txid, CDismissVote & vote) const;
+    void WriteVote(uint256 const & txid, CDismissVote const & vote, CDBBatch & batch);
+////    bool EraseVote(uint256 const & txid);
+//    bool CountActiveVotes(VoteIndexType indexType, uint256 const & nodeId, int & n  ) const;
+
+    bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode);
+    bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote);
+    bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo);
+
+//    bool ExistsCollateralSpentFor(uint256 const & masternodeId) const;
+//    bool ReadCollateralSpentFor(uint256 const & masternodeId, uint256 & txid, uint32_t & n) const;
+//    bool WriteCollateralSpent(uint256 const & txid, uint32_t n, uint256 const & masternodeId);
+//    //    bool ExistCollateralSpent() const;
+//    //    bool ReadCollateralSpent(uint256 const & txid, uint256 & masternodeId) const;
 };
 
 #endif // BITCOIN_TXDB_H

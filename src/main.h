@@ -16,6 +16,7 @@
 #include "coins.h"
 #include "consensus/consensus.h"
 #include "consensus/upgrades.h"
+#include "masternodes/masternodes.h"
 #include "net.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
@@ -573,6 +574,12 @@ extern CCoinsViewCache *pcoinsTip;
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB *pblocktree;
 
+/** Global variable that points to the CMasternodeDB (protected by cs_main) */
+class CMasternodesDB;
+extern CMasternodesDB * pmasternodesdb;
+class CMasternodesView;
+extern CMasternodesView * pmasternodesview;
+
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().
  * While checking, GetBestBlock() refers to the parent block. (protected by cs_main)
@@ -582,5 +589,17 @@ int GetSpendHeight(const CCoinsViewCache& inputs);
 
 /** Return a CMutableTransaction with contextual default values based on set of consensus rules at height */
 CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Params& consensusParams, int nHeight);
+
+//////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
+
+void ProcessMasternodeTxsOnConnect(CBlock const & block, int nHeight);
+void CheckInputsForCollateralSpent(CTransaction const & tx, int nHeight);
+//! Deep check (and write)
+bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+//bool CheckOperatorRewardTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckDismissVoteRecallTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+
 
 #endif // BITCOIN_MAIN_H
