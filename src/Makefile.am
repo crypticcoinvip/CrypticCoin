@@ -150,6 +150,7 @@ BITCOIN_CORE_H = \
   core_memusage.h \
   deprecation.h \
   hash.h \
+  heartbeat.h \
   httprpc.h \
   httpserver.h \
   init.h \
@@ -249,6 +250,7 @@ libbitcoin_server_a_SOURCES = \
   chain.cpp \
   checkpoints.cpp \
   deprecation.cpp \
+  heartbeat.cpp \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
