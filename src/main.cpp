@@ -30,6 +30,7 @@
 #include "validationinterface.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
+#include "heartbeat.h"
 
 #include <algorithm>
 #include <atomic>
@@ -4919,6 +4920,8 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         }
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
+    case MSG_HEARTBEAT:
+        return CHeartBeat::getInstance().checkMessageIsRecieved(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -5009,6 +5012,28 @@ void static ProcessGetData(CNode* pfrom)
                         pfrom->hashContinue.SetNull();
                     }
                 }
+            }
+            else if (inv.type == MSG_HEARTBEAT)
+            {
+               bool pushed = false;
+               {
+                   LOCK(cs_mapRelay);
+                   const auto mit = mapRelay.find(inv);
+                   if (mit != mapRelay.end()) {
+                       pfrom->PushMessage(inv.GetCommand(), mit->second);
+                       pushed = true;
+                   }
+               }
+               if (!pushed && CHeartBeat::getInstance().checkMessageIsRecieved(inv.hash)) {
+                   CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                   ss.reserve(1000);
+                   ss << inv.hash << CHeartBeat::getInstance().getMessageTimestamp(inv.hash);
+                   pfrom->PushMessage("heartbeat", ss);
+                   pushed = true;
+               }
+               if (!pushed) {
+                   vNotFound.push_back(inv);
+               }
             }
             else if (inv.IsKnownType())
             {
@@ -5959,6 +5984,47 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             } catch (const std::ios_base::failure&) {
                 // Avoid feedback loops by preventing reject messages from triggering a new reject message.
                 LogPrint("net", "Unparseable reject message received\n");
+            }
+        }
+    }
+
+    else if (strCommand == "heartbeat") {
+        int timestamp{};
+        uint256 hash{};
+
+        vRecv >> hash >> timestamp;
+
+        CInv inv{MSG_HEARTBEAT, hash};
+        pfrom->AddInventoryKnown(inv);
+
+        LOCK(cs_main);
+
+        int nDoS{};
+        CValidationState state{};
+
+        pfrom->setAskFor.erase(inv.hash);
+        mapAlreadyAskedFor.erase(inv);
+
+        if (!AlreadyHave(inv)) {
+            CHeartBeat::getInstance().relayMessage(hash, timestamp);
+        } else if (pfrom->fWhitelisted) {
+            if (!state.IsInvalid(nDoS) || nDoS == 0) {
+                LogPrintf("Force relaying heartbeat %s from whitelisted peer=%d\n", hash.ToString(), pfrom->id);
+                CHeartBeat::getInstance().relayMessage(hash, timestamp);
+            } else {
+                LogPrintf("Not relaying invalid heartbeat %s from whitelisted peer=%d (%s (code %d))\n",
+                    hash.ToString(), pfrom->id, state.GetRejectReason(), state.GetRejectCode());
+            }
+        }
+        nDoS = 0;
+        if (state.IsInvalid(nDoS))
+        {
+            LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n",
+                     hash.ToString(), pfrom->id, pfrom->cleanSubVer, state.GetRejectReason());
+            pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
+                               state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
+            if (nDoS > 0) {
+                Misbehaving(pfrom->GetId(), nDoS);
             }
         }
     }
