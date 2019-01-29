@@ -131,8 +131,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "z_importviewingkey", 2 },
     { "z_getpaymentdisclosure", 1},
     { "z_getpaymentdisclosure", 2},
-    { "send_heartbeat_message", 0},
-    { "read_heartbeat_message", 0}
+    { "heartbeat_send_message", 0},
+    { "heartbeat_read_message", 0}
 };
 
 class CRPCConvertTable

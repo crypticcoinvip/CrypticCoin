@@ -4897,7 +4897,7 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_HEARTBEAT:
-        return CHeartBeat::getInstance().checkMessageIsRecieved(inv.hash);
+        return CHeartBeatTracker::getInstance().checkMessageWasReceived(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -5000,10 +5000,10 @@ void static ProcessGetData(CNode* pfrom)
                        pushed = true;
                    }
                }
-               if (!pushed && CHeartBeat::getInstance().checkMessageIsRecieved(inv.hash)) {
+               if (!pushed && CHeartBeatTracker::getInstance().checkMessageWasReceived(inv.hash)) {
+                   assert(CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash) != nullptr);
                    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                   ss.reserve(1000);
-                   ss << inv.hash << CHeartBeat::getInstance().getMessageTimestamp(inv.hash);
+                   ss << *CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash);
                    pfrom->PushMessage("heartbeat", ss);
                    pushed = true;
                }
@@ -5965,38 +5965,33 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     }
 
     else if (strCommand == "heartbeat") {
-        int timestamp{};
-        uint256 hash{};
-
-        vRecv >> hash >> timestamp;
-
-        CInv inv{MSG_HEARTBEAT, hash};
-        pfrom->AddInventoryKnown(inv);
+        int nDoS{};
+        CValidationState state{};
+        CHeartBeatMessage message{vRecv};
+        CInv inv{MSG_HEARTBEAT, message.getHash()};
 
         LOCK(cs_main);
 
-        int nDoS{};
-        CValidationState state{};
-
+        pfrom->AddInventoryKnown(inv);
         pfrom->setAskFor.erase(inv.hash);
         mapAlreadyAskedFor.erase(inv);
 
         if (!AlreadyHave(inv)) {
-            CHeartBeat::getInstance().relayMessage(hash, timestamp);
+            CHeartBeatTracker::getInstance().relayMessage(message);
         } else if (pfrom->fWhitelisted) {
             if (!state.IsInvalid(nDoS) || nDoS == 0) {
-                LogPrintf("Force relaying heartbeat %s from whitelisted peer=%d\n", hash.ToString(), pfrom->id);
-                CHeartBeat::getInstance().relayMessage(hash, timestamp);
+                LogPrintf("Force relaying heartbeat %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
+                CHeartBeatTracker::getInstance().relayMessage(message);
             } else {
                 LogPrintf("Not relaying invalid heartbeat %s from whitelisted peer=%d (%s (code %d))\n",
-                    hash.ToString(), pfrom->id, state.GetRejectReason(), state.GetRejectCode());
+                    inv.hash.ToString(), pfrom->id, state.GetRejectReason(), state.GetRejectCode());
             }
         }
         nDoS = 0;
         if (state.IsInvalid(nDoS))
         {
             LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n",
-                     hash.ToString(), pfrom->id, pfrom->cleanSubVer, state.GetRejectReason());
+                     inv.hash.ToString(), pfrom->id, pfrom->cleanSubVer, state.GetRejectReason());
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
                                state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
             if (nDoS > 0) {

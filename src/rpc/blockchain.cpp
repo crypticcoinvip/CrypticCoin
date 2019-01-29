@@ -14,7 +14,6 @@
 #include "streams.h"
 #include "sync.h"
 #include "util.h"
-#include "heartbeat.h"
 
 #include <stdint.h>
 
@@ -1027,48 +1026,6 @@ UniValue reconsiderblock(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
-UniValue send_heartbeat_message(const UniValue& params, bool fHelp)
-{
-    if (fHelp) {
-        throw runtime_error(
-            "send_heartbeat_message (timestamp)\n"
-            "\nSends heartbeat p2p message with provided timestamp value.\n"
-            "\nArguments:\n"
-            "1. timestamp   (numeric, optional) The UNIX epoch time of the heartbeat message\n"
-            "\nResult:\n"
-            "\nExamples:\n"
-            + HelpExampleCli("send_heartbeat_message", "(timestamp)")
-            + HelpExampleRpc("send_heartbeat_message", "(timestamp)")
-        );
-    }
-
-    const int timestamp = params.empty() ? 0 : params[0].get_int();
-    if (timestamp < 0)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid timestamp value");
-
-    CHeartBeat::getInstance().postToAll(timestamp);
-    return NullUniValue;
-}
-
-
-UniValue read_heartbeat_message(const UniValue&, bool fHelp)
-{
-    if (fHelp) {
-        throw runtime_error(
-            "read_heartbeat_message\n"
-            "\nReads heartbeat p2p message timestamp value.\n"
-            "\nArguments:\n"
-            "\nResult:\n"
-            "\ntimestamp    (numeric) The UNIX epoch time of the last recieved heartbeat message\n"
-            "\nExamples:\n"
-            + HelpExampleCli("read_heartbeat_message", "")
-            + HelpExampleRpc("read_heartbeat_message", "")
-        );
-    }
-
-    return CHeartBeat::getInstance().getLastMessageTimestamp();
-}
-
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1088,9 +1045,7 @@ static const CRPCCommand commands[] =
 
     /* Not shown in help */
     { "hidden",             "invalidateblock",        &invalidateblock,        true  },
-    { "hidden",             "reconsiderblock",        &reconsiderblock,        true  },
-    { "hidden",             "send_heartbeat_message", &send_heartbeat_message, true  },
-    { "hidden",             "read_heartbeat_message", &read_heartbeat_message, true  },
+    { "hidden",             "reconsiderblock",        &reconsiderblock,        true  }
 };
 
 void RegisterBlockchainRPCCommands(CRPCTable &tableRPC)
