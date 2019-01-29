@@ -6,36 +6,79 @@
 #define BITCOIN_HEARTBEAT_H
 
 #include "uint256.h"
+#include "serialize.h"
 #include <mutex>
-#include <map>
 
-class uint256;
+class CKey;
+class CInv;
+class CMasternode;
+class CDataStream;
 
-class CHeartBeat
+class CHeartBeatMessage
+{
+    using Signature = std::vector<unsigned char>;
+
+public:
+    explicit CHeartBeatMessage(const std::int64_t timestamp);
+    explicit CHeartBeatMessage(CDataStream& stream);
+    explicit CHeartBeatMessage(const CHeartBeatMessage&) = default;
+
+    std::int64_t getTimestamp() const;
+    Signature getSignature() const;
+    uint256 getHash() const;
+    uint256 getSignHash() const;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+         READWRITE(timestamp);
+         READWRITE(signature);
+    }
+
+    bool signWithKey(const CKey& key);
+
+private:
+    std::int64_t timestamp;
+    Signature signature;
+};
+
+class CHeartBeatTracker
 {
     using LockGuard = std::lock_guard<std::mutex>;
 
 public:
-    static CHeartBeat& getInstance();
+    static CHeartBeatTracker& getInstance();
 
-    void shutdown();
-    void postToAll(int timestamp = 0);
-    void relayMessage(const uint256& hash, int timestamp);
-    void recieveMessage(const uint256& hash, int timestamp);
-    void forgetMessage(const uint256& hash);
+    void postMessage(const CKey& signKey, std::int64_t timestamp = 0);
+    void relayMessage(const CHeartBeatMessage& message);
+    void recieveMessage(const CHeartBeatMessage& message);
 
-    bool checkMessageIsRecieved(const uint256& hash);
-    int getMessageTimestamp(const uint256& hash) const;
-    int getLastMessageTimestamp() const;
+    bool checkMessageWasReceived(const uint256& hash) const;
+    const CHeartBeatMessage* getReceivedMessage(const uint256& hash) const;
+
+    std::int64_t getMinPeriod();
+    std::int64_t getMaxPeriod();
+
+    std::vector<CHeartBeatMessage> getReceivedMessages() const;
+
+    static void runInBackground();
+
+    std::vector<CMasternode*> getOutdatedMasternodes() const;
+    std::int64_t getOutdatedMasternodeTime(const CMasternode* masternode);
 
 private:
-    CHeartBeat();
-    ~CHeartBeat();
+    CHeartBeatTracker();
+    ~CHeartBeatTracker();
+
+
+    void broadcastInventory(const CInv& inv);
 
 private:
-    static std::mutex mutex;
-    static CHeartBeat * instance;
-    std::map<uint256, int> messages;
+    time_t startupTime;
+    CMasternode* masternode;
+    std::map<uint256, CHeartBeatMessage> recievedMessages;
+//    std::map<CKeyID, std::int64_t> masternodeHertbeats;
 };
 
 #endif

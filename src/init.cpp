@@ -36,6 +36,7 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "validationinterface.h"
+#include "heartbeat.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
@@ -1942,6 +1943,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // SENDALERT
     threadGroup.create_thread(boost::bind(ThreadSendAlert));
+
+    if (pwalletMain != nullptr) {
+        // MN-Heartbeat
+        const auto runInBackground{&CHeartBeatTracker::runInBackground};
+        threadGroup.create_thread(boost::bind(&TraceThread<decltype(runInBackground)>, "heartbeat", runInBackground));
+    }
 
     return !fRequestShutdown;
 }

@@ -22,7 +22,7 @@
 #include "zcbenchmarks.h"
 #include "script/interpreter.h"
 #include "crypticcoin/zip32.h"
-
+#include "heartbeat.h"
 #include "utiltime.h"
 #include "asyncrpcoperation.h"
 #include "asyncrpcqueue.h"
@@ -4581,6 +4581,68 @@ UniValue z_listoperationids(const UniValue& params, bool fHelp)
     return ret;
 }
 
+UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp)) {
+        return NullUniValue;
+    }
+    if (fHelp) {
+        throw runtime_error(
+            "heartbeat_send_message (timestamp)\n"
+            "\nSends heartbeat p2p message with provided timestamp value.\n"
+            "\nArguments:\n"
+            "1. timestamp   (numeric, optional) The UNIX epoch time of the heartbeat message\n"
+            "\nResult:\n"
+            "\nExamples:\n"
+            + HelpExampleCli("heartbeat_send_message", "(timestamp)")
+            + HelpExampleRpc("heartbeat_send_message", "(timestamp)")
+        );
+    }
+
+    const int timestamp = params.empty() ? 0 : params[0].get_int();
+    if (timestamp < 0) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid timestamp value");
+    }
+
+    CKey key{};
+    const CKeyID address = boost::get<CKeyID>(GetAccountAddress(""));
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    if (pwalletMain == nullptr || !pwalletMain->GetKey(address, key)) {
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Invalid account security key");
+    }
+
+    CHeartBeatTracker::getInstance().postMessage(key, timestamp);
+    return NullUniValue;
+}
+
+UniValue heartbeat_read_message(const UniValue &, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp)) {
+        return NullUniValue;
+    }
+    if (fHelp) {
+        throw runtime_error(
+            "heartbeat_read_messages\n"
+            "\nReads heartbeat p2p messages timestamp value.\n"
+            "\nArguments:\n"
+            "\nResult:\n"
+            "[               (json array of numbers)\n"
+            "\n[timestamp    (numeric) The UNIX epoch time of the last recieved heartbeat message\n"
+            "  ,...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("heartbeat_read_message", "")
+            + HelpExampleRpc("heartbeat_read_message", "")
+        );
+    }
+
+    UniValue rv{UniValue::VARR};
+    for (const auto& message : CHeartBeatTracker::getInstance().getReceivedMessages()) {
+        rv.push_back(message.getTimestamp());
+    }
+    return rv;
+}
+
 extern UniValue dumpprivkey(const UniValue& params, bool fHelp); // in rpcdump.cpp
 extern UniValue importprivkey(const UniValue& params, bool fHelp);
 extern UniValue importaddress(const UniValue& params, bool fHelp);
@@ -4601,6 +4663,8 @@ static const CRPCCommand commands[] =
     //  --------------------- ------------------------    -----------------------    ----------
     { "rawtransactions",    "fundrawtransaction",       &fundrawtransaction,       false },
     { "hidden",             "resendwallettransactions", &resendwallettransactions, true  },
+    { "hidden",             "heartbeat_send_message",   &heartbeat_send_message,   true  },
+    { "hidden",             "heartbeat_read_message",   &heartbeat_read_message,   true  },
     { "wallet",             "addmultisigaddress",       &addmultisigaddress,       true  },
     { "wallet",             "backupwallet",             &backupwallet,             true  },
     { "wallet",             "dumpprivkey",              &dumpprivkey,              true  },
