@@ -7,7 +7,7 @@
 #include "primitives/block.h"
 #include "txdb.h"
 
-static const std::vector<unsigned char> MnTxSignature = {'M', 'n', 'T', 'x'};
+static const std::vector<unsigned char> MnTxMarker = {'M', 'n', 'T', 'x'};
 static const std::map<char, MasternodesTxType> MasternodesTxTypeToCode =
 {
     {'a', MasternodesTxType::AnnounceMasternode },
@@ -35,17 +35,17 @@ MasternodesTxType GuessMasternodeTxType(CTransaction const & tx, std::vector<uns
             (opcode != OP_PUSHDATA1 &&
              opcode != OP_PUSHDATA2 &&
              opcode != OP_PUSHDATA4) ||
-            metadata.size() < MnTxSignature.size() + 1 ||     // i don't know how much exactly, but at least MnTxSignature + type prefix
-            memcmp(&metadata[0], &MnTxSignature[0], MnTxSignature.size()) != 0)
+            metadata.size() < MnTxMarker.size() + 1 ||     // i don't know how much exactly, but at least MnTxSignature + type prefix
+            memcmp(&metadata[0], &MnTxMarker[0], MnTxMarker.size()) != 0)
     {
         return MasternodesTxType::None;
     }
-    auto const & it = MasternodesTxTypeToCode.find(metadata[MnTxSignature.size()]);
+    auto const & it = MasternodesTxTypeToCode.find(metadata[MnTxMarker.size()]);
     if (it == MasternodesTxTypeToCode.end())
     {
         return MasternodesTxType::None;
     }
-    metadata.erase(metadata.begin(), metadata.begin() + MnTxSignature.size() + 1);
+    metadata.erase(metadata.begin(), metadata.begin() + MnTxMarker.size() + 1);
     return it->second;
 }
 
@@ -79,7 +79,9 @@ void CMasternodesView::Load()
 
         if (vote.IsActive())
         {
-            // Assumed that node exists. Assert?
+            // Assumed that node exists
+            assert(HasMasternode(vote.from));
+            assert(HasMasternode(vote.against));
             ++allNodes[vote.from].counterVotesFrom;
             ++allNodes[vote.against].counterVotesAgainst;
         }
@@ -109,45 +111,44 @@ bool CMasternodesView::OnCollateralSpent(uint256 const & nodeId, uint256 const &
         activeNodes.erase(nodeId);
 
         // Check, deactivate and recalc votes 'from' us
+        auto range = votesFrom.equal_range(nodeId);
+        for (auto it = range.first; it != range.second; ++it)
         {
-            auto range = votesFrom.equal_range(nodeId);
-            for (auto it = range.first; it != range.second; ++it)
+            // it->first == nodeId, it->second == voteId
+            CDismissVote & vote = votes[it->second];
+            if (vote.IsActive())
             {
-                // it->first == nodeId, it->second == voteId
-                CDismissVote & vote = votes[it->second];
-                if (vote.IsActive())
-                {
-                    vote.disabledByTx = txid;
-                    vote.deadSinceHeight = height;
-                    --node.counterVotesFrom;
-                    --allNodes[vote.against].counterVotesAgainst; // important, was skipped first time!
+                vote.disabledByTx = txid;
+                vote.deadSinceHeight = height;
+                --node.counterVotesFrom;
+                --allNodes[vote.against].counterVotesAgainst; // important, was skipped first time!
 
-                    db.WriteVote(it->second, vote, *currentBatch);
-                }
+                db.WriteVote(it->second, vote, *currentBatch);
             }
         }
-        // Check, deactivate and recalc votes 'against' us
-        {
-            auto range = votesAgainst.equal_range(nodeId);
-            for (auto it = range.first; it != range.second; ++it)
-            {
-                // it->first == nodeId, it->second == voteId
-                CDismissVote & vote = votes[it->second];
-                if (vote.IsActive())
-                {
-                    vote.disabledByTx = txid;
-                    vote.deadSinceHeight = height;
-                    --node.counterVotesAgainst;
-                    --allNodes[vote.from].counterVotesFrom; // important, was skipped first time!
-
-                    db.WriteVote(it->second, vote, *currentBatch);
-                }
-            }
-        }
-        // Like a checksum, count that node.counterVotesFrom == node.counterVotesAgainst == 0 !!!
-        assert (node.counterVotesFrom == 0);
-        assert (node.counterVotesAgainst == 0);
     }
+    // Check, deactivate and recalc votes 'against' us (votes "against us" can exist even if we're not activated yet)
+    {
+        auto range = votesAgainst.equal_range(nodeId);
+        for (auto it = range.first; it != range.second; ++it)
+        {
+            // it->first == nodeId, it->second == voteId
+            CDismissVote & vote = votes[it->second];
+            if (vote.IsActive())
+            {
+                vote.disabledByTx = txid;
+                vote.deadSinceHeight = height;
+                --node.counterVotesAgainst;
+                --allNodes[vote.from].counterVotesFrom; // important, was skipped first time!
+
+                db.WriteVote(it->second, vote, *currentBatch);
+            }
+        }
+    }
+    // Like a checksum, count that node.counterVotesFrom == node.counterVotesAgainst == 0 !!!
+    assert (node.counterVotesFrom == 0);
+    assert (node.counterVotesAgainst == 0);
+
     node.collateralSpentTx = txid;
     if (node.deadSinceHeight == -1)
     {
@@ -190,20 +191,19 @@ bool CMasternodesView::OnMasternodeAnnounce(uint256 const & nodeId, CMasternode 
 
 bool CMasternodesView::OnMasternodeActivate(uint256 const & txid, uint256 const & nodeId, CKeyID const & operatorId, int height)
 {
-    // Check, that there in no MN with such 'ownerAuthAddress' or 'operatorAuthAddress'
+    // Check, that MN was announced
     auto it = nodesByOperator.find(operatorId);
     if (it == nodesByOperator.end() || it->second != nodeId)
     {
         return false;
     }
-    // Assumed, that node exists and consistent with 'nodesByOperator' index
+    // Assumed now, that node exists and consistent with 'nodesByOperator' index
     CMasternode & node = allNodes[nodeId];
-    // Checks that MN was not activated nor spent yet. We don't check 'dismissFinalizedTx', cause it should not exist at this stage
-    if (node.activationTx != uint256() || node.collateralSpentTx != uint256() || node.minActivationHeight < height)
+    // Checks that MN was not activated nor spent nor finalized (voting) yet
+    if (node.activationTx != uint256() || node.collateralSpentTx != uint256() || node.dismissFinalizedTx != uint256() || node.minActivationHeight < height)
     {
         return false;
     }
-    //
     if (!currentBatch)
     {
         currentBatch.reset(new CDBBatch(db));
@@ -287,13 +287,14 @@ bool CMasternodesView::OnDismissVote(uint256 const & txid, CDismissVote const & 
 
 bool CMasternodesView::OnDismissVoteRecall(uint256 const & txid, uint256 const & against, CKeyID const & operatorId)
 {
-    // I thing we don't need extra checks here (MN active, from and against - if one of MN deactivated - votes was deactivated too). Just checks for active vote
+    // I think we don't need extra checks here (MN active, from and against - if one of MN deactivated - votes was deactivated too). Just checks for active vote
     auto itFrom = nodesByOperator.find(operatorId);
     if (itFrom == nodesByOperator.end() || allNodes[itFrom->second].IsActive() == false)
     {
         return false;
     }
     uint256 const & idNodeFrom = itFrom->second;
+
 
     /// WIP
     ///

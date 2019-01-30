@@ -6482,7 +6482,7 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
 {
     // Check quick conditions first
     if (tx.vout.size() < 2 ||
-        tx.vout[0].nValue < MN_ANNOUNCEMENT_FEE ||
+        tx.vout[0].nValue != MN_ANNOUNCEMENT_FEE ||
         tx.vout[1].nValue != MN_COLLATERAL_AMOUNT)
     {
         return false;
@@ -6490,7 +6490,7 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
     CMasternode node(tx, height, metadata);
     // We cannot check validness of 'ownerAuthAddress' or 'operatorAuthAddress'
     /// @todo @mn Check for serialization of metainfo
-    if (!node.ownerRewardAddress.IsPayToScriptHash() ||
+    if (node.ownerRewardAddress.empty() ||
             node.ownerAuthAddress.IsNull() ||
             node.operatorAuthAddress.IsNull() ||
             !(node.name.size() >= 3 && node.name.size() <= 255))
@@ -6506,11 +6506,6 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
  */
 bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
-    // Check quick conditions first
-    if (tx.vin.size() != 1 ) /// @todo @mn or unlimited???
-    {
-        return false;
-    }
     // We can not access prevout.scriptPubKey cause it already spent!!! :(
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
@@ -6523,11 +6518,6 @@ bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<
 
 bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
-    // check quick conditions first
-    if (tx.vin.size() != 1) /// @todo @mn or unlimited???
-    {
-        return false;
-    }
     // We can not access prevout.scriptPubKey cause it already spent!!! :(
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
