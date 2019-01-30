@@ -4593,6 +4593,11 @@ UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
             "\nArguments:\n"
             "1. timestamp   (numeric, optional) The UNIX epoch time of the heartbeat message\n"
             "\nResult:\n"
+            "{\n"
+            "\t\"timestamp\": xxx    (numeric) The UNIX epoch time of the heartbeat message was created\n"
+            "\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
+            "\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
+            "}\n"
             "\nExamples:\n"
             + HelpExampleCli("heartbeat_send_message", "(timestamp)")
             + HelpExampleRpc("heartbeat_send_message", "(timestamp)")
@@ -4611,11 +4616,19 @@ UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Invalid account security key");
     }
 
-    CHeartBeatTracker::getInstance().postMessage(key, timestamp);
-    return NullUniValue;
+    CHeartBeatMessage message{CHeartBeatTracker::getInstance().postMessage(key, timestamp)};
+    if(!message.isValid()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Failed to send heartbeat message (can't create signature)");
+    }
+
+    UniValue rv{UniValue::VOBJ};
+    rv.push_back(Pair("timestamp", message.getTimestamp()));
+    rv.push_back(Pair("signature", HexStr(message.getSignature())));
+    rv.push_back(Pair("hash", message.getHash().ToString()));
+    return rv;
 }
 
-UniValue heartbeat_read_message(const UniValue &, bool fHelp)
+UniValue heartbeat_read_messages(const UniValue &, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp)) {
         return NullUniValue;
@@ -4626,19 +4639,26 @@ UniValue heartbeat_read_message(const UniValue &, bool fHelp)
             "\nReads heartbeat p2p messages timestamp value.\n"
             "\nArguments:\n"
             "\nResult:\n"
-            "[               (json array of numbers)\n"
-            "\n[timestamp    (numeric) The UNIX epoch time of the last recieved heartbeat message\n"
-            "  ,...\n"
+            "[\n"
+            "\t{\n"
+            "\t\t\"timestamp\": xxx    (numeric) The UNIX epoch time of the heartbeat message was created\n"
+            "\t\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
+            "\t\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
+            "\t},...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("heartbeat_read_message", "")
-            + HelpExampleRpc("heartbeat_read_message", "")
+            + HelpExampleCli("heartbeat_read_messages", "")
+            + HelpExampleRpc("heartbeat_read_messages", "")
         );
     }
 
     UniValue rv{UniValue::VARR};
     for (const auto& message : CHeartBeatTracker::getInstance().getReceivedMessages()) {
-        rv.push_back(message.getTimestamp());
+        UniValue msg{UniValue::VOBJ};
+        msg.push_back(Pair("timestamp", message.getTimestamp()));
+        msg.push_back(Pair("signature", HexStr(message.getSignature())));
+        msg.push_back(Pair("hash", message.getHash().ToString()));
+        rv.push_back(msg);
     }
     return rv;
 }
@@ -4664,7 +4684,7 @@ static const CRPCCommand commands[] =
     { "rawtransactions",    "fundrawtransaction",       &fundrawtransaction,       false },
     { "hidden",             "resendwallettransactions", &resendwallettransactions, true  },
     { "hidden",             "heartbeat_send_message",   &heartbeat_send_message,   true  },
-    { "hidden",             "heartbeat_read_message",   &heartbeat_read_message,   true  },
+    { "hidden",             "heartbeat_read_messages",  &heartbeat_read_messages,  true  },
     { "wallet",             "addmultisigaddress",       &addmultisigaddress,       true  },
     { "wallet",             "backupwallet",             &backupwallet,             true  },
     { "wallet",             "dumpprivkey",              &dumpprivkey,              true  },

@@ -1937,10 +1937,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // SENDALERT
     threadGroup.create_thread(boost::bind(ThreadSendAlert));
 
+    // MN-Heartbeat
     if (pwalletMain != nullptr) {
-        // MN-Heartbeat
-        const auto runInBackground{&CHeartBeatTracker::runInBackground};
-        threadGroup.create_thread(boost::bind(&TraceThread<decltype(runInBackground)>, "heartbeat", runInBackground));
+        const auto runTickerLoop{&CHeartBeatTracker::runTickerLoop};
+        threadGroup.create_thread(boost::bind(&TraceThread<decltype(runTickerLoop)>, "heartbeat", runTickerLoop));
     }
 
     return !fRequestShutdown;

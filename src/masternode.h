@@ -6,24 +6,34 @@
 #define BITCOIN_MASTERNODE_H
 
 #include "pubkey.h"
+#include <boost/optional.hpp>
 
-class CMasternode
+struct CMasternodeIDs
 {
-public:
-    const CKeyID& getAddress() const;
+    uint256 txId;
+    CKeyID ownerAuth;
+    CKeyID operatorAuth;
 
-    static CMasternode* amIMasternode();
-
-    static std::vector<CMasternode*> getAvailableList();
-
-private:
-    CMasternode() = default;
-
-private:
-    CKeyID address;
+    virtual bool isNull() const;
+    bool operator !=(const CMasternodeIDs& rhs);
+    bool operator ==(const CMasternodeIDs& rhs);
 };
 
+struct CMasternode : public CMasternodeIDs
+{
+    int announcementBlockHeight;
+};
 
+namespace mns
+{
+//    CMasternodeIDs amIMasternode();
+    CMasternodeIDs amIOwner();
+    CMasternodeIDs amIOperator();
+    CMasternodeIDs findMasternode(const uint256& txId, const CKeyID& ownerAuth, const CKeyID& operatorAuth);
+    int getMasternodeCount();
+    std::vector<CMasternode> getMasternodeList();
+//    std::int64_t getOutdatedMasternodeTime(const CMasternodeIDs& id);
+}
 
 #endif
 
