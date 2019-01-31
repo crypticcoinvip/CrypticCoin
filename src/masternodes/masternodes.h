@@ -26,12 +26,13 @@ static const int MAX_DISMISS_VOTES_PER_MN = 20;
 enum class MasternodesTxType : unsigned char
 {
     None = 0,
-    AnnounceMasternode = 'a',
-    ActivateMasternode = 'A',
-    SetOperatorReward  = 'O',
-    DismissVote        = 'V',
-    DismissVoteRecall  = 'v',
-    CollateralSpent    = 'C'
+    AnnounceMasternode    = 'a',
+    ActivateMasternode    = 'A',
+    SetOperatorReward     = 'O',
+    DismissVote           = 'V',
+    DismissVoteRecall     = 'v',
+    FinalizeDismissVoting = 'F',
+    CollateralSpent       = 'C'
 };
 
 class CMasternode
@@ -122,15 +123,16 @@ public:
 //        READWRITE(operatorRewardAmount);
         READWRITE(height);
         READWRITE(minActivationHeight);
-        READWRITE(activationHeight);
+//        READWRITE(activationHeight);    //! totally unused!!!
         READWRITE(deadSinceHeight);
 
         READWRITE(activationTx);
         READWRITE(collateralSpentTx);
         READWRITE(dismissFinalizedTx);
 
-        READWRITE(counterVotesFrom);
-        READWRITE(counterVotesAgainst);
+        // no need to store in DB! real-time counters
+//        READWRITE(counterVotesFrom);
+//        READWRITE(counterVotesAgainst);
     }
 
     //! equality test
@@ -239,6 +241,7 @@ typedef std::map<CKeyID, uint256> CMasternodesByAuth; // for two indexes, owner-
 typedef std::map<uint256, CDismissVote> CDismissVotes;
 typedef std::multimap<uint256, uint256> CDismissVotesIndex; // just index, from->against or against->from
 
+// 'multi' used only in to ways: for collateral spent and voting finalization (to save deactivated votes)
 typedef std::multimap<uint256, std::pair<uint256, MasternodesTxType> > CMasternodesUndo;
 
 class CMasternodesDB;
@@ -277,18 +280,28 @@ public:
     bool OnMasternodeAnnounce(uint256 const & nodeId, CMasternode const & node);
     bool OnMasternodeActivate(uint256 const & txid, uint256 const & nodeId, CKeyID const & operatorId, int height);
     bool OnDismissVote(uint256 const & txid, CDismissVote const & vote, CKeyID const & operatorId);
-    bool OnDismissVoteRecall(uint256 const & txid, uint256 const & against, CKeyID const & operatorId);
+    bool OnDismissVoteRecall(uint256 const & txid, uint256 const & against, CKeyID const & operatorId, int height);
+    bool OnFinalizeDismissVoting(uint256 const & txid, uint256 const & nodeId, int height);
 
-//    bool OnUndoMasternodeAnnounce(uint256 const & nodeId, CMasternode const & node);
-//    bool OnUndoMasternodeActivate(uint256 const & txid, uint256 const & nodeId, CKeyID operatorId, int height);
-//    bool OnUndoDismissVote(uint256 const & txid, uint256 const & nodeId, CKeyID operatorId, int height)
+//    bool HasUndo(uint256 const & txid) const;
+    bool OnUndo(uint256 const & txid);
 
+    uint32_t GetMinDismissingQuorum();
+
+    void PrepareBatch();
     void WriteBatch();
 
 private:
     void Clear();
-};
+    void DeactivateVote(uint256 const & voteId, uint256 const & txid, int height);
+    void DeactivateVotesFor(uint256 const & nodeId, uint256 const & txid, int height);
 
+    enum class VoteIndex { From, Against };
+
+    boost::optional<CDismissVotesIndex::const_iterator>
+    ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against);
+
+};
 
 //! Checks if given tx is probably one of 'MasternodeTx', returns tx type and serialized metadata in 'data'
 MasternodesTxType GuessMasternodeTxType(CTransaction const & tx, std::vector<unsigned char> & metadata);

@@ -2327,6 +2327,12 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
 
+    /// @todo @mn I really don't know if we should call it HERE or another place
+    if (fClean)
+    {
+        ProcessMasternodeTxsOnDisconnect(block, pindex->nHeight);
+    }
+
     if (pfClean) {
         *pfClean = fClean;
         return true;
@@ -6425,6 +6431,12 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
             case MasternodesTxType::DismissVote:
                 CheckDismissVoteTx(tx, height, metadata);
                 break;
+            case MasternodesTxType::DismissVoteRecall:
+                CheckDismissVoteRecallTx(tx, height, metadata);
+                break;
+            case MasternodesTxType::FinalizeDismissVoting:
+                CheckFinalizeDismissVotingTx(tx, height, metadata);
+                break;
             default:
                 break;
         }
@@ -6432,6 +6444,15 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
     }
 
     pmasternodesview->WriteBatch();
+}
+
+void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height)
+{
+    // undo transactions in reverse order
+    for (int i = block.vtx.size() - 1; i >= 0; i--)
+    {
+        pmasternodesview->OnUndo(block.vtx[i].GetHash());
+    }
 }
 
 CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
@@ -6527,14 +6548,15 @@ bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigne
 
 bool CheckDismissVoteRecallTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
-    // check quick conditions first
-    if (tx.vin.size() != 1) /// @todo @mn or unlimited???
-    {
-        return false;
-    }
     // We can not access prevout.scriptPubKey cause it already spent!!! :(
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     uint256 against(metadata);
-    return pmasternodesview->OnDismissVoteRecall(tx.GetHash(), against, auth);
+    return pmasternodesview->OnDismissVoteRecall(tx.GetHash(), against, auth, height);
+}
+
+bool CheckFinalizeDismissVotingTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+{
+    uint256 against(metadata);
+    return pmasternodesview->OnFinalizeDismissVoting(tx.GetHash(), against, height);
 }

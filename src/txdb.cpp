@@ -40,16 +40,8 @@ static const char DB_LAST_BLOCK = 'l';
 
 // Prefixes to the masternodes database (masternodes/)
 static const char DB_MASTERNODES = 'M';
-//static const char DB_MASTERNODESBYOWNER = 'O';
-//static const char DB_MASTERNODESBYOPERATOR = 'o';
-//static const char DB_MASTERNODESPRUNEINDEX = 'P';
 static const char DB_MASTERNODESUNDO = 'U';
-
 static const char DB_DISMISSVOTES = 'V';
-//static const char DB_DISMISSVOTESFROM = 'f';
-//static const char DB_DISMISSVOTESAGAINST = 'a';
-//static const char DB_COLLATERALSPENT = 'S';
-//static const char DB_COLLATERALSPENTFOR = 's';
 
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
 }
@@ -378,105 +370,35 @@ CMasternodesDB::CMasternodesDB(size_t nCacheSize, bool fMemory, bool fWipe) : CD
 {
 }
 
-//bool CMasternodesDB::ExistsMasternode(uint256 const & txid) const
-//{
-//    return db.Exists(make_pair(DB_MASTERNODES, txid));
-//}
-
-//bool CMasternodesDB::ReadMasternode(uint256 const & txid, CMasternode & node) const
-//{
-//    return Read(make_pair(DB_MASTERNODES, txid), node);
-//}
-
-//class CBatchWrapper
-//{
-//private:
-//    CDBWrapper & db;
-//    CDBBatch * batch;
-//    boost::scoped_ptr<CDBBatch> local;
-
-//public:
-//    CBatchWrapper(CDBBatch * batch_, CDBWrapper & db_) : batch(batch_), db(db_)
-//    {
-//        if (batch == nullptr)
-//        {
-//            local.reset(new CDBBatch(db));
-//            batch = local.get();
-//        }
-//    }
-
-//    bool WriteLocal() { if (local) return db.WriteBatch(*batch); return true; }
-//    CDBBatch * operator->() { return batch; }
-//    ~CBatchWrapper() { }
-//};
-
 void CMasternodesDB::WriteMasternode(uint256 const & txid, CMasternode const & node, CDBBatch & batch)
 {
     batch.Write(make_pair(DB_MASTERNODES, txid), node);
 }
 
-
-void CMasternodesDB::WriteUndo(uint256 const & txid, uint256 const & affectedItem, char undoType, CDBBatch & batch)
+void CMasternodesDB::EraseMasternode(uint256 const & txid, CDBBatch & batch)
 {
-    batch.Write(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem), undoType);
+    batch.Erase(make_pair(DB_MASTERNODES, txid));
 }
-
-//bool CMasternodesDB::EraseMasternode(uint256 const & txid)
-//{
-//    CMasternode node;
-//    if (!ReadMasternode(txid, node))
-//    {
-//        return false;
-//    }
-//    CDBBatch batch(db);
-//    batch.Erase(make_pair(DB_MASTERNODESBYOWNER, node.ownerAuthAddress));
-//    batch.Erase(make_pair(DB_MASTERNODESBYOPERATOR, node.operatorAuthAddress));
-//    batch.Erase(make_pair(DB_MASTERNODES, txid));
-//    return db.WriteBatch(batch); // Sync?
-//}
-
-//bool CMasternodesDB::ExistsMasternodeByOwner(CKeyID const & auth) const
-//{
-//    return db.Exists(make_pair(DB_MASTERNODESBYOWNER, auth));
-//}
-
-//bool CMasternodesDB::ExistsMasternodeByOperator(CKeyID const & auth) const
-//{
-//    return db.Exists(make_pair(DB_MASTERNODESBYOPERATOR, auth));
-//}
-
-//bool CMasternodesDB::ReadMasternodeIdByOwner(CKeyID const & auth, uint256 & txid) const
-//{
-//    return db.Read(make_pair(DB_MASTERNODESBYOWNER, auth), txid);
-//}
-
-//bool CMasternodesDB::ReadMasternodeIdByOperator(CKeyID const & auth, uint256 & txid) const
-//{
-//    return db.Read(make_pair(DB_MASTERNODESBYOPERATOR, auth), txid);
-//}
-
-//bool CMasternodesDB::ReadMasternodeByOwner(CKeyID const & auth, CMasternode & node) const
-//{
-//    uint256 txid;
-//    return ReadMasternodeIdByOwner(auth, txid) && ReadMasternode(txid, node);
-//}
-
-//bool CMasternodesDB::ReadMasternodeByOperator(CKeyID const & auth, CMasternode & node) const
-//{
-//    uint256 txid;
-//    return ReadMasternodeIdByOperator(auth, txid) && ReadMasternode(txid, node);
-//}
-
 
 void CMasternodesDB::WriteVote(uint256 const & txid, CDismissVote const & vote, CDBBatch & batch)
 {
     batch.Write(make_pair(DB_DISMISSVOTES, txid), vote);
 }
 
-//bool CMasternodesDB::ReadVote(uint256 const & txid, CDismissVote & vote) const
-//{
-//    return db.Read(make_pair(DB_DISMISSVOTES, txid), vote);
-//}
+void CMasternodesDB::EraseVote(uint256 const & txid, CDBBatch & batch)
+{
+    batch.Erase(make_pair(DB_DISMISSVOTES, txid));
+}
+
+void CMasternodesDB::WriteUndo(uint256 const & txid, uint256 const & affectedItem, char undoType, CDBBatch & batch)
+{
+    batch.Write(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem), undoType);
+}
+
+void CMasternodesDB::EraseUndo(uint256 const & txid, uint256 const & affectedItem, CDBBatch & batch)
+{
+    batch.Erase(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem));
+}
 
 bool CMasternodesDB::LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode)
 {

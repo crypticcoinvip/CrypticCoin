@@ -593,6 +593,8 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
 //////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
 
 void ProcessMasternodeTxsOnConnect(CBlock const & block, int nHeight);
+void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height);
+
 void CheckInputsForCollateralSpent(CTransaction const & tx, int nHeight);
 //! Deep check (and write)
 bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
@@ -600,6 +602,6 @@ bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<
 //bool CheckOperatorRewardTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 bool CheckDismissVoteRecallTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
-
+bool CheckFinalizeDismissVotingTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 
 #endif // BITCOIN_MAIN_H
