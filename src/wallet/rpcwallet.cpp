@@ -4588,35 +4588,45 @@ UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
     }
     if (fHelp) {
         throw runtime_error(
-            "heartbeat_send_message (timestamp)\n"
+            "heartbeat_send_message ( \"address\" timestamp )\n"
             "\nSends heartbeat p2p message with provided timestamp value.\n"
             "\nArguments:\n"
-            "1. timestamp   (numeric, optional) The UNIX epoch time of the heartbeat message\n"
+            "1. \"address\"  (string, optional, default="") The operator authentication address. If empty then default wallet address will be used.\n"
+            "2. timestamp   (numeric, optional, default=0) The UNIX epoch time in ms of the heartbeat message. If 0 then current time will be used.\n"
             "\nResult:\n"
             "{\n"
-            "\t\"timestamp\": xxx    (numeric) The UNIX epoch time of the heartbeat message was created\n"
+            "\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
             "\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
             "\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("heartbeat_send_message", "(timestamp)")
-            + HelpExampleRpc("heartbeat_send_message", "(timestamp)")
+            + HelpExampleCli("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\" 1548923902519")
+            + HelpExampleRpc("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\", 1548923902519")
         );
     }
 
-    const int timestamp = params.empty() ? 0 : params[0].get_int();
+    const std::string address{params.empty() ? std::string{} : params[0].get_str()};
+    const CTxDestination destination{(address.empty() ? GetAccountAddress("") : DecodeDestination(address))};
+
+    if (!IsValidDestination(destination)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Crypticcoin address");
+    }
+
+    std::int64_t timestamp{0};
+    if (params.size() > 1) {
+        timestamp = params[1].get_int64();
+    }
     if (timestamp < 0) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid timestamp value");
     }
 
     CKey key{};
-    const CKeyID address = boost::get<CKeyID>(GetAccountAddress(""));
     LOCK2(cs_main, pwalletMain->cs_wallet);
-    if (pwalletMain == nullptr || !pwalletMain->GetKey(address, key)) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Invalid account security key");
+    if (pwalletMain == nullptr || !pwalletMain->GetKey(boost::get<CKeyID>(destination), key)) {
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Invalid account address key");
     }
 
-    CHeartBeatMessage message{CHeartBeatTracker::getInstance().postMessage(key, timestamp)};
+    const CHeartBeatMessage message{CHeartBeatTracker::getInstance().postMessage(key, timestamp)};
     if(!message.isValid()) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Failed to send heartbeat message (can't create signature)");
     }
@@ -4624,7 +4634,7 @@ UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
     UniValue rv{UniValue::VOBJ};
     rv.push_back(Pair("timestamp", message.getTimestamp()));
     rv.push_back(Pair("signature", HexStr(message.getSignature())));
-    rv.push_back(Pair("hash", message.getHash().ToString()));
+    rv.push_back(Pair("hash", message.retrieveHash().ToString()));
     return rv;
 }
 
@@ -4636,12 +4646,12 @@ UniValue heartbeat_read_messages(const UniValue &, bool fHelp)
     if (fHelp) {
         throw runtime_error(
             "heartbeat_read_messages\n"
-            "\nReads heartbeat p2p messages timestamp value.\n"
+            "\nReads heartbeat p2p messages.\n"
             "\nArguments:\n"
             "\nResult:\n"
             "[\n"
             "\t{\n"
-            "\t\t\"timestamp\": xxx    (numeric) The UNIX epoch time of the heartbeat message was created\n"
+            "\t\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
             "\t\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
             "\t\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
             "\t},...\n"
@@ -4657,7 +4667,7 @@ UniValue heartbeat_read_messages(const UniValue &, bool fHelp)
         UniValue msg{UniValue::VOBJ};
         msg.push_back(Pair("timestamp", message.getTimestamp()));
         msg.push_back(Pair("signature", HexStr(message.getSignature())));
-        msg.push_back(Pair("hash", message.getHash().ToString()));
+        msg.push_back(Pair("hash", message.retrieveHash().ToString()));
         rv.push_back(msg);
     }
     return rv;

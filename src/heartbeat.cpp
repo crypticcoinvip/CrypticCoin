@@ -37,7 +37,7 @@ CHeartBeatMessage::Signature CHeartBeatMessage::getSignature() const
     return signature;
 }
 
-uint256 CHeartBeatMessage::getHash() const
+uint256 CHeartBeatMessage::retrieveHash() const
 {
     CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
     ss << *this;
@@ -60,7 +60,7 @@ bool CHeartBeatMessage::signWithKey(const CKey& key)
 
 bool CHeartBeatMessage::retrievePubKey(CPubKey& pubKey) const
 {
-    return pubKey.RecoverCompact(getSignHash(), getSignature());
+    return isValid() && pubKey.RecoverCompact(getSignHash(), getSignature());
 }
 
 uint256 CHeartBeatMessage::getSignHash() const
@@ -75,6 +75,7 @@ void CHeartBeatTracker::runTickerLoop()
     CKey operKey{};
     CMasternodeIDs operId{};
     CHeartBeatTracker tracker{};
+    std::int64_t delay{tracker.getMinPeriod(mns::getMasternodeList().size()) * 2};
 
     tracker.startupTime = GetTimeMillis();
 
@@ -93,7 +94,7 @@ void CHeartBeatTracker::runTickerLoop()
         if (operKey.IsValid()) {
             tracker.postMessage(operKey);
         }
-        MilliSleep(tracker.getMinPeriod() * 2 * 1000);
+        MilliSleep(delay);
         operId = id;
     }
 }
@@ -115,7 +116,7 @@ CHeartBeatMessage CHeartBeatTracker::postMessage(const CKey& signKey, int64_t ti
     if (!rv.signWithKey(signKey)) {
         LogPrintf("%s: Can't sign heartbeat message", __func__);
     } else if (recieveMessage(rv)) {
-        broadcastInventory(CInv{MSG_HEARTBEAT, rv.getHash()});
+        broadcastInventory(CInv{MSG_HEARTBEAT, rv.retrieveHash()});
     }
 
     return std::move(rv);
@@ -125,24 +126,41 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
 {
     bool rv{false};
     CPubKey pubKey{};
+    const std::int64_t now{GetTimeMicros()};
+    const uint256 hash{message.retrieveHash()};
 
     if (message.retrievePubKey(pubKey)) {
-        const CMasternodeIDs id{mns::findMasternode(uint256{}, pubKey.GetID(), CKeyID{})};
+        const CKeyID operId{pubKey.GetID()};
 
-        if (!id.isNull()) {
+        if (!mns::findMasternode(uint256{}, CKeyID{}, operId).isNull() &&
+            message.getTimestamp() < now + maxHeartbeatInFuture)
+        {
             LockGuard lock{mutex};
             libsnark::UNUSED(lock);
 
-            const auto it{keyMessageMap.find(pubKey)};
+            const auto it{keyMessageMap.find(operId)};
 
             if (it == keyMessageMap.end()) {
-                keyMessageMap.emplace(pubKey, message);
+                messageList.emplace_front(message);
+                keyMessageMap.emplace(operId, messageList.cbegin());
+                hashMessageMap.emplace(hash, messageList.cbegin());
                 rv = true;
-            } else if (message.getTimestamp() - it->second.getTimestamp() >= getMinPeriod()) {
-                it->second = message;
+            } else if (message.getTimestamp() - it->second->getTimestamp() >= getMinPeriod(mns::getMasternodeList().size())) {
+                hashMessageMap.erase(it->second->retrieveHash());
+                messageList.erase(it->second);
+                messageList.emplace_front(message);
+                hashMessageMap.emplace(hash, messageList.cbegin());
+                it->second = messageList.cbegin();
                 rv = true;
             }
         }
+    }
+    if (hashMessageMap.find(hash) == hashMessageMap.end()) {
+        LogPrintf("%s: Skipping heartbeat (%s,%d) message at %d",
+                  __func__,
+                  hash.ToString(),
+                  message.getTimestamp(),
+                  now);
     }
 
     return rv;
@@ -162,7 +180,7 @@ bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
 
         // Save original serialized message so newer versions are preserved
         CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
-        const CInv inv{MSG_HEARTBEAT, message.getHash()};
+        const CInv inv{MSG_HEARTBEAT, message.retrieveHash()};
 
         ss.reserve(1000);
         ss << message;
@@ -181,10 +199,11 @@ std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
 {
     std::vector<CHeartBeatMessage> rv{};
 
-    rv.reserve(keyMessageMap.size());
-    for (const auto & pair : keyMessageMap) {
-        rv.emplace_back(pair.second);
-    }
+    assert(messageList.size() == keyMessageMap.size());
+    assert(keyMessageMap.size() == hashMessageMap.size());
+
+    rv.reserve(messageList.size());
+    rv.assign(messageList.crbegin(), messageList.crend());
 
     return rv;
 }
@@ -196,31 +215,53 @@ bool CHeartBeatTracker::checkMessageWasReceived(const uint256& hash) const
 
 const CHeartBeatMessage* CHeartBeatTracker::getReceivedMessage(const uint256& hash) const
 {
-    for (const auto & pair : keyMessageMap) {
-        if (pair.second.getHash() == hash) {
-            return &pair.second;
-        }
-    }
-    return nullptr;
+    assert(messageList.size() == keyMessageMap.size());
+    assert(keyMessageMap.size() == hashMessageMap.size());
+
+    const auto it{hashMessageMap.find(hash)};
+    return it != hashMessageMap.end() ? &*it->second : nullptr;
+
+//    for (const auto & pair : keyMessageMap) {
+//        if (pair.second.getHash() == hash) {
+//            return &pair.second;
+//        }
+//    }
+//    return nullptr;
 }
 
-int CHeartBeatTracker::getMinPeriod() const
+int CHeartBeatTracker::getMinPeriod(int masternodeCount) const
 {
-    return std::max(mns::getMasternodeCount(), 30) * 1000;
+    return std::max(masternodeCount, 30) * 1000;
 }
 
-int CHeartBeatTracker::getMaxPeriod() const
+int CHeartBeatTracker::getMaxPeriod(int masternodeCount) const
 {
-    return getMinPeriod() * 20 * 1000;
+    return getMinPeriod(masternodeCount) * 20;
 }
 
 std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
-    std::vector<CMasternode> rv{};
+    auto rv{mns::getMasternodeList()};
+    const auto idMe{mns::amIOperator()};
+    const auto period{std::make_pair(getMinPeriod(rv.size()), getMinPeriod(rv.size()))};
 
-//    for (const auto& pair : keyMessageMap) {
-////        CMasternode* mn = CMasternode::findMasternode(pubKey.GetID());
-//    }
+    for (const auto& mn : rv) {
+        if (idMe == mn) {
+            continue;
+        }
+
+        const auto it{keyMessageMap.find(mn.operatorAuth)};
+        const std::int64_t elapsed{GetTimeMicros() -
+                                   std::max(it != keyMessageMap.end() ? it->second->getTimestamp() : startupTime,
+                                            mn.getAnnounceBlockTime())};
+
+        if ((elapsed < period.first && ageFilter == recentlyFilter) ||
+            (elapsed > period.second && ageFilter == outdatedFilter) ||
+            (elapsed >= period.first && elapsed < period.second && ageFilter == staleFilter))
+        {
+            rv.emplace_back(mn);
+        }
+    }
 
     return rv;
 }
@@ -249,34 +290,3 @@ void CHeartBeatTracker::broadcastInventory(const CInv& inv) const
         }
     }
 }
-
-//void CHeartBeatTracker::removeObsoleteMessages()
-//{
-//    std::map<CPubKey, const CHeartBeatMessage*> existent{};
-
-//    for (const auto& pair : recievedMessages) {
-//        CPubKey pubKey{};
-//        if (!pair.second.retrievePubKey(pubKey)) {
-//            recievedMessages.erase(pair.first);
-//        } else {
-//            auto it{existent.find(pubKey)};
-//            if (it == existent.end()) {
-//                existent.emplace(pubKey, &pair.second);
-//            } else if (pair.second.getTimestamp() < it->second->getTimestamp()) {
-//                recievedMessages.erase(pair.first);
-//            } else {
-//                recievedMessages.erase(it->second->getHash());
-//                it->second = &pair.second;
-//            }
-//        }
-//    }
-//    assert(existent.size() == recievedMessages.size());
-
-//    for (const auto& pair : existent) {
-//        const CMasternodeIDs id{mns::findMasternode(uint256{}, pair.first.GetID(), CKeyID{})};
-//        if (id.isNull()) {
-//            recievedMessages.erase(pair.second->getHash());
-//        }
-//    }
-//}
-
