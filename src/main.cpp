@@ -5968,7 +5968,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         int nDoS{};
         CValidationState state{};
         CHeartBeatMessage message{vRecv};
-        CInv inv{MSG_HEARTBEAT, message.getHash()};
+        CInv inv{MSG_HEARTBEAT, message.retrieveHash()};
 
         LOCK(cs_main);
 

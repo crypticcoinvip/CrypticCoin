@@ -132,6 +132,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "z_getpaymentdisclosure", 1},
     { "z_getpaymentdisclosure", 2},
     { "heartbeat_send_message", 0},
+    { "heartbeat_send_message", 1},
+    { "heartbeat_send_message", 2},
     { "heartbeat_read_message", 0}
 };
 

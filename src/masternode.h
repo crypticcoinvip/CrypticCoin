@@ -15,24 +15,23 @@ struct CMasternodeIDs
     CKeyID operatorAuth;
 
     virtual bool isNull() const;
-    bool operator !=(const CMasternodeIDs& rhs);
-    bool operator ==(const CMasternodeIDs& rhs);
+    bool operator !=(const CMasternodeIDs& rhs) const;
+    bool operator ==(const CMasternodeIDs& rhs) const;
 };
 
 struct CMasternode : public CMasternodeIDs
 {
     int announcementBlockHeight;
+
+    std::int64_t getAnnounceBlockTime() const;
 };
 
 namespace mns
 {
-//    CMasternodeIDs amIMasternode();
     CMasternodeIDs amIOwner();
     CMasternodeIDs amIOperator();
     CMasternodeIDs findMasternode(const uint256& txId, const CKeyID& ownerAuth, const CKeyID& operatorAuth);
-    int getMasternodeCount();
-    std::vector<CMasternode> getMasternodeList();
-//    std::int64_t getOutdatedMasternodeTime(const CMasternodeIDs& id);
+    std::vector<CMasternode> getMasternodeList(CMasternodeIDs idsFilter = CMasternodeIDs{});
 }
 
 #endif

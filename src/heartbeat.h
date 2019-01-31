@@ -8,6 +8,7 @@
 #include "masternode.h"
 #include "serialize.h"
 #include <mutex>
+#include <list>
 
 class CKey;
 class CInv;
@@ -23,7 +24,7 @@ public:
 
     std::int64_t getTimestamp() const;
     Signature getSignature() const;
-    uint256 getHash() const;
+    uint256 retrieveHash() const;
 
     ADD_SERIALIZE_METHODS;
 
@@ -48,9 +49,11 @@ private:
 class CHeartBeatTracker
 {
     using LockGuard = std::lock_guard<std::mutex>;
+    using MessageList = std::list<CHeartBeatMessage>;
+    static constexpr std::int64_t maxHeartbeatInFuture{4444};
 
 public:
-    enum AgeFilter { Recently, Stale, Outdated };
+    enum AgeFilter {recentlyFilter, staleFilter, outdatedFilter};
 
     static void runTickerLoop();
     static CHeartBeatTracker& getInstance();
@@ -63,8 +66,8 @@ public:
     bool checkMessageWasReceived(const uint256& hash) const;
     const CHeartBeatMessage* getReceivedMessage(const uint256& hash) const;
 
-    int getMinPeriod() const;
-    int getMaxPeriod() const;
+    int getMinPeriod(int masternodeCount) const;
+    int getMaxPeriod(int masternodeCount) const;
 
     std::vector<CMasternode> filterMasternodes(AgeFilter ageFilter) const;
 
@@ -77,7 +80,9 @@ private:
 
 private:
     time_t startupTime;
-    std::map<CPubKey, CHeartBeatMessage> keyMessageMap;
+    MessageList messageList;
+    std::map<CKeyID, MessageList::const_iterator> keyMessageMap;
+    std::map<uint256, MessageList::const_iterator> hashMessageMap;
 };
 
 #endif
