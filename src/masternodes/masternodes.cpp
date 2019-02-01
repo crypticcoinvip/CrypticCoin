@@ -538,6 +538,14 @@ void CMasternodesView::WriteBatch()
     }
 }
 
+void CMasternodesView::DropBatch()
+{
+    if (currentBatch)
+    {
+        currentBatch.reset();
+    }
+}
+
 void CMasternodesView::Clear()
 {
     allNodes.clear();

@@ -290,6 +290,7 @@ public:
 
     void PrepareBatch();
     void WriteBatch();
+    void DropBatch();
 
 private:
     void Clear();

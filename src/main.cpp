@@ -2308,6 +2308,9 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     fClean = false;
             }
         }
+        // process transaction revert for masternodes.
+        // if we are kicked out from this loop (with checks above), mnview will be spoiled. but it is safe, cause it will lead to reindexing
+        pmasternodesview->OnUndo(hash);
     }
 
     // set the old best Sprout anchor back
@@ -2327,10 +2330,10 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
 
-    /// @todo @mn I really don't know if we should call it HERE or another place
+    // fix masternodes view state
     if (fClean)
     {
-        ProcessMasternodeTxsOnDisconnect(block, pindex->nHeight);
+        pmasternodesview->WriteBatch();
     }
 
     if (pfClean) {
@@ -2864,7 +2867,10 @@ bool static DisconnectTip(CValidationState &state, bool fBare = false) {
     {
         CCoinsViewCache view(pcoinsTip);
         if (!DisconnectBlock(block, state, pindexDelete, view))
+        {
+            pmasternodesview->DropBatch();
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
+        }
         assert(view.Flush());
     }
     LogPrint("bench", "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);
@@ -4248,7 +4254,13 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
         if (nCheckLevel >= 3 && pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage) {
             bool fClean = true;
             if (!DisconnectBlock(block, state, pindex, coins, &fClean))
+            {
+                /// @todo @mn check if it is possible to DisconnectBlock() == true, but fClean == false ???
+                /// or this is all done 'in memory' and we should not take any changes at all??? I'm disappointed :(
+                /// update: if DisconnectBlock() called with pfClean (from VerifyDB) - it always retuns 'true'. false only on hard DB errors
+                pmasternodesview->DropBatch();
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
+            }
             pindexState = pindex->pprev;
             if (!fClean) {
                 nGoodTransactions = 0;
@@ -6453,6 +6465,7 @@ void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height)
     {
         pmasternodesview->OnUndo(block.vtx[i].GetHash());
     }
+    pmasternodesview->WriteBatch();
 }
 
 CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
