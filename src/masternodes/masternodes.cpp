@@ -4,13 +4,15 @@
 
 #include "masternodes.h"
 
+#include "key_io.h"
 #include "primitives/block.h"
+#include "script/standard.h"
 #include "txdb.h"
+#include "util.h"
 
 #include <algorithm>
 #include <functional>
 
-static const std::vector<unsigned char> MnTxMarker = {'M', 'n', 'T', 'x'};
 static const std::map<char, MasternodesTxType> MasternodesTxTypeToCode =
 {
     {'a', MasternodesTxType::AnnounceMasternode },
@@ -28,6 +30,7 @@ static const std::map<char, MasternodesTxType> MasternodesTxTypeToCode =
 */
 MasternodesTxType GuessMasternodeTxType(CTransaction const & tx, std::vector<unsigned char> & metadata)
 {
+    assert(tx.vout.size() > 0);
     CScript const & memo = tx.vout[0].scriptPubKey;
     CScript::const_iterator pc = memo.begin();
     opcodetype opcode;
@@ -51,6 +54,34 @@ MasternodesTxType GuessMasternodeTxType(CTransaction const & tx, std::vector<uns
     }
     metadata.erase(metadata.begin(), metadata.begin() + MnTxMarker.size() + 1);
     return it->second;
+}
+
+/*
+ * Searching MN index 'nodesByOwner' or 'nodesByOperator' for given 'auth' key
+ */
+boost::optional<CMasternodesByAuth::const_iterator> CMasternodesView::ExistMasternode(CMasternodesView::AuthIndex where, CKeyID const & auth) const
+{
+    CMasternodesByAuth const & index = (where == AuthIndex::ByOwner) ? nodesByOwner : nodesByOperator;
+    auto it = index.find(auth);
+    if (it == index.end())
+    {
+        return {};
+    }
+    return {it};
+}
+
+/*
+ * Searching all masternodes for given 'id'
+ */
+/// @attention boost::optional does not allow 'const &' so you should be very accurate with result!
+boost::optional<CMasternode &> CMasternodesView::ExistMasternode(uint256 const & id)
+{
+    CMasternodes::iterator it = allNodes.find(id);
+    if (it == allNodes.end())
+    {
+        return {};
+    }
+    return {it->second};
 }
 
 /*
@@ -297,12 +328,12 @@ bool CMasternodesView::OnDismissVote(uint256 const & txid, CDismissVote const & 
  * returns optional iterator
 */
 boost::optional<CDismissVotesIndex::const_iterator>
-CMasternodesView::ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against)
+CMasternodesView::ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against) const
 {
     typedef std::pair<uint256 const, uint256> const & TPairConstRef;
     typedef std::function<bool(TPairConstRef)> TPredicate;
-    TPredicate const & isEqualAgainst = [&against, this] (TPairConstRef pair) { return votes[pair.second].against == against; };
-    TPredicate const & isEqualFrom    = [&from,    this] (TPairConstRef pair) { return votes[pair.second].from == from; };
+    TPredicate const & isEqualAgainst = [&against, this] (TPairConstRef pair) { return votes.at(pair.second).against == against; };
+    TPredicate const & isEqualFrom    = [&from,    this] (TPairConstRef pair) { return votes.at(pair.second).from == from; };
 
     auto const & range = (where == VoteIndex::From) ? votesFrom.equal_range(from) : votesAgainst.equal_range(against);
     CDismissVotesIndex::const_iterator it = std::find_if(range.first, range.second, where == VoteIndex::From ? isEqualAgainst : isEqualFrom);
@@ -544,6 +575,59 @@ void CMasternodesView::DropBatch()
     {
         currentBatch.reset();
     }
+}
+
+
+boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmI(AuthIndex where) const
+{
+    std::string addressBase58 = (where == AuthIndex::ByOperator) ? GetArg("-masternode_operator", "") : GetArg("-masternode_owner", "");
+    if (addressBase58 != "")
+    {
+        CTxDestination dest = DecodeDestination(addressBase58);
+        CKeyID const * authAddress = boost::get<CKeyID>(&dest);
+        if (authAddress)
+        {
+            /// @todo refactor to ExistMasternode()
+            CMasternodesByAuth const & index = (where == AuthIndex::ByOperator) ? nodesByOperator : nodesByOwner;
+            auto const & it = index.find(*authAddress);
+            if (it != index.end())
+            {
+                uint256 const & id = it->second;
+                return { CMasternodeIDs {id, allNodes.at(id).operatorAuthAddress, allNodes.at(id).ownerAuthAddress} };
+            }
+        }
+    }
+    return {};
+}
+
+boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmIOperator() const
+{
+    return AmI(AuthIndex::ByOperator);
+}
+
+boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmIOwner() const
+{
+    return AmI(AuthIndex::ByOwner);
+}
+
+boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmIActiveOperator() const
+{
+    auto result = AmI(AuthIndex::ByOperator);
+    if (result && allNodes.at(result->id).IsActive())
+    {
+        return result;
+    }
+    return {};
+}
+
+boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmIActiveOwner() const
+{
+    auto result = AmI(AuthIndex::ByOwner);
+    if (result && allNodes.at(result->id).IsActive())
+    {
+        return result;
+    }
+    return {};
 }
 
 void CMasternodesView::Clear()

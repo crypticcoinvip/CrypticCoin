@@ -165,6 +165,8 @@ public:
         // guarantees the first 4 characters, when base58 encoded, are "CCSK"
         base58Prefixes[ZCSPENDING_KEY]     = {0x03,0xE2,0xA8,0x58};
 
+        base58Prefixes[MNTX_MARKER]        = MnTxMarker;
+
         bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "cs";
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "cviews";
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "civks";
@@ -278,6 +280,8 @@ public:
         // guarantees the first 4 characters, when base58 encoded, are "TCSK"
         base58Prefixes[ZCSPENDING_KEY]     = {0x09,0x17,0x1F,0xBA};
 
+        base58Prefixes[MNTX_MARKER]        = MnTxMarker;
+
         bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "ctestsapling";
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "cviewtestsapling";
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "civktestsapling";
@@ -285,10 +289,10 @@ public:
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
-        fMiningRequiresPeers = true;
+        fMiningRequiresPeers = false;
         fDefaultConsistencyChecks = false;
         fRequireStandard = true;
-        fMineBlocksOnDemand = true;
+        fMineBlocksOnDemand = false;
         fTestnetToBeDeprecatedFieldRPC = true;
 
         checkpointData = (CCheckpointData) {
@@ -392,6 +396,7 @@ public:
         base58Prefixes[ZCPAYMENT_ADDRRESS] = {0x16,0xB6};
         base58Prefixes[ZCVIEWING_KEY]      = {0xA8,0xAC,0x0C};
         base58Prefixes[ZCSPENDING_KEY]     = {0xAC,0x08};
+        base58Prefixes[MNTX_MARKER]        = MnTxMarker;
 
         bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "zregtestsapling";
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviewregtestsapling";

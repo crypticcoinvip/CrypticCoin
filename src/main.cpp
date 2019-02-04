@@ -6426,6 +6426,10 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
         // 1.
         CheckInputsForCollateralSpent(tx, height);
 
+        if (tx.vout.size() == 0)
+        {
+            continue;
+        }
         // 2. Check if it is masternode tx with metadata
         std::vector<unsigned char> metadata;
         MasternodesTxType guess = GuessMasternodeTxType(tx, metadata);

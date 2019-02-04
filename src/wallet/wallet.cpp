@@ -4188,6 +4188,8 @@ public:
             Process(script);
     }
 
+    void operator()(const CMetaData &metadata) {}
+
     void operator()(const CNoDestination &none) {}
 };
 

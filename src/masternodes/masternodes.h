@@ -1,5 +1,4 @@
-// Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2019 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef MASTERNODES_H
@@ -21,7 +20,17 @@
 
 static const CAmount MN_ANNOUNCEMENT_FEE = COIN; /// @todo change me
 static const CAmount MN_COLLATERAL_AMOUNT = 1000 * COIN;
+
+static const CAmount MN_COMMON_FEE = COIN/1000; /// @todo change me
+static const CAmount MN_ACTIVATION_FEE = MN_COMMON_FEE;
+static const CAmount MN_SETOPERATOR_FEE = MN_COMMON_FEE;
+static const CAmount MN_DISMISSVOTE_FEE = MN_COMMON_FEE;
+static const CAmount MN_DISMISSVOTERECALL_FEE = MN_COMMON_FEE;
+static const CAmount MN_FINALIZEDISMISSVOTING_FEE = MN_COMMON_FEE;
+
 static const int MAX_DISMISS_VOTES_PER_MN = 20;
+
+static const std::vector<unsigned char> MnTxMarker = {'M', 'n', 'T', 'x'};  // 4d6e5478
 
 enum class MasternodesTxType : unsigned char
 {
@@ -252,6 +261,15 @@ private:
     CMasternodesDB & db;
     boost::scoped_ptr<CDBBatch> currentBatch;
 public:
+    typedef struct {
+        uint256 id;
+        CKeyID operatorAuthAddress;
+        CKeyID ownerAuthAddress;
+    } CMasternodeIDs;
+
+    enum class AuthIndex { ByOwner, ByOperator };
+    enum class VoteIndex { From, Against };
+
     CMasternodes allNodes;
     CActiveMasternodes activeNodes;
     CMasternodesByAuth nodesByOwner;
@@ -266,10 +284,21 @@ public:
     CMasternodesView(CMasternodesDB & mndb) : db(mndb) {}
     ~CMasternodesView() {}
 
-    bool HasMasternode(uint256 nodeId)
+
+    boost::optional<CMasternodesByAuth::const_iterator>
+    ExistMasternode(AuthIndex where, CKeyID const & auth) const;
+
+    /// @attention boost::optional does not allow 'const &' so you should be very accurate with result!
+    boost::optional<CMasternode &>
+    ExistMasternode(uint256 const & id);
+
+    bool HasMasternode(uint256 const & nodeId) const
     {
         return allNodes.find(nodeId) != allNodes.end();
     }
+
+    boost::optional<CDismissVotesIndex::const_iterator>
+    ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against) const;
 
     //! Initial load of all data
     void Load();
@@ -293,18 +322,21 @@ public:
     void DropBatch();
 
 private:
+    boost::optional<CMasternodeIDs> AmI(AuthIndex where) const;
+public:
+    boost::optional<CMasternodeIDs> AmIOperator() const;
+    boost::optional<CMasternodeIDs> AmIOwner() const;
+    boost::optional<CMasternodeIDs> AmIActiveOperator() const;
+    boost::optional<CMasternodeIDs> AmIActiveOwner() const;
+
+private:
     void Clear();
     void DeactivateVote(uint256 const & voteId, uint256 const & txid, int height);
     void DeactivateVotesFor(uint256 const & nodeId, uint256 const & txid, int height);
-
-    enum class VoteIndex { From, Against };
-
-    boost::optional<CDismissVotesIndex::const_iterator>
-    ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against);
-
 };
 
 //! Checks if given tx is probably one of 'MasternodeTx', returns tx type and serialized metadata in 'data'
 MasternodesTxType GuessMasternodeTxType(CTransaction const & tx, std::vector<unsigned char> & metadata);
+
 
 #endif // MASTERNODES_H

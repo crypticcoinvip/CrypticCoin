@@ -130,7 +130,16 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "z_importkey", 2 },
     { "z_importviewingkey", 2 },
     { "z_getpaymentdisclosure", 1},
-    { "z_getpaymentdisclosure", 2}
+    { "z_getpaymentdisclosure", 2},
+    { "createraw_mn_announce", 0},
+    { "createraw_mn_announce", 1},
+    { "createraw_mn_activate", 0},
+    { "createraw_mn_dismissvote", 0},
+    { "createraw_mn_dismissvote", 1},
+    { "createraw_mn_dismissvoterecall", 0},
+    { "createraw_mn_dismissvoterecall", 1},
+    { "createraw_mn_finalizevoting", 0},
+    { "createraw_mn_finalizevoting", 1}
 };
 
 class CRPCConvertTable
