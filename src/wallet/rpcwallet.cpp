@@ -4627,14 +4627,14 @@ UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
     }
 
     const CHeartBeatMessage message{CHeartBeatTracker::getInstance().postMessage(key, timestamp)};
-    if(!message.isValid()) {
+    if(message.IsNull()) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Failed to send heartbeat message (can't create signature)");
     }
 
     UniValue rv{UniValue::VOBJ};
-    rv.push_back(Pair("timestamp", message.getTimestamp()));
-    rv.push_back(Pair("signature", HexStr(message.getSignature())));
-    rv.push_back(Pair("hash", message.retrieveHash().ToString()));
+    rv.push_back(Pair("timestamp", message.GetTimestamp()));
+    rv.push_back(Pair("signature", HexStr(message.GetSignature())));
+    rv.push_back(Pair("hash", message.GetHash().ToString()));
     return rv;
 }
 
@@ -4665,9 +4665,9 @@ UniValue heartbeat_read_messages(const UniValue &, bool fHelp)
     UniValue rv{UniValue::VARR};
     for (const auto& message : CHeartBeatTracker::getInstance().getReceivedMessages()) {
         UniValue msg{UniValue::VOBJ};
-        msg.push_back(Pair("timestamp", message.getTimestamp()));
-        msg.push_back(Pair("signature", HexStr(message.getSignature())));
-        msg.push_back(Pair("hash", message.retrieveHash().ToString()));
+        msg.push_back(Pair("timestamp", message.GetTimestamp()));
+        msg.push_back(Pair("signature", HexStr(message.GetSignature())));
+        msg.push_back(Pair("hash", message.GetHash().ToString()));
         rv.push_back(msg);
     }
     return rv;

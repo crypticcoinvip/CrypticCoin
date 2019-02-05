@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_HEARTBEAT_H
-#define BITCOIN_HEARTBEAT_H
+#ifndef BITCOIN_MASTERNODES_HEARTBEAT_H
+#define BITCOIN_MASTERNODES_HEARTBEAT_H
 
 #include "masternodes/masternodes.h"
 #include "serialize.h"
@@ -19,12 +19,11 @@ class CHeartBeatMessage
     using Signature = std::vector<unsigned char>;
 
 public:
-    explicit CHeartBeatMessage(const std::int64_t timestamp);
-    explicit CHeartBeatMessage(CDataStream& stream);
+    explicit CHeartBeatMessage(const std::int64_t timestamp = 0);
 
-    std::int64_t getTimestamp() const;
-    Signature getSignature() const;
-    uint256 retrieveHash() const;
+    std::int64_t GetTimestamp() const;
+    Signature GetSignature() const;
+    uint256 GetHash() const;
 
     ADD_SERIALIZE_METHODS;
 
@@ -34,9 +33,10 @@ public:
          READWRITE(signature);
     }
 
-    bool isValid() const;
-    bool signWithKey(const CKey& key);
-    bool retrievePubKey(CPubKey& pubKey) const;
+    void SetNull();
+    bool IsNull() const;
+    bool SignWithKey(const CKey& key);
+    bool GetPubKey(CPubKey& pubKey) const;
 
 private:
     uint256 getSignHash() const;
@@ -84,4 +84,4 @@ private:
     std::map<uint256, MessageList::const_iterator> hashMessageMap;
 };
 
-#endif
+#endif // BITCOIN_MASTERNODES_HEARTBEAT_H

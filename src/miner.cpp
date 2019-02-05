@@ -495,10 +495,10 @@ static bool ProcessBlockFound(CBlock* pblock)
 //        wallet.mapRequestCount[pblock->GetHash()] = 0;
 //    }
 #endif
-    if (dpos::checkActiveMode()) {
+    if (dpos::checkIsActive()) {
         pblock->hashMerkleRoot_PoW = pblock->hashMerkleRoot;
         pblock->hashMerkleRoot.SetNull();
-        dpos::postBlockProgenitor(*pblock);
+        dpos::postProgenitorBlock(*pblock);
     } else {
         // Process this block the same as if we had received it from another node
         CValidationState state;

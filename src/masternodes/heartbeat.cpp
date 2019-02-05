@@ -3,11 +3,12 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "heartbeat.h"
-#include "net.h"
 #include "util.h"
-#include "init.h"
-#include "wallet/wallet.h"
-#include "snark/libsnark/common/utils.hpp"
+#include "../net.h"
+#include "../util.h"
+#include "../init.h"
+#include "../wallet/wallet.h"
+#include "../snark/libsnark/common/utils.hpp"
 
 namespace
 {
@@ -21,45 +22,46 @@ CHeartBeatMessage::CHeartBeatMessage(const int64_t timestamp)
     this->timestamp = timestamp;
 }
 
-CHeartBeatMessage::CHeartBeatMessage(CDataStream& stream)
-{
-    stream >> *this;
-}
-
-int64_t CHeartBeatMessage::getTimestamp() const
+int64_t CHeartBeatMessage::GetTimestamp() const
 {
     return timestamp;
 }
 
-CHeartBeatMessage::Signature CHeartBeatMessage::getSignature() const
+CHeartBeatMessage::Signature CHeartBeatMessage::GetSignature() const
 {
     return signature;
 }
 
-uint256 CHeartBeatMessage::retrieveHash() const
+uint256 CHeartBeatMessage::GetHash() const
 {
     CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
     ss << *this;
     return Hash(ss.begin(), ss.end());
 }
 
-bool CHeartBeatMessage::isValid() const
+void CHeartBeatMessage::SetNull()
 {
-    return !signature.empty();
+    timestamp = 0;
+    signature.clear();
 }
 
-bool CHeartBeatMessage::signWithKey(const CKey& key)
+bool CHeartBeatMessage::IsNull() const
+{
+    return timestamp == 0 || signature.empty();
+}
+
+bool CHeartBeatMessage::SignWithKey(const CKey& key)
 {
     signature.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
     if (!key.SignCompact(getSignHash(), signature)) {
         signature.clear();
     }
-    return isValid();
+    return !IsNull();
 }
 
-bool CHeartBeatMessage::retrievePubKey(CPubKey& pubKey) const
+bool CHeartBeatMessage::GetPubKey(CPubKey& pubKey) const
 {
-    return isValid() && pubKey.RecoverCompact(getSignHash(), getSignature());
+    return !IsNull() && pubKey.RecoverCompact(getSignHash(), GetSignature());
 }
 
 uint256 CHeartBeatMessage::getSignHash() const
@@ -71,22 +73,25 @@ uint256 CHeartBeatMessage::getSignHash() const
 
 void CHeartBeatTracker::runTickerLoop()
 {
-    CKeyID operId{};
     CKey operKey{};
-//    CMasternodeIDs operId{};
     CHeartBeatTracker tracker{};
-    std::int64_t delay{tracker.getMinPeriod(pmasternodesview->allNodes.size()) * 2};
+    std::int64_t delay{tracker.getMinPeriod(pmasternodesview->activeNodes.size()) * 2};
 
     tracker.startupTime = GetTimeMillis();
-    operId.SetHex(GetArg("-masternode-owner", ""));
 
     while (true) {
         boost::this_thread::interruption_point();
-        if (pmasternodesview->nodesByOperator.find(operId) != pmasternodesview->nodesByOperator.end()) {
+        const boost::optional<mns::CMasternodeIDs> mnId{mns::amIActiveOperator()};
+
+        if (!mnId) {
+            operKey = CKey{};
+        } else {
+#ifdef ENABLE_WALLET
             LOCK2(cs_main, pwalletMain->cs_wallet);
-            if (!pwalletMain->GetKey(operId, operKey)) {
+            if (!pwalletMain->GetKey(mnId.get().operatorAuthAddress, operKey)) {
                 throw std::runtime_error("Can't read masternode operator private key");
             }
+#endif
         }
         if (operKey.IsValid()) {
             tracker.postMessage(operKey);
@@ -94,6 +99,8 @@ void CHeartBeatTracker::runTickerLoop()
         MilliSleep(delay);
     }
 }
+
+
 
 CHeartBeatTracker& CHeartBeatTracker::getInstance()
 {
@@ -109,10 +116,10 @@ CHeartBeatMessage CHeartBeatTracker::postMessage(const CKey& signKey, int64_t ti
 
     CHeartBeatMessage rv{timestamp};
 
-    if (!rv.signWithKey(signKey)) {
+    if (!rv.SignWithKey(signKey)) {
         LogPrintf("%s: Can't sign heartbeat message", __func__);
     } else if (recieveMessage(rv)) {
-        broadcastInventory(CInv{MSG_HEARTBEAT, rv.retrieveHash()});
+        broadcastInventory(CInv{MSG_HEARTBEAT, rv.GetHash()});
     }
 
     return std::move(rv);
@@ -123,13 +130,13 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
     bool rv{false};
     CPubKey pubKey{};
     const std::int64_t now{GetTimeMicros()};
-    const uint256 hash{message.retrieveHash()};
+    const uint256 hash{message.GetHash()};
 
-    if (message.retrievePubKey(pubKey)) {
+    if (message.GetPubKey(pubKey)) {
         const CKeyID operId{pubKey.GetID()};
 
         if (pmasternodesview->nodesByOperator.find(operId) != pmasternodesview->nodesByOperator.end() &&
-            message.getTimestamp() < now + maxHeartbeatInFuture)
+            message.GetTimestamp() < now + maxHeartbeatInFuture)
         {
             LockGuard lock{mutex};
             libsnark::UNUSED(lock);
@@ -141,8 +148,8 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
                 keyMessageMap.emplace(operId, messageList.cbegin());
                 hashMessageMap.emplace(hash, messageList.cbegin());
                 rv = true;
-            } else if (message.getTimestamp() - it->second->getTimestamp() >= getMinPeriod(pmasternodesview->allNodes.size())) {
-                hashMessageMap.erase(it->second->retrieveHash());
+            } else if (message.GetTimestamp() - it->second->GetTimestamp() >= getMinPeriod(pmasternodesview->activeNodes.size())) {
+                hashMessageMap.erase(it->second->GetHash());
                 messageList.erase(it->second);
                 messageList.emplace_front(message);
                 hashMessageMap.emplace(hash, messageList.cbegin());
@@ -155,7 +162,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
         LogPrintf("%s: Skipping heartbeat (%s,%d) message at %d",
                   __func__,
                   hash.ToString(),
-                  message.getTimestamp(),
+                  message.GetTimestamp(),
                   now);
     }
 
@@ -176,7 +183,7 @@ bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
 
         // Save original serialized message so newer versions are preserved
         CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
-        const CInv inv{MSG_HEARTBEAT, message.retrieveHash()};
+        const CInv inv{MSG_HEARTBEAT, message.GetHash()};
 
         ss.reserve(1000);
         ss << message;
@@ -238,8 +245,8 @@ int CHeartBeatTracker::getMaxPeriod(int masternodeCount) const
 std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
     std::vector<CMasternode> rv{};
-    const auto period{std::make_pair(getMinPeriod(pmasternodesview->allNodes.size()),
-                                     getMaxPeriod(pmasternodesview->allNodes.size()))};
+    const auto period{std::make_pair(getMinPeriod(pmasternodesview->activeNodes.size()),
+                                     getMaxPeriod(pmasternodesview->activeNodes.size()))};
 
     for (const auto& mnPair : pmasternodesview->nodesByOperator) {
         //FIXME: skip my masternode
@@ -252,7 +259,7 @@ std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilte
         const auto& mn{pmasternodesview->allNodes[mnPair.second]};
         const auto it{keyMessageMap.find(mnPair.first)};
         const std::int64_t elapsed{GetTimeMicros() -
-                                   std::max(it != keyMessageMap.end() ? it->second->getTimestamp() : startupTime,
+                                   std::max(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime,
                                             chainActive[mn.activationHeight]->GetBlockTime())};
 
         if ((elapsed < period.first && ageFilter == recentlyFilter) ||
@@ -290,3 +297,4 @@ void CHeartBeatTracker::broadcastInventory(const CInv& inv) const
         }
     }
 }
+

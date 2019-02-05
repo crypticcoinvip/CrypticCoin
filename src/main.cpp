@@ -216,6 +216,13 @@ namespace {
 
     /** Dirty block file entries. */
     set<int> setDirtyFileInfo;
+
+    template<typename T>
+    void ProcessInventoryCommand(const T& data,
+                                 CNode* pfrom,
+                                 int msgType,
+                                 std::function<void(const T&)> relayFunc,
+                                 std::function<bool(const T&, CValidationState&)> validationFunc = [](const T&, CValidationState&){ return true; });
 } // anon namespace
 
 //////////////////////////////////////////////////////////////////////////////
@@ -4923,8 +4930,10 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         return mapBlockIndex.count(inv.hash);
     case MSG_HEARTBEAT:
         return CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash) != nullptr;
-    case MSG_PROGENITOR:
-        return dpos::getReceivedBlockProgenitor(inv.hash) != nullptr;
+    case MSG_PROGENITOR_BLOCK:
+        return dpos::getReceivedProgenitorBlock(inv.hash) != nullptr;
+    case MSG_PROGENITOR_VOTE:
+        return dpos::getReceivedProgenitorVote(inv.hash) != nullptr;
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -5015,7 +5024,10 @@ void static ProcessGetData(CNode* pfrom)
             const CDataStream* msg{&ss};
             ss.reserve(1000);
 
-            if (inv.type == MSG_HEARTBEAT || inv.type == MSG_PROGENITOR) {
+            if (inv.type == MSG_HEARTBEAT ||
+                inv.type == MSG_PROGENITOR_BLOCK ||
+                inv.type == MSG_PROGENITOR_VOTE)
+            {
                if (!pushed) {
                    LOCK(cs_mapRelay);
                    const auto mit{mapRelay.find(inv)};
@@ -5031,10 +5043,16 @@ void static ProcessGetData(CNode* pfrom)
                            ss << *message;
                            pushed = true;
                        }
-                   } else if (inv.type == MSG_PROGENITOR) {
-                       const CBlock* pblock{dpos::getReceivedBlockProgenitor(inv.hash)};
+                   } else if (inv.type == MSG_PROGENITOR_BLOCK) {
+                       const CBlock* pblock{dpos::getReceivedProgenitorBlock(inv.hash)};
                        if (pblock != nullptr) {
                            ss << *pblock;
+                           pushed = true;
+                       }
+                   } else if (inv.type == MSG_PROGENITOR_VOTE) {
+                       const dpos::ProgenitorVote* vote{dpos::getReceivedProgenitorVote(inv.hash)};
+                       if (vote != nullptr) {
+                           ss << *vote;
                            pushed = true;
                        }
                    }
@@ -5987,87 +6005,35 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         }
     }
 
-    else if (strCommand == "heartbeat") {
-        int nDoS{};
-        CValidationState state{};
-        CHeartBeatMessage message{vRecv};
-        CInv inv{MSG_HEARTBEAT, message.retrieveHash()};
-
-        LOCK(cs_main);
-
-        pfrom->AddInventoryKnown(inv);
-        pfrom->setAskFor.erase(inv.hash);
-        mapAlreadyAskedFor.erase(inv);
-
-        if (!AlreadyHave(inv)) {
+    else if (strCommand == CInv{MSG_HEARTBEAT, uint256{}}.GetCommand()) {
+        CHeartBeatMessage message{};
+        vRecv >> message;
+        ProcessInventoryCommand<CHeartBeatMessage>(message, pfrom, MSG_HEARTBEAT, [](const CHeartBeatMessage& message) {
             CHeartBeatTracker::getInstance().relayMessage(message);
-        } else if (pfrom->fWhitelisted) {
-            if (!state.IsInvalid(nDoS) || nDoS == 0) {
-                LogPrintf("Force relaying heartbeat %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
-                CHeartBeatTracker::getInstance().relayMessage(message);
-            } else {
-                LogPrintf("Not relaying invalid heartbeat %s from whitelisted peer=%d (%s (code %d))\n",
-                    inv.hash.ToString(), pfrom->id, state.GetRejectReason(), state.GetRejectCode());
-            }
-        }
-        nDoS = 0;
-        if (state.IsInvalid(nDoS))
-        {
-            LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n",
-                     inv.hash.ToString(), pfrom->id, pfrom->cleanSubVer, state.GetRejectReason());
-            pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
-                               state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
-            if (nDoS > 0) {
-                Misbehaving(pfrom->GetId(), nDoS);
-            }
-        }
-    }
-
-    else if (strCommand == "progenitor" && !fImporting && !fReindex && dpos::checkActiveMode())
-    {
-        CBlock block;
+        });
+    } else if (strCommand == CInv{MSG_PROGENITOR_VOTE, uint256{}}.GetCommand()) {
+        dpos::ProgenitorVote vote{};
+        vRecv >> vote;
+        ProcessInventoryCommand<dpos::ProgenitorVote>(vote, pfrom, MSG_PROGENITOR_VOTE, dpos::relayProgenitorVote);
+    } else if (strCommand == CInv{MSG_PROGENITOR_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex && dpos::checkIsActive()) {
+        CBlock block{};
         vRecv >> block;
+        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_PROGENITOR_BLOCK, dpos::relayProgenitorBlock, [](const CBlock& block, CValidationState& state) {
+            bool mutated{};
 
-        const CInv inv{MSG_PROGENITOR, block.GetHash()};
-        LogPrint("net", "received progenitor %s peer=%d\n", inv.hash.ToString(), pfrom->id);
+            if (block.hashMerkleRoot_PoW != block.BuildMerkleTree(&mutated))
+                return state.DoS(100, error("CheckBlock(): hashMerkleRoot mismatch"),
+                                 REJECT_INVALID, "bad-pro-mrklroot", true);
+            if (mutated)
+                return state.DoS(100, error("CheckBlock(): duplicate transaction"),
+                                 REJECT_INVALID, "bad-pro-duplicate", true);
 
-        pfrom->AddInventoryKnown(inv);
-
-        int nDoS{};
-        bool mutated{};
-        CValidationState state{};
-        libzcash::ProofVerifier verifier{libzcash::ProofVerifier::Disabled()};
-
-        if (block.hashMerkleRoot_PoW != block.BuildMerkleTree(&mutated))
-            return state.DoS(100, error("CheckBlock(): hashMerkleRoot mismatch"),
-                             REJECT_INVALID, "bad-pro-mrklroot", true);
-        if (mutated)
-            return state.DoS(100, error("CheckBlock(): duplicate transaction"),
-                             REJECT_INVALID, "bad-pro-duplicate", true);
-        if (!CheckBlock(block, state, verifier, true, false)) {
-            return error("%s: CheckBlock FAILED", __func__);
-        }
-
-        if (!AlreadyHave(inv)) {
-            dpos::relayBlockProgenitor(block);
-        } else if (pfrom->fWhitelisted) {
-            if (!state.IsInvalid(nDoS) || nDoS == 0) {
-                LogPrintf("Force relaying progenitor %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
-                dpos::relayBlockProgenitor(block);
-            } else {
-                LogPrintf("Not relaying invalid progenitor %s from whitelisted peer=%d (%s (code %d))\n",
-                    inv.hash.ToString(), pfrom->id, state.GetRejectReason(), state.GetRejectCode());
+            libzcash::ProofVerifier verifier{libzcash::ProofVerifier::Disabled()};
+            if (!CheckBlock(block, state, verifier, true, false)) {
+                return error("%s: CheckBlock FAILED", __func__);
             }
-        }
-        nDoS = 0;
-        if (state.IsInvalid(nDoS)) {
-            pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
-                               state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
-            if (nDoS > 0) {
-                LOCK(cs_main);
-                Misbehaving(pfrom->GetId(), nDoS);
-            }
-        }
+            return true;
+        });
     }
 
     else if (strCommand == "notfound") {
@@ -6679,4 +6645,62 @@ bool CheckFinalizeDismissVotingTx(CTransaction const & tx, int height, std::vect
 {
     uint256 against(metadata);
     return pmasternodesview->OnFinalizeDismissVoting(tx.GetHash(), against, height);
+}
+
+namespace
+{
+template<typename T>
+void ProcessInventoryCommand(const T& data,
+                             CNode* pfrom,
+                             int msgType,
+                             std::function<void(const T&)> relayFunc,
+                             std::function<bool(const T&, CValidationState&)> validationFunc)
+{
+    const CInv inv{msgType, data.GetHash()};
+    LogPrint("net", "received %d command %s peer=%d\n", msgType, inv.hash.ToString(), pfrom->id);
+
+    assert(pfrom != nullptr);
+    LOCK(cs_main);
+
+    pfrom->AddInventoryKnown(inv);
+    pfrom->setAskFor.erase(inv.hash);
+    mapAlreadyAskedFor.erase(inv);
+
+    int nDoS{};
+    CValidationState state{};
+    if (validationFunc(data, state)) {
+        assert(relayFunc != nullptr);
+
+        if (!AlreadyHave(inv)) {
+            relayFunc(data);
+        } else if (pfrom->fWhitelisted) {
+            if (!state.IsInvalid(nDoS) || nDoS == 0) {
+                LogPrintf("Force relaying heartbeat %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
+                relayFunc(data);
+            } else {
+                LogPrintf("Not relaying invalid heartbeat %s from whitelisted peer=%d (%s (code %d))\n",
+                          inv.hash.ToString(),
+                          pfrom->id,
+                          state.GetRejectReason(),
+                          state.GetRejectCode());
+            }
+        }
+        nDoS = 0;
+        if (state.IsInvalid(nDoS)) {
+            LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n",
+                     inv.hash.ToString(),
+                     pfrom->id,
+                     pfrom->cleanSubVer,
+                     state.GetRejectReason());
+            pfrom->PushMessage("reject",
+                               std::string{inv.GetCommand()},
+                               state.GetRejectCode(),
+                               state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH),
+                               inv.hash);
+            if (nDoS > 0) {
+                Misbehaving(pfrom->GetId(), nDoS);
+            }
+        }
+    }
+}
 }

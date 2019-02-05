@@ -162,6 +162,7 @@ BITCOIN_CORE_H = \
   masternodes/dpos.h \
   masternodes/heartbeat.h \
   masternodes/masternodes.h \
+  masternodes/util.h \
   memusage.h \
   merkleblock.h \
   metrics.h \
@@ -382,6 +383,7 @@ libbitcoin_common_a_SOURCES = \
   masternodes/dpos.cpp \
   masternodes/heartbeat.cpp \
   masternodes/masternodes.cpp \
+  masternodes/util.cpp \
   netbase.cpp \
   primitives/block.cpp \
   primitives/transaction.cpp \
