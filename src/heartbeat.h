@@ -63,7 +63,6 @@ public:
     bool relayMessage(const CHeartBeatMessage& message);
 
     std::vector<CHeartBeatMessage> getReceivedMessages() const;
-    bool checkMessageWasReceived(const uint256& hash) const;
     const CHeartBeatMessage* getReceivedMessage(const uint256& hash) const;
 
     int getMinPeriod(int masternodeCount) const;

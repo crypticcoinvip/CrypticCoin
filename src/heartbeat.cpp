@@ -193,6 +193,8 @@ bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
 
 std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
 {
+    LockGuard lock{mutex};
+    libsnark::UNUSED(lock);
     std::vector<CHeartBeatMessage> rv{};
 
     assert(messageList.size() == keyMessageMap.size());
@@ -204,13 +206,11 @@ std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
     return rv;
 }
 
-bool CHeartBeatTracker::checkMessageWasReceived(const uint256& hash) const
-{
-    return getReceivedMessage(hash) != nullptr;
-}
-
 const CHeartBeatMessage* CHeartBeatTracker::getReceivedMessage(const uint256& hash) const
 {
+    LockGuard lock{mutex};
+    libsnark::UNUSED(lock);
+
     assert(messageList.size() == keyMessageMap.size());
     assert(keyMessageMap.size() == hashMessageMap.size());
 

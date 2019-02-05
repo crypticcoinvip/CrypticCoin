@@ -173,6 +173,7 @@ BITCOIN_CORE_H = \
   paymentdisclosuredb.h \
   policy/fees.h \
   pow.h \
+  dpos/dpos.h \
   prevector.h \
   primitives/block.h \
   primitives/transaction.h \
@@ -266,6 +267,7 @@ libbitcoin_server_a_SOURCES = \
   paymentdisclosuredb.cpp \
   policy/fees.cpp \
   pow.cpp \
+  dpos/dpos.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/mining.cpp \

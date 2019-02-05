@@ -18,7 +18,8 @@ static const char* ppszTypeName[] =
     "tx",
     "block",
     "filtered block",
-    "heartbeat"
+    "heartbeat",
+    "progenitor"
 };
 
 CMessageHeader::CMessageHeader(const MessageStartChars& pchMessageStartIn)

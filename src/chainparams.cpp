@@ -481,6 +481,11 @@ std::string CChainParams::GetFoundersRewardAddressAtIndex(int i) const {
     return vFoundersRewardAddress[i];
 }
 
+std::uint32_t CChainParams::GetMinimalMasternodeCount() const
+{
+    return this == &regTestParams ? GetArg("-minimal-masternode-count", 2) : 100;
+}
+
 void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight)
 {
     regTestParams.UpdateNetworkUpgradeParameters(idx, nActivationHeight);

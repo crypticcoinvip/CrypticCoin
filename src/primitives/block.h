@@ -21,16 +21,19 @@ class CBlockHeader
 {
 public:
     // header
-    static const size_t HEADER_SIZE=4+32+32+32+4+4+32; // excluding Equihash solution
+    static const size_t HEADER_SIZE=4+32+32+32+32+4+4+4+32; // excluding Equihash solution
     static const int32_t CURRENT_VERSION=4;
     int32_t nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
+    uint256 hashMerkleRoot_PoW;
     uint256 hashFinalSaplingRoot;
+    uint32_t vtxSize_dPoS;
     uint32_t nTime;
     uint32_t nBits;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
+    std::vector<unsigned char> vSig;
 
     CBlockHeader()
     {
@@ -43,8 +46,12 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(this->nVersion);
         READWRITE(hashPrevBlock);
-        READWRITE(hashMerkleRoot);
+        READWRITE(hashMerkleRoot_PoW);
+        if (!IsProgenitor()) {
+            READWRITE(hashMerkleRoot);
+        }
         READWRITE(hashFinalSaplingRoot);
+        READWRITE(vtxSize_dPoS);
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
@@ -56,17 +63,22 @@ public:
         nVersion = CBlockHeader::CURRENT_VERSION;
         hashPrevBlock.SetNull();
         hashMerkleRoot.SetNull();
+        hashMerkleRoot_PoW.SetNull();
         hashFinalSaplingRoot.SetNull();
+        vtxSize_dPoS = 0;
         nTime = 0;
         nBits = 0;
-        nNonce = uint256();
+        nNonce.SetNull();
         nSolution.clear();
+        vSig.clear();
     }
 
     bool IsNull() const
     {
         return (nBits == 0);
     }
+
+    bool IsProgenitor() const;
 
     uint256 GetHash() const;
 
@@ -118,11 +130,14 @@ public:
         block.nVersion       = nVersion;
         block.hashPrevBlock  = hashPrevBlock;
         block.hashMerkleRoot = hashMerkleRoot;
-        block.hashFinalSaplingRoot   = hashFinalSaplingRoot;
+        block.hashMerkleRoot_PoW = hashMerkleRoot_PoW;
+        block.hashFinalSaplingRoot = hashFinalSaplingRoot;
+        block.vtxSize_dPoS   = vtxSize_dPoS;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
+        block.vSig           = vSig;
         return block;
     }
 
@@ -157,7 +172,10 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(this->nVersion);
         READWRITE(hashPrevBlock);
-        READWRITE(hashMerkleRoot);
+        READWRITE(hashMerkleRoot_PoW);
+        if (!IsProgenitor()) {
+            READWRITE(hashMerkleRoot);
+        }
         READWRITE(hashFinalSaplingRoot);
         READWRITE(nTime);
         READWRITE(nBits);

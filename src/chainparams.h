@@ -101,6 +101,8 @@ public:
     std::string GetFoundersRewardAddressAtIndex(int i) const;
     /** Enforce coinbase consensus rule in regtest mode */
     void SetRegTestCoinbaseMustBeProtected() { consensus.fCoinbaseMustBeProtected = true; }
+    std::uint32_t GetMinimalMasternodeCount() const;
+
 protected:
     CChainParams() {}
 

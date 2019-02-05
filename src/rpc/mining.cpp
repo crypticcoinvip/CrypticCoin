@@ -8,6 +8,9 @@
 #include "consensus/consensus.h"
 #include "consensus/validation.h"
 #include "core_io.h"
+#ifndef ENABLE_MINING
+#define ENABLE_MINING
+#endif
 #ifdef ENABLE_MINING
 #include "crypto/equihash.h"
 #include "pow/tromp/trompsolver.h"
@@ -22,6 +25,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "validationinterface.h"
+#include "dpos/dpos.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif
@@ -270,9 +274,11 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
-        CValidationState state;
-        if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
+        if (!dpos::checkActiveMode()) {
+            CValidationState state;
+            if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
+                throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
+        }
         ++nHeight;
         blockHashes.push_back(pblock->GetHash().GetHex());
     }

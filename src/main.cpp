@@ -31,6 +31,7 @@
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
 #include "heartbeat.h"
+#include "dpos/dpos.h"
 
 #include <algorithm>
 #include <atomic>
@@ -4921,7 +4922,9 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_HEARTBEAT:
-        return CHeartBeatTracker::getInstance().checkMessageWasReceived(inv.hash);
+        return CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash) != nullptr;
+    case MSG_PROGENITOR:
+        return dpos::getReceivedBlockProgenitor(inv.hash) != nullptr;
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -4943,143 +4946,139 @@ void static ProcessGetData(CNode* pfrom)
             break;
 
         const CInv &inv = *it;
-        {
-            boost::this_thread::interruption_point();
-            it++;
+        boost::this_thread::interruption_point();
+        it++;
 
-            if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK)
-            {
-                bool send = false;
-                BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
-                if (mi != mapBlockIndex.end())
-                {
-                    if (chainActive.Contains(mi->second)) {
-                        send = true;
-                    } else {
-                        static const int nOneMonth = 30 * 24 * 60 * 60;
-                        // To prevent fingerprinting attacks, only send blocks outside of the active
-                        // chain if they are valid, and no more than a month older (both in time, and in
-                        // best equivalent proof of work) than the best header chain we know about.
-                        send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
-                            (pindexBestHeader->GetBlockTime() - mi->second->GetBlockTime() < nOneMonth) &&
-                            (GetBlockProofEquivalentTime(*pindexBestHeader, *mi->second, *pindexBestHeader, Params().GetConsensus()) < nOneMonth);
-                        if (!send) {
-                            LogPrintf("%s: ignoring request from peer=%i for old block that isn't in the main chain\n", __func__, pfrom->GetId());
-                        }
-                    }
-                }
-                // Pruned nodes may have deleted the block, so check whether
-                // it's available before trying to send.
-                if (send && (mi->second->nStatus & BLOCK_HAVE_DATA))
-                {
-                    // Send block from disk
-                    CBlock block;
-                    if (!ReadBlockFromDisk(block, (*mi).second))
-                        assert(!"cannot load block from disk");
-                    if (inv.type == MSG_BLOCK)
-                        pfrom->PushMessage("block", block);
-                    else // MSG_FILTERED_BLOCK)
-                    {
-                        LOCK(pfrom->cs_filter);
-                        if (pfrom->pfilter)
-                        {
-                            CMerkleBlock merkleBlock(block, *pfrom->pfilter);
-                            pfrom->PushMessage("merkleblock", merkleBlock);
-                            // CMerkleBlock just contains hashes, so also push any transactions in the block the client did not see
-                            // This avoids hurting performance by pointlessly requiring a round-trip
-                            // Note that there is currently no way for a node to request any single transactions we didn't send here -
-                            // they must either disconnect and retry or request the full block.
-                            // Thus, the protocol spec specified allows for us to provide duplicate txn here,
-                            // however we MUST always provide at least what the remote peer needs
-                            typedef std::pair<unsigned int, uint256> PairType;
-                            BOOST_FOREACH(PairType& pair, merkleBlock.vMatchedTxn)
-                                if (!pfrom->setInventoryKnown.count(CInv(MSG_TX, pair.second)))
-                                    pfrom->PushMessage("tx", block.vtx[pair.first]);
-                        }
-                        // else
-                            // no response
-                    }
-
-                    // Trigger the peer node to send a getblocks request for the next batch of inventory
-                    if (inv.hash == pfrom->hashContinue)
-                    {
-                        // Bypass PushInventory, this must send even if redundant,
-                        // and we want it right after the last block so they don't
-                        // wait for other stuff first.
-                        vector<CInv> vInv;
-                        vInv.push_back(CInv(MSG_BLOCK, chainActive.Tip()->GetBlockHash()));
-                        pfrom->PushMessage("inv", vInv);
-                        pfrom->hashContinue.SetNull();
+        if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK) {
+            bool send = false;
+            BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
+            if (mi != mapBlockIndex.end()) {
+                if (chainActive.Contains(mi->second)) {
+                    send = true;
+                } else {
+                    static const int nOneMonth = 30 * 24 * 60 * 60;
+                    // To prevent fingerprinting attacks, only send blocks outside of the active
+                    // chain if they are valid, and no more than a month older (both in time, and in
+                    // best equivalent proof of work) than the best header chain we know about.
+                    send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
+                        (pindexBestHeader->GetBlockTime() - mi->second->GetBlockTime() < nOneMonth) &&
+                        (GetBlockProofEquivalentTime(*pindexBestHeader, *mi->second, *pindexBestHeader, Params().GetConsensus()) < nOneMonth);
+                    if (!send) {
+                        LogPrintf("%s: ignoring request from peer=%i for old block that isn't in the main chain\n", __func__, pfrom->GetId());
                     }
                 }
             }
-            else if (inv.type == MSG_HEARTBEAT)
-            {
-               bool pushed = false;
-               {
+            // Pruned nodes may have deleted the block, so check whether
+            // it's available before trying to send.
+            if (send && (mi->second->nStatus & BLOCK_HAVE_DATA)) {
+                // Send block from disk
+                CBlock block{};
+                if (!ReadBlockFromDisk(block, (*mi).second)) {
+                    assert(!"cannot load block from disk");
+                }
+                if (inv.type == MSG_BLOCK) {
+                    pfrom->PushMessage("block", block);
+                } else { // MSG_FILTERED_BLOCK)
+                    LOCK(pfrom->cs_filter);
+                    if (pfrom->pfilter) {
+                        CMerkleBlock merkleBlock(block, *pfrom->pfilter);
+                        pfrom->PushMessage("merkleblock", merkleBlock);
+                        // CMerkleBlock just contains hashes, so also push any transactions in the block the client did not see
+                        // This avoids hurting performance by pointlessly requiring a round-trip
+                        // Note that there is currently no way for a node to request any single transactions we didn't send here -
+                        // they must either disconnect and retry or request the full block.
+                        // Thus, the protocol spec specified allows for us to provide duplicate txn here,
+                        // however we MUST always provide at least what the remote peer needs
+                        typedef std::pair<unsigned int, uint256> PairType;
+                        BOOST_FOREACH(PairType& pair, merkleBlock.vMatchedTxn)
+                            if (!pfrom->setInventoryKnown.count(CInv(MSG_TX, pair.second)))
+                                pfrom->PushMessage("tx", block.vtx[pair.first]);
+                    }
+                    // else
+                    // no response
+                }
+
+                // Trigger the peer node to send a getblocks request for the next batch of inventory
+                if (inv.hash == pfrom->hashContinue) {
+                    // Bypass PushInventory, this must send even if redundant,
+                    // and we want it right after the last block so they don't
+                    // wait for other stuff first.
+                    vector<CInv> vInv;
+                    vInv.push_back(CInv(MSG_BLOCK, chainActive.Tip()->GetBlockHash()));
+                    pfrom->PushMessage("inv", vInv);
+                    pfrom->hashContinue.SetNull();
+                }
+            }
+        } else if (inv.IsKnownType()) {
+            bool pushed{false};
+            CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
+            const CDataStream* msg{&ss};
+            ss.reserve(1000);
+
+            if (inv.type == MSG_HEARTBEAT || inv.type == MSG_PROGENITOR) {
+               if (!pushed) {
                    LOCK(cs_mapRelay);
-                   const auto mit = mapRelay.find(inv);
+                   const auto mit{mapRelay.find(inv)};
                    if (mit != mapRelay.end()) {
-                       pfrom->PushMessage(inv.GetCommand(), mit->second);
+                       msg = &mit->second;
                        pushed = true;
                    }
                }
-               if (!pushed && CHeartBeatTracker::getInstance().checkMessageWasReceived(inv.hash)) {
-                   assert(CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash) != nullptr);
-                   CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                   ss << *CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash);
-                   pfrom->PushMessage("heartbeat", ss);
-                   pushed = true;
-               }
                if (!pushed) {
-                   vNotFound.push_back(inv);
+                   if (inv.type == MSG_HEARTBEAT) {
+                       const CHeartBeatMessage* message{CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash)};
+                       if (message != nullptr) {
+                           ss << *message;
+                           pushed = true;
+                       }
+                   } else if (inv.type == MSG_PROGENITOR) {
+                       const CBlock* pblock{dpos::getReceivedBlockProgenitor(inv.hash)};
+                       if (pblock != nullptr) {
+                           ss << *pblock;
+                           pushed = true;
+                       }
+                   }
                }
-            }
-            else if (inv.IsKnownType())
-            {
+            } else {
                 // Check the mempool to see if a transaction is expiring soon.  If so, do not send to peer.
                 // Note that a transaction enters the mempool first, before the serialized form is cached
                 // in mapRelay after a successful relay.
-                bool isExpiringSoon = false;
-                bool pushed = false;
-                CTransaction tx;
-                bool isInMempool = mempool.lookup(inv.hash, tx);
+                CTransaction tx{};
+                bool isExpiringSoon{false};
+                const bool isInMempool{mempool.lookup(inv.hash, tx)};
+
                 if (isInMempool) {
                     isExpiringSoon = IsExpiringSoonTx(tx, currentHeight + 1);
                 }
 
                 if (!isExpiringSoon) {
                     // Send stream from relay memory
-                    {
+                    if (!pushed) {
                         LOCK(cs_mapRelay);
                         map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
                         if (mi != mapRelay.end()) {
-                            pfrom->PushMessage(inv.GetCommand(), (*mi).second);
+                            msg = &mi->second;
                             pushed = true;
                         }
                     }
-                    if (!pushed && inv.type == MSG_TX) {
-                        if (isInMempool) {
-                            CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                            ss.reserve(1000);
-                            ss << tx;
-                            pfrom->PushMessage("tx", ss);
-                            pushed = true;
-                        }
+                    if (!pushed && inv.type == MSG_TX && isInMempool) {
+                        ss << tx;
+                        pushed = true;
                     }
-                }
-
-                if (!pushed) {
-                    vNotFound.push_back(inv);
                 }
             }
-
-            // Track requests for our stuff.
-            GetMainSignals().Inventory(inv.hash);
-
-            if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK)
-                break;
+            if (pushed) {
+                pfrom->PushMessage(inv.GetCommand(), *msg);
+            } else {
+                vNotFound.push_back(inv);
+            }
         }
+
+        // Track requests for our stuff.
+        GetMainSignals().Inventory(inv.hash);
+
+        if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK)
+            break;
     }
 
     pfrom->vRecvGetData.erase(pfrom->vRecvGetData.begin(), it);
@@ -6019,6 +6018,53 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
                                state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
             if (nDoS > 0) {
+                Misbehaving(pfrom->GetId(), nDoS);
+            }
+        }
+    }
+
+    else if (strCommand == "progenitor" && !fImporting && !fReindex && dpos::checkActiveMode())
+    {
+        CBlock block;
+        vRecv >> block;
+
+        const CInv inv{MSG_PROGENITOR, block.GetHash()};
+        LogPrint("net", "received progenitor %s peer=%d\n", inv.hash.ToString(), pfrom->id);
+
+        pfrom->AddInventoryKnown(inv);
+
+        int nDoS{};
+        bool mutated{};
+        CValidationState state{};
+        libzcash::ProofVerifier verifier{libzcash::ProofVerifier::Disabled()};
+
+        if (block.hashMerkleRoot_PoW != block.BuildMerkleTree(&mutated))
+            return state.DoS(100, error("CheckBlock(): hashMerkleRoot mismatch"),
+                             REJECT_INVALID, "bad-pro-mrklroot", true);
+        if (mutated)
+            return state.DoS(100, error("CheckBlock(): duplicate transaction"),
+                             REJECT_INVALID, "bad-pro-duplicate", true);
+        if (!CheckBlock(block, state, verifier, true, false)) {
+            return error("%s: CheckBlock FAILED", __func__);
+        }
+
+        if (!AlreadyHave(inv)) {
+            dpos::relayBlockProgenitor(block);
+        } else if (pfrom->fWhitelisted) {
+            if (!state.IsInvalid(nDoS) || nDoS == 0) {
+                LogPrintf("Force relaying progenitor %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
+                dpos::relayBlockProgenitor(block);
+            } else {
+                LogPrintf("Not relaying invalid progenitor %s from whitelisted peer=%d (%s (code %d))\n",
+                    inv.hash.ToString(), pfrom->id, state.GetRejectReason(), state.GetRejectCode());
+            }
+        }
+        nDoS = 0;
+        if (state.IsInvalid(nDoS)) {
+            pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
+                               state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
+            if (nDoS > 0) {
+                LOCK(cs_main);
                 Misbehaving(pfrom->GetId(), nDoS);
             }
         }
