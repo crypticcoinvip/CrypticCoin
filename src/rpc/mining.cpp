@@ -25,7 +25,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "validationinterface.h"
-#include "dpos/dpos.h"
+#include "masternodes/dpos.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif

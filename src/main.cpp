@@ -30,8 +30,8 @@
 #include "validationinterface.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
-#include "heartbeat.h"
-#include "dpos/dpos.h"
+#include "masternodes/heartbeat.h"
+#include "masternodes/dpos.h"
 
 #include <algorithm>
 #include <atomic>

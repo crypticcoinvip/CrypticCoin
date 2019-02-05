@@ -30,7 +30,7 @@
 #endif
 
 #include "sodium.h"
-#include "dpos/dpos.h"
+#include "masternodes/dpos.h"
 
 #include <boost/thread.hpp>
 #include <boost/tuple/tuple.hpp>

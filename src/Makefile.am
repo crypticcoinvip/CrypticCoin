@@ -150,7 +150,6 @@ BITCOIN_CORE_H = \
   core_memusage.h \
   deprecation.h \
   hash.h \
-  heartbeat.h \
   httprpc.h \
   httpserver.h \
   init.h \
@@ -160,6 +159,8 @@ BITCOIN_CORE_H = \
   dbwrapper.h \
   limitedmap.h \
   main.h \
+  masternodes/dpos.h \
+  masternodes/heartbeat.h \
   masternodes/masternodes.h \
   memusage.h \
   merkleblock.h \
@@ -173,7 +174,6 @@ BITCOIN_CORE_H = \
   paymentdisclosuredb.h \
   policy/fees.h \
   pow.h \
-  dpos/dpos.h \
   prevector.h \
   primitives/block.h \
   primitives/transaction.h \
@@ -252,7 +252,6 @@ libbitcoin_server_a_SOURCES = \
   chain.cpp \
   checkpoints.cpp \
   deprecation.cpp \
-  heartbeat.cpp \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
@@ -267,7 +266,6 @@ libbitcoin_server_a_SOURCES = \
   paymentdisclosuredb.cpp \
   policy/fees.cpp \
   pow.cpp \
-  dpos/dpos.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/mining.cpp \
@@ -381,6 +379,8 @@ libbitcoin_common_a_SOURCES = \
   key.cpp \
   key_io.cpp \
   keystore.cpp \
+  masternodes/dpos.cpp \
+  masternodes/heartbeat.cpp \
   masternodes/masternodes.cpp \
   netbase.cpp \
   primitives/block.cpp \

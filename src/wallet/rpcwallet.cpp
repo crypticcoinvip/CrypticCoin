@@ -22,13 +22,13 @@
 #include "zcbenchmarks.h"
 #include "script/interpreter.h"
 #include "crypticcoin/zip32.h"
-#include "heartbeat.h"
 #include "utiltime.h"
 #include "asyncrpcoperation.h"
 #include "asyncrpcqueue.h"
 #include "wallet/asyncrpcoperation_mergetoaddress.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
+#include "masternodes/heartbeat.h"
 
 #include "sodium.h"
 
