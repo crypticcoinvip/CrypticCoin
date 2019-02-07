@@ -17,7 +17,7 @@ namespace dpos
         using Signature = std::vector<unsigned char>;
 
     public:
-        uint256 headerBlockHash;
+        uint256 dposBlockHash;
         uint16_t roundNumber;
         Signature headerSignature;
         uint256 tipBlockHash;
@@ -31,7 +31,7 @@ namespace dpos
         template <typename Stream, typename Operation>
         inline void SerializationOp(Stream& s, Operation ser_action)
         {
-            READWRITE(headerBlockHash);
+            READWRITE(dposBlockHash);
             READWRITE(roundNumber);
             READWRITE(headerSignature);
             READWRITE(tipBlockHash);
@@ -49,13 +49,15 @@ namespace dpos
 
     void postProgenitorBlock(const CBlock& pblock);
     void relayProgenitorBlock(const CBlock& pblock);
-    void recieveProgenitorBlock(const CBlock& pblock);
+    bool recieveProgenitorBlock(const CBlock& pblock);
     const CBlock* getReceivedProgenitorBlock(const uint256& hash);
+    std::vector<CBlock> listReceivedProgenitorBlocks();
 
     void postProgenitorVote(const ProgenitorVote& vote);
     void relayProgenitorVote(const ProgenitorVote& vote);
-    void recieveProgenitorVote(const ProgenitorVote& vote);
+    bool recieveProgenitorVote(const ProgenitorVote& vote);
     const ProgenitorVote* getReceivedProgenitorVote(const uint256& hash);
+    std::vector<ProgenitorVote> listReceivedProgenitorVotes();
 } // namespace dpos
 
 #endif // BITCOIN_MASTERNODES_DPOS_H

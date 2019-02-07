@@ -534,7 +534,7 @@ libzcash_a_SOURCES = \
   crypticcoin/prf.cpp \
   crypticcoin/util.cpp \
   crypticcoin/zip32.cpp \
-  crypticcoin/circuit/commitment.tcc \
+  crypticcoin/circuit/rm.tcc \
   crypticcoin/circuit/gadget.tcc \
   crypticcoin/circuit/merkle.tcc \
   crypticcoin/circuit/note.tcc \

@@ -6027,7 +6027,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             if (mutated)
                 return state.DoS(100, error("CheckBlock(): duplicate transaction"),
                                  REJECT_INVALID, "bad-pro-duplicate", true);
-
+//            LogPrintf()
             libzcash::ProofVerifier verifier{libzcash::ProofVerifier::Disabled()};
             if (!CheckBlock(block, state, verifier, true, false)) {
                 return error("%s: CheckBlock FAILED", __func__);

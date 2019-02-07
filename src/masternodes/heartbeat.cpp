@@ -75,9 +75,18 @@ void CHeartBeatTracker::runTickerLoop()
 {
     CKey operKey{};
     CHeartBeatTracker tracker{};
-    std::int64_t delay{tracker.getMinPeriod(pmasternodesview->activeNodes.size()) * 2};
+    std::int64_t delay{tracker.getMinPeriod() * 2};
+
+//    mns::mockMasternodesDB({
+//                               std::string{"tmXWM1dEwR8ANoc8iwwQ4pKzHvApXb65LsG"},
+//                               std::string{"tmXbhS7QTA98nQhd3NMf7xe7ETLXiU4Dp41"},
+//                               std::string{"tmYDASd8j9bBLEVmiaU8tArTYmSVA9DJjXW"}
+//                           }, 3);
 
     tracker.startupTime = GetTimeMillis();
+    if (pmasternodesview->allNodes.empty()) {
+        pmasternodesview->Load();
+    }
 
     while (true) {
         boost::this_thread::interruption_point();
@@ -119,7 +128,7 @@ CHeartBeatMessage CHeartBeatTracker::postMessage(const CKey& signKey, int64_t ti
     if (!rv.SignWithKey(signKey)) {
         LogPrintf("%s: Can't sign heartbeat message", __func__);
     } else if (recieveMessage(rv)) {
-        broadcastInventory(CInv{MSG_HEARTBEAT, rv.GetHash()});
+        BroadcastInventory(CInv{MSG_HEARTBEAT, rv.GetHash()});
     }
 
     return std::move(rv);
@@ -148,7 +157,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
                 keyMessageMap.emplace(operId, messageList.cbegin());
                 hashMessageMap.emplace(hash, messageList.cbegin());
                 rv = true;
-            } else if (message.GetTimestamp() - it->second->GetTimestamp() >= getMinPeriod(pmasternodesview->activeNodes.size())) {
+            } else if (message.GetTimestamp() - it->second->GetTimestamp() >= getMinPeriod()) {
                 hashMessageMap.erase(it->second->GetHash());
                 messageList.erase(it->second);
                 messageList.emplace_front(message);
@@ -191,7 +200,7 @@ bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
         mapRelay.insert(std::make_pair(inv, ss));
         vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
 
-        broadcastInventory(inv);
+        BroadcastInventory(inv);
         return true;
     }
     return false;
@@ -232,21 +241,20 @@ const CHeartBeatMessage* CHeartBeatTracker::getReceivedMessage(const uint256& ha
 //    return nullptr;
 }
 
-int CHeartBeatTracker::getMinPeriod(int masternodeCount) const
+int CHeartBeatTracker::getMinPeriod() const
 {
-    return std::max(masternodeCount, 30) * 1000;
+    return std::max(pmasternodesview->allNodes.size(), static_cast<std::size_t>(30)) * 1000;
 }
 
-int CHeartBeatTracker::getMaxPeriod(int masternodeCount) const
+int CHeartBeatTracker::getMaxPeriod() const
 {
-    return getMinPeriod(masternodeCount) * 20;
+    return getMinPeriod() * 20;
 }
 
 std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
     std::vector<CMasternode> rv{};
-    const auto period{std::make_pair(getMinPeriod(pmasternodesview->activeNodes.size()),
-                                     getMaxPeriod(pmasternodesview->activeNodes.size()))};
+    const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
 
     for (const auto& mnPair : pmasternodesview->nodesByOperator) {
         //FIXME: skip my masternode
@@ -254,7 +262,7 @@ std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilte
 //            continue;
 //        }
 
-        assert(pmasternodesview->allNodes.find(mnPair.second) != pmasternodesview->allNodes.end());
+        assert(pmasternodesview->HasMasternode(mnPair.second));
 
         const auto& mn{pmasternodesview->allNodes[mnPair.second]};
         const auto it{keyMessageMap.find(mnPair.first)};
@@ -284,17 +292,3 @@ CHeartBeatTracker::~CHeartBeatTracker()
     assert(instance != nullptr);
     instance = nullptr;
 }
-
-void CHeartBeatTracker::broadcastInventory(const CInv& inv) const
-{
-    LOCK(cs_vNodes);
-    for (auto&& node : vNodes) {
-        if (node != nullptr &&
-            !node->fDisconnect &&
-            node->nVersion >= PROTOCOL_VERSION)
-        {
-            node->PushInventory(inv);
-        }
-    }
-}
-

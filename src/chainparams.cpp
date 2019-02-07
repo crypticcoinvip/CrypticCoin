@@ -42,6 +42,8 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.vtx.push_back(txNew);
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = genesis.BuildMerkleTree();
+//    genesis.hashMerkleRoot_PoW = genesis.BuildMerkleTree();
+//    genesis.hashMerkleRoot = genesis.hashMerkleRoot_PoW;
     return genesis;
 }
 
@@ -483,7 +485,7 @@ std::string CChainParams::GetFoundersRewardAddressAtIndex(int i) const {
 
 std::uint32_t CChainParams::GetMinimalMasternodeCount() const
 {
-    return this == &regTestParams ? GetArg("-minimal-masternode-count", 2) : 100;
+    return this == &regTestParams ? GetArg("-minimal-masternode-count", 1) : 100;
 }
 
 void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight)

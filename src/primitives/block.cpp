@@ -17,7 +17,9 @@ uint256 CBlockHeader::GetHash() const
 
 bool CBlockHeader::IsProgenitor() const
 {
-    return vSig.empty();
+    return nVersion >= 5 &&
+           !hashMerkleRoot_PoW.IsNull() &&
+           hashMerkleRoot.IsNull();
 }
 
 uint256 CBlock::BuildMerkleTree(bool* fMutated) const

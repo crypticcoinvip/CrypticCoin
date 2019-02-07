@@ -259,6 +259,7 @@ UniValue generate(const UniValue& params, bool fHelp)
             };
 
             // TODO: factor this out into a function with the same API for each solver.
+            //FIXME: first call of solver always fail
             if (solver == "tromp") {
                 if (TrompSolve(curr_state, validBlock))
                 {
@@ -274,7 +275,11 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
-        if (!dpos::checkIsActive()) {
+        if (dpos::checkIsActive()) {
+            pblock->hashMerkleRoot_PoW = pblock->hashMerkleRoot;
+            pblock->hashMerkleRoot.SetNull();
+            dpos::postProgenitorBlock(*pblock);
+        } else {
             CValidationState state;
             if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
                 throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
@@ -930,6 +935,92 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp)
     return result;
 }
 
+
+UniValue listprogenitorblocks(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "listprogenitorblocks\n"
+            "\nReturns an array of json object containing progenitor block values."
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"version\": xxxx,                (numeric) version of the block\n"
+            "    \"hash\": \"xxxx\",               (string) hash of the block\n"
+            "    \"prevBlock\": \"xxxx\",          (string) hash of the previous block\n"
+            "    \"merkleRoot\": \"xxxx\",         (string) hash of the block merkle root\n"
+            "    \"saplingRoot\": \"xxxx\",        (string) hash of the block sapling root\n"
+            "    \"merkleRoot_PoW\": \"xxxx\",     (string) hash of the PoW block merkle root\n"
+            "    \"vtxSize_dPoS\": xxxx,           (numeric) number of the dPoS transactions in block\n"
+            "    \"time\": xxxx,                   (numeric) time of the block\n"
+            "    \"bits\": xxxx,                   (numeric) bits value of the block\n"
+            "    \"nonce\": \"xxxx\",              (string) nonce value of the block\n"
+            "  },\n"
+            "  ...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("listprogenitorblocks", "")
+            + HelpExampleRpc("listprogenitorblocks", "")
+        );
+    }
+
+    UniValue rv(UniValue::VARR);
+    for (const auto& block : dpos::listReceivedProgenitorBlocks()) {
+        UniValue jsonBlock{UniValue::VOBJ};
+        jsonBlock.push_back(Pair("version", block.nVersion));
+        jsonBlock.push_back(Pair("hash", block.GetHash().GetHex()));
+        jsonBlock.push_back(Pair("prevBlock", block.hashPrevBlock.GetHex()));
+        jsonBlock.push_back(Pair("merkleRoot", block.hashMerkleRoot.GetHex()));
+        jsonBlock.push_back(Pair("saplingRoot", block.hashFinalSaplingRoot.GetHex()));
+        jsonBlock.push_back(Pair("merkleRoot_PoW", block.hashMerkleRoot_PoW.GetHex()));
+        jsonBlock.push_back(Pair("vtxSize_dPoS", static_cast<int>(block.vtxSize_dPoS)));
+        jsonBlock.push_back(Pair("time", static_cast<int>(block.nTime)));
+        jsonBlock.push_back(Pair("bits", static_cast<int>(block.nBits)));
+        jsonBlock.push_back(Pair("nonce", block.nNonce.GetHex()));
+        rv.push_back(jsonBlock);
+    }
+
+    return rv;
+}
+
+
+UniValue listprogenitorvotes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "listprogenitorvotes\n"
+            "\nReturns an array of json object containing progenitor vote values."
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"hash\": \"xxxx\",               (string) hash of the vote\n"
+            "    \"dposBlock\": \"xxxx\",        (string) hash of the dPoS block\n"
+            "    \"tipBlock\": \"xxxx\",           (string) hash of the tip block\n"
+            "    \"progenitorBlock\": \"xxxx\",    (string) hash of the progenitor block\n"
+            "    \"roundNumber\": xxxx,            (numeric) round number of the voting\n"
+            "  },\n"
+            "  ...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("listprogenitorvotes", "")
+            + HelpExampleRpc("listprogenitorvotes", "")
+        );
+    }
+
+    UniValue rv(UniValue::VARR);
+    for (const auto& vote : dpos::listReceivedProgenitorVotes()) {
+        UniValue jsonVote{UniValue::VOBJ};
+        jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
+        jsonVote.push_back(Pair("dposBlock", vote.dposBlockHash.GetHex()));
+        jsonVote.push_back(Pair("tipBlock", vote.tipBlockHash.GetHex()));
+        jsonVote.push_back(Pair("progenitorBlock", vote.progenitorBlockHash.GetHex()));
+        jsonVote.push_back(Pair("roundNumber", vote.roundNumber));
+        rv.push_back(jsonVote);
+    }
+
+    return rv;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -941,6 +1032,9 @@ static const CRPCCommand commands[] =
     { "mining",             "getblocktemplate",       &getblocktemplate,       true  },
     { "mining",             "submitblock",            &submitblock,            true  },
     { "mining",             "getblocksubsidy",        &getblocksubsidy,        true  },
+    { "mining",             "listprogenitorblocks",   &listprogenitorblocks,   true  },
+    { "mining",             "listprogenitorvotes",    &listprogenitorvotes,    true  },
+
 
 #ifdef ENABLE_MINING
     { "generating",         "getgenerate",            &getgenerate,            true  },
@@ -957,3 +1051,4 @@ void RegisterMiningRPCCommands(CRPCTable &tableRPC)
     for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
         tableRPC.appendCommand(commands[vcidx].name, &commands[vcidx]);
 }
+

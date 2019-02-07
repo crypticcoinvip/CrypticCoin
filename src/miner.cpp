@@ -704,6 +704,7 @@ void static BitcoinMiner()
                     break;
 
                 // Update nNonce and nTime
+                //FIXME: first call of solver always fail
                 pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
                 UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);
                 if (chainparams.GetConsensus().nPowAllowMinDifficultyBlocksAfterHeight != boost::none)

@@ -100,7 +100,6 @@ void CMasternodesView::Load()
     });
 }
 
-
 /*
  * Private. Deactivates vote, decrement counters, save state
  * Nothing checks cause private.

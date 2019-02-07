@@ -65,17 +65,14 @@ public:
     std::vector<CHeartBeatMessage> getReceivedMessages() const;
     const CHeartBeatMessage* getReceivedMessage(const uint256& hash) const;
 
-    int getMinPeriod(int masternodeCount) const;
-    int getMaxPeriod(int masternodeCount) const;
+    int getMinPeriod() const;
+    int getMaxPeriod() const;
 
     std::vector<CMasternode> filterMasternodes(AgeFilter ageFilter) const;
 
 private:
     CHeartBeatTracker();
     ~CHeartBeatTracker();
-
-    void broadcastInventory(const CInv& inv) const;
-//    void removeObsoleteMessages();
 
 private:
     time_t startupTime;

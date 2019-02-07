@@ -24,6 +24,8 @@ boost::optional<CMasternodeIDs> amIActiveOperator();
 boost::optional<CMasternodeIDs> amIOwner();
 boost::optional<CMasternodeIDs> amIActiveOwner();
 
+void mockMasternodesDB(const std::vector<std::string>& addresses, int activationMask = 0);
+
 } // namespace mns
 
 #endif // BITCOIN_MASTERNODES_UTIL_H

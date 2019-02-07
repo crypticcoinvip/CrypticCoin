@@ -22,18 +22,17 @@ class CBlockHeader
 public:
     // header
     static const size_t HEADER_SIZE=4+32+32+32+32+4+4+4+32; // excluding Equihash solution
-    static const int32_t CURRENT_VERSION=4;
+    static const int32_t CURRENT_VERSION=5;
     int32_t nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
-    uint256 hashMerkleRoot_PoW;
     uint256 hashFinalSaplingRoot;
+    uint256 hashMerkleRoot_PoW;
     uint32_t vtxSize_dPoS;
     uint32_t nTime;
     uint32_t nBits;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
-    std::vector<unsigned char> vSig;
 
     CBlockHeader()
     {
@@ -44,14 +43,14 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(this->nVersion);
+        READWRITE(nVersion);
         READWRITE(hashPrevBlock);
-        READWRITE(hashMerkleRoot_PoW);
-        if (!IsProgenitor()) {
-            READWRITE(hashMerkleRoot);
-        }
+        READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
-        READWRITE(vtxSize_dPoS);
+        if (nVersion == CURRENT_VERSION) {
+            READWRITE(hashMerkleRoot_PoW);
+            READWRITE(vtxSize_dPoS);
+        }
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
@@ -63,14 +62,13 @@ public:
         nVersion = CBlockHeader::CURRENT_VERSION;
         hashPrevBlock.SetNull();
         hashMerkleRoot.SetNull();
-        hashMerkleRoot_PoW.SetNull();
         hashFinalSaplingRoot.SetNull();
+        hashMerkleRoot_PoW.SetNull();
         vtxSize_dPoS = 0;
         nTime = 0;
         nBits = 0;
         nNonce.SetNull();
         nSolution.clear();
-        vSig.clear();
     }
 
     bool IsNull() const
@@ -94,6 +92,7 @@ class CBlock : public CBlockHeader
 public:
     // network and disk
     std::vector<CTransaction> vtx;
+    std::vector<unsigned char> vSig;
 
     // memory only
     mutable std::vector<uint256> vMerkleTree;
@@ -122,6 +121,7 @@ public:
         CBlockHeader::SetNull();
         vtx.clear();
         vMerkleTree.clear();
+        vSig.clear();
     }
 
     CBlockHeader GetBlockHeader() const
@@ -130,14 +130,13 @@ public:
         block.nVersion       = nVersion;
         block.hashPrevBlock  = hashPrevBlock;
         block.hashMerkleRoot = hashMerkleRoot;
-        block.hashMerkleRoot_PoW = hashMerkleRoot_PoW;
         block.hashFinalSaplingRoot = hashFinalSaplingRoot;
+        block.hashMerkleRoot_PoW = hashMerkleRoot_PoW;
         block.vtxSize_dPoS   = vtxSize_dPoS;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
-        block.vSig           = vSig;
         return block;
     }
 
@@ -170,13 +169,14 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(this->nVersion);
+        READWRITE(nVersion);
         READWRITE(hashPrevBlock);
-        READWRITE(hashMerkleRoot_PoW);
-        if (!IsProgenitor()) {
-            READWRITE(hashMerkleRoot);
-        }
+        READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
+        if (nVersion == CURRENT_VERSION) {
+            READWRITE(hashMerkleRoot_PoW);
+            READWRITE(vtxSize_dPoS);
+        }
         READWRITE(nTime);
         READWRITE(nBits);
     }
