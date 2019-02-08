@@ -334,7 +334,9 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->hashSproutAnchor     = diskindex.hashSproutAnchor;
                 pindexNew->nVersion       = diskindex.nVersion;
                 pindexNew->hashMerkleRoot = diskindex.hashMerkleRoot;
+                pindexNew->hashMerkleRoot_PoW     = diskindex.hashMerkleRoot_PoW;
                 pindexNew->hashFinalSaplingRoot   = diskindex.hashFinalSaplingRoot;
+                pindexNew->vtxSize_dPoS   = diskindex.vtxSize_dPoS;
                 pindexNew->nTime          = diskindex.nTime;
                 pindexNew->nBits          = diskindex.nBits;
                 pindexNew->nNonce         = diskindex.nNonce;

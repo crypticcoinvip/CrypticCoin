@@ -225,6 +225,7 @@ UniValue generate(const UniValue& params, bool fHelp)
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
+        pblock->hashMerkleRoot_PoW = pblock->hashMerkleRoot;
 
         // Hash state
         crypto_generichash_blake2b_state eh_state;
@@ -276,8 +277,6 @@ UniValue generate(const UniValue& params, bool fHelp)
         }
 endloop:
         if (dpos::checkIsActive()) {
-            pblock->hashMerkleRoot_PoW = pblock->hashMerkleRoot;
-            pblock->hashMerkleRoot.SetNull();
             dpos::postProgenitorBlock(*pblock);
         } else {
             CValidationState state;

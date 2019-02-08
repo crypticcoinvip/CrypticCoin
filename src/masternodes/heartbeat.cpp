@@ -94,11 +94,12 @@ void CHeartBeatTracker::runTickerLoop()
 
         if (!mnId) {
             operKey = CKey{};
-        } else {
+        } else if (!operKey.IsValid()) {
 #ifdef ENABLE_WALLET
             LOCK2(cs_main, pwalletMain->cs_wallet);
             if (!pwalletMain->GetKey(mnId.get().operatorAuthAddress, operKey)) {
-                throw std::runtime_error("Can't read masternode operator private key");
+                LogPrintf("%s: Can't read masternode operator private key", __func__);
+                break;
             }
 #endif
         }

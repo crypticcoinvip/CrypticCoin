@@ -42,8 +42,6 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.vtx.push_back(txNew);
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = genesis.BuildMerkleTree();
-//    genesis.hashMerkleRoot_PoW = genesis.BuildMerkleTree();
-//    genesis.hashMerkleRoot = genesis.hashMerkleRoot_PoW;
     return genesis;
 }
 

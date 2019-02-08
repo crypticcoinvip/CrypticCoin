@@ -47,10 +47,13 @@ boost::optional<mns::CMasternodeIDs> mns::amIOperator()
 {
     CMasternodeIDs mnId{};
     boost::optional<CMasternodeIDs> rv{};
+    const std::string oper{GetArg("-masternode-operator", "")};
 
-    mnId.operatorAuthAddress.SetHex(GetArg("-masternode-operator", ""));
-    if (lookupMasternode(mnId, LookupMode::byOperator)) {
-        rv = mnId;
+    if (!oper.empty()) {
+        mnId.operatorAuthAddress = boost::get<CKeyID>(DecodeDestination(oper));
+        if (lookupMasternode(mnId, LookupMode::byOperator)) {
+            rv = mnId;
+        }
     }
 
     return rv;
@@ -65,10 +68,13 @@ boost::optional<mns::CMasternodeIDs> mns::amIOwner()
 {
     CMasternodeIDs mnId{};
     boost::optional<CMasternodeIDs> rv{};
+    const std::string owner{GetArg("-masternode-owner", "")};
 
-    mnId.ownerAuthAddress.SetHex(GetArg("-masternode-owner", ""));
-    if (lookupMasternode(mnId, LookupMode::byOwner)) {
-        rv = mnId;
+    if (!owner.empty()) {
+        mnId.ownerAuthAddress = boost::get<CKeyID>(DecodeDestination(owner));
+        if (lookupMasternode(mnId, LookupMode::byOwner)) {
+            rv = mnId;
+        }
     }
 
     return rv;

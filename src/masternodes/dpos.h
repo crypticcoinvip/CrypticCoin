@@ -19,10 +19,10 @@ namespace dpos
     public:
         uint256 dposBlockHash;
         uint16_t roundNumber;
-        Signature headerSignature;
+        Signature compactSignature;
         uint256 tipBlockHash;
         uint256 progenitorBlockHash;
-        Signature bodySignature;
+        Signature fullSignature;
 
         ProgenitorVote();
 
@@ -33,10 +33,10 @@ namespace dpos
         {
             READWRITE(dposBlockHash);
             READWRITE(roundNumber);
-            READWRITE(headerSignature);
+            READWRITE(compactSignature);
             READWRITE(tipBlockHash);
             READWRITE(progenitorBlockHash);
-            READWRITE(bodySignature);
+            READWRITE(fullSignature);
         }
 
         bool IsNull() const;

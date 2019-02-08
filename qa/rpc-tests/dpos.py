@@ -86,26 +86,29 @@ class dPoS_Test(BitcoinTestFramework):
         for node in self.nodes:
             assert_equal(node.getblockcount(), 0)
 
+        predpos_hashes = self.mine_blocks(True)
         for node in self.nodes:
-            node.generate(1)
-            self.sync_all()
-        for node in self.nodes:
-            assert_equal(node.getblockcount(), 4)
+            assert_equal(len(node.listprogenitorblocks()), 0)
 
-        hashes = []
-        for node in self.nodes:
-            hashes.append(node.generate(1))
-            assert_equal(node.getblockcount(), 4)
-
+        preblock_hashes = self.mine_blocks(False)
+        assert_equal(len(predpos_hashes), self.num_nodes)
+        assert_equal(len(preblock_hashes), len(predpos_hashes) / 2)
         time.sleep(2)
 
-        for n in range(self.num_nodes):
-            pblocks = self.nodes[n].listprogenitorblocks()
-            sys.stderr.write("\n!!!!")
-            sys.stderr.write(str(pblocks))
-            sys.stderr.write("\n")
-            assert_equal(len(pblocks), 4)
-            assert_equal(pblocks[i]["hash"], hashes[i if n == 0 else 2 - i])
+        for node in self.nodes:
+            pblocks = node.listprogenitorblocks()
+            assert_equal(node.getblockcount(), self.num_nodes)
+            assert_equal(len(pblocks), len(preblock_hashes))
+            for idx, pblock in enumerate(pblocks):
+                assert_equal(pblock["hash"], preblock_hashes[idx])
+
+        for node in self.nodes:
+            pvotes = node.listprogenitorvotes()
+            assert_equal(node.getblockcount(), self.num_nodes)
+            assert_equal(len(pvotes), len(preblock_hashes))
+
+#            for idx, pvote in enumerate(pvotes):
+#                assert_equal(pvote["hash"], preblock_hashes[idx])
 
         self.stop_nodes()
 
@@ -114,7 +117,10 @@ class dPoS_Test(BitcoinTestFramework):
             args = [[]] * self.num_nodes
 
         for i in range(len(args)):
-            args[i] = args[i][:] + ['-nuparams=76b809bb:4']
+            args[i] = args[i][:]
+            args[i] += ['-nuparams=76b809bb:' + str(self.num_nodes)]
+            if i != 1:
+                args[i] += ['-masternode-operator=' + _WALLET_KEYS[i][1]]
 
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
         for n in range(self.num_nodes):
@@ -124,6 +130,18 @@ class dPoS_Test(BitcoinTestFramework):
     def stop_nodes(self):
         stop_nodes(self.nodes)
         wait_bitcoinds()
+
+    def mine_blocks(self, predpos):
+        hashes = []
+        nodes = self.nodes if predpos else self.nodes[0:2]
+        for node in nodes:
+            hashes += node.generate(1)
+            if predpos == True:
+                self.sync_all()
+        assert_equal(len(hashes), len(set(hashes)))
+        for node in nodes:
+            assert_equal(node.getblockcount(), self.num_nodes)
+        return sorted(hashes, key=lambda h: h.decode("hex")[::-1])
 
 if __name__ == '__main__':
     dPoS_Test().main()

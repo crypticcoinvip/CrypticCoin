@@ -6021,13 +6021,18 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         ProcessInventoryCommand<CBlock>(block, pfrom, MSG_PROGENITOR_BLOCK, dpos::relayProgenitorBlock, [](const CBlock& block, CValidationState& state) {
             bool mutated{};
 
-            if (block.hashMerkleRoot_PoW != block.BuildMerkleTree(&mutated))
-                return state.DoS(100, error("CheckBlock(): hashMerkleRoot mismatch"),
+//            if (block.hashMerkleRoot != block.hashMerkleRoot_PoW || block.hashMerkleRoot_PoW != block.BuildMerkleTree(&mutated)) {
+//                return state.DoS(100, error("CheckBlock(): merkle root mismatch"),
+//                                 REJECT_INVALID, "bad-pro-mrklroot", true);
+//            }
+            if (block.hashMerkleRoot != block.BuildMerkleTree(&mutated)) {
+                return state.DoS(100, error("CheckBlock(): merkle root mismatch"),
                                  REJECT_INVALID, "bad-pro-mrklroot", true);
-            if (mutated)
+            }
+            if (mutated) {
                 return state.DoS(100, error("CheckBlock(): duplicate transaction"),
                                  REJECT_INVALID, "bad-pro-duplicate", true);
-//            LogPrintf()
+            }
             libzcash::ProofVerifier verifier{libzcash::ProofVerifier::Disabled()};
             if (!CheckBlock(block, state, verifier, true, false)) {
                 return error("%s: CheckBlock FAILED", __func__);
@@ -6050,6 +6055,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
     return true;
 }
+
 
 // requires LOCK(cs_vRecvMsg)
 bool ProcessMessages(CNode* pfrom)

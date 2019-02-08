@@ -23,6 +23,7 @@ public:
     // header
     static const size_t HEADER_SIZE=4+32+32+32+32+4+4+4+32; // excluding Equihash solution
     static const int32_t CURRENT_VERSION=5;
+    static const int32_t SAPLING_VERSION=CURRENT_VERSION;
     int32_t nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
@@ -47,14 +48,15 @@ public:
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
-        if (nVersion == CURRENT_VERSION) {
-            READWRITE(hashMerkleRoot_PoW);
-            READWRITE(vtxSize_dPoS);
-        }
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nSolution);
+
+        if (nVersion >= SAPLING_VERSION) {
+            READWRITE(hashMerkleRoot_PoW);
+            READWRITE(vtxSize_dPoS);
+        }
     }
 
     void SetNull()
@@ -75,8 +77,6 @@ public:
     {
         return (nBits == 0);
     }
-
-    bool IsProgenitor() const;
 
     uint256 GetHash() const;
 
@@ -131,7 +131,7 @@ public:
         block.hashPrevBlock  = hashPrevBlock;
         block.hashMerkleRoot = hashMerkleRoot;
         block.hashFinalSaplingRoot = hashFinalSaplingRoot;
-        block.hashMerkleRoot_PoW = hashMerkleRoot_PoW;
+        block.hashMerkleRoot_PoW   = hashMerkleRoot_PoW;
         block.vtxSize_dPoS   = vtxSize_dPoS;
         block.nTime          = nTime;
         block.nBits          = nBits;
@@ -173,12 +173,13 @@ public:
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
-        if (nVersion == CURRENT_VERSION) {
+        READWRITE(nTime);
+        READWRITE(nBits);
+
+        if (nVersion >= SAPLING_VERSION) {
             READWRITE(hashMerkleRoot_PoW);
             READWRITE(vtxSize_dPoS);
         }
-        READWRITE(nTime);
-        READWRITE(nBits);
     }
 };
 

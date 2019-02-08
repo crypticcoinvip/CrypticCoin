@@ -179,7 +179,9 @@ public:
     //! block header
     int nVersion;
     uint256 hashMerkleRoot;
+    uint256 hashMerkleRoot_PoW;
     uint256 hashFinalSaplingRoot;
+    uint32_t vtxSize_dPoS;
     unsigned int nTime;
     unsigned int nBits;
     uint256 nNonce;
@@ -212,7 +214,9 @@ public:
 
         nVersion       = 0;
         hashMerkleRoot = uint256();
+        hashMerkleRoot_PoW     = uint256();
         hashFinalSaplingRoot   = uint256();
+        vtxSize_dPoS   = 0;
         nTime          = 0;
         nBits          = 0;
         nNonce         = uint256();
@@ -230,7 +234,9 @@ public:
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
+        hashMerkleRoot_PoW     = block.hashMerkleRoot_PoW;
         hashFinalSaplingRoot   = block.hashFinalSaplingRoot;
+        vtxSize_dPoS   = block.vtxSize_dPoS;
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
@@ -262,7 +268,9 @@ public:
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
+        block.hashMerkleRoot_PoW = hashMerkleRoot_PoW;
         block.hashFinalSaplingRoot   = hashFinalSaplingRoot;
+        block.vtxSize_dPoS   = vtxSize_dPoS;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -390,6 +398,11 @@ public:
         READWRITE(nNonce);
         READWRITE(nSolution);
 
+        if (nVersion >= CBlockHeader::SAPLING_VERSION) {
+            READWRITE(hashMerkleRoot_PoW);
+            READWRITE(vtxSize_dPoS);
+        }
+
         // Only read/write nSproutValue if the client version used to create
         // this index was storing them.
         if ((s.GetType() & SER_DISK) && (nVersion >= SPROUT_VALUE_VERSION)) {
@@ -412,7 +425,9 @@ public:
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
         block.hashMerkleRoot  = hashMerkleRoot;
+        block.hashMerkleRoot_PoW      = hashMerkleRoot_PoW;
         block.hashFinalSaplingRoot    = hashFinalSaplingRoot;
+        block.vtxSize_dPoS    = vtxSize_dPoS;
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;
