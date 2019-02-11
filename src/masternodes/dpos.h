@@ -8,7 +8,7 @@
 
 #include "../chain.h"
 
-class CDataStream;
+class CValidationInterface;
 
 namespace dpos
 {
@@ -19,10 +19,9 @@ namespace dpos
     public:
         uint256 dposBlockHash;
         uint16_t roundNumber;
-        Signature compactSignature;
         uint256 tipBlockHash;
         uint256 progenitorBlockHash;
-        Signature fullSignature;
+        Signature authSignature;
 
         ProgenitorVote();
 
@@ -33,10 +32,9 @@ namespace dpos
         {
             READWRITE(dposBlockHash);
             READWRITE(roundNumber);
-            READWRITE(compactSignature);
             READWRITE(tipBlockHash);
             READWRITE(progenitorBlockHash);
-            READWRITE(fullSignature);
+            READWRITE(authSignature);
         }
 
         bool IsNull() const;
@@ -49,15 +47,17 @@ namespace dpos
 
     void postProgenitorBlock(const CBlock& pblock);
     void relayProgenitorBlock(const CBlock& pblock);
-    bool recieveProgenitorBlock(const CBlock& pblock);
+    bool recieveProgenitorBlock(const CBlock& pblock, bool isMe);
     const CBlock* getReceivedProgenitorBlock(const uint256& hash);
     std::vector<CBlock> listReceivedProgenitorBlocks();
 
     void postProgenitorVote(const ProgenitorVote& vote);
     void relayProgenitorVote(const ProgenitorVote& vote);
-    bool recieveProgenitorVote(const ProgenitorVote& vote);
+    bool recieveProgenitorVote(const ProgenitorVote& vote, bool isMe);
     const ProgenitorVote* getReceivedProgenitorVote(const uint256& hash);
     std::vector<ProgenitorVote> listReceivedProgenitorVotes();
+
+    CValidationInterface * getValidationListener();
 } // namespace dpos
 
 #endif // BITCOIN_MASTERNODES_DPOS_H

@@ -21,7 +21,7 @@ class CBlockHeader
 {
 public:
     // header
-    static const size_t HEADER_SIZE=4+32+32+32+32+4+4+4+32; // excluding Equihash solution
+    static const size_t HEADER_SIZE=4+32+32+32+32+4+4+4+4+32; // excluding Equihash solution
     static const int32_t CURRENT_VERSION=5;
     static const int32_t SAPLING_VERSION=CURRENT_VERSION;
     int32_t nVersion;
@@ -30,6 +30,7 @@ public:
     uint256 hashFinalSaplingRoot;
     uint256 hashMerkleRoot_PoW;
     uint32_t vtxSize_dPoS;
+    uint32_t roundNumber;
     uint32_t nTime;
     uint32_t nBits;
     uint256 nNonce;
@@ -56,6 +57,7 @@ public:
         if (nVersion >= SAPLING_VERSION) {
             READWRITE(hashMerkleRoot_PoW);
             READWRITE(vtxSize_dPoS);
+            READWRITE(roundNumber);
         }
     }
 
@@ -67,6 +69,7 @@ public:
         hashFinalSaplingRoot.SetNull();
         hashMerkleRoot_PoW.SetNull();
         vtxSize_dPoS = 0;
+        roundNumber = 0;
         nTime = 0;
         nBits = 0;
         nNonce.SetNull();
@@ -92,7 +95,7 @@ class CBlock : public CBlockHeader
 public:
     // network and disk
     std::vector<CTransaction> vtx;
-    std::vector<unsigned char> vSig;
+    std::vector<std::array<unsigned char, 65>> vSig; // CPubKey::COMPACT_SIGNATURE_SIZE
 
     // memory only
     mutable std::vector<uint256> vMerkleTree;
@@ -114,6 +117,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
+        READWRITE(vSig);
     }
 
     void SetNull()
@@ -133,6 +137,7 @@ public:
         block.hashFinalSaplingRoot = hashFinalSaplingRoot;
         block.hashMerkleRoot_PoW   = hashMerkleRoot_PoW;
         block.vtxSize_dPoS   = vtxSize_dPoS;
+        block.roundNumber    = roundNumber;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -171,15 +176,15 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(nVersion);
         READWRITE(hashPrevBlock);
-        READWRITE(hashMerkleRoot);
+        if (nVersion < SAPLING_VERSION) {
+            READWRITE(hashMerkleRoot);
+        } else {
+            READWRITE(hashMerkleRoot_PoW);
+            READWRITE(roundNumber);
+        }
         READWRITE(hashFinalSaplingRoot);
         READWRITE(nTime);
         READWRITE(nBits);
-
-        if (nVersion >= SAPLING_VERSION) {
-            READWRITE(hashMerkleRoot_PoW);
-            READWRITE(vtxSize_dPoS);
-        }
     }
 };
 

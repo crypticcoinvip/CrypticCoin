@@ -37,6 +37,7 @@
 #include "utilmoneystr.h"
 #include "validationinterface.h"
 #include "masternodes/heartbeat.h"
+#include "masternodes/dpos.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
@@ -222,6 +223,7 @@ void Shutdown()
     StopNode();
     tor::StopTorControl();
     UnregisterNodeSignals(GetNodeSignals());
+    UnregisterValidationInterface(dpos::getValidationListener());
 
     if (fFeeEstimatesInitialized)
     {
@@ -1853,6 +1855,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
  #endif // ENABLE_WALLET
     }
 #endif // ENABLE_MINING
+
+    RegisterValidationInterface(dpos::getValidationListener());
 
     // ********************************************************* Step 9: data directory maintenance
 

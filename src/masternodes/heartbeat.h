@@ -12,7 +12,6 @@
 
 class CKey;
 class CInv;
-class CDataStream;
 
 class CHeartBeatMessage
 {
