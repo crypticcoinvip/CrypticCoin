@@ -15,7 +15,6 @@
 
 class CKeyID;
 class CScript;
-typedef std::vector<unsigned char> CMetaData;
 
 /** A reference to a CScript: the Hash160 of its serialization (see script.h) */
 class CScriptID : public uint160
@@ -81,7 +80,7 @@ public:
  *  * CScriptID: TX_SCRIPTHASH destination
  *  A CTxDestination is the internal data type encoded in a bitcoin address
  */
-typedef boost::variant<CNoDestination, CKeyID, CScriptID, CMetaData> CTxDestination;
+typedef boost::variant<CNoDestination, CKeyID, CScriptID, CScript> CTxDestination;
 
 /** Check whether a CTxDestination is a CNoDestination. */
 bool IsValidDestination(const CTxDestination& dest);

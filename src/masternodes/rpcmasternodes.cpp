@@ -4,20 +4,14 @@
 
 #include "../rpc/server.h"
 
-//#include "clientversion.h"
 #include "../init.h"
 #include "../key_io.h"
 #include "../main.h"
 #include "masternodes.h"
-//#include "net.h"
-//#include "netbase.h"
-//#include "protocol.h"
 #include "../rpc/server.h"
-//#include "sync.h"
-//#include "timedata.h"
-//#include "util.h"
+#include "../script/script_error.h"
+#include "../script/sign.h"
 #include "../version.h"
-//#include "deprecation.h"
 #ifdef ENABLE_WALLET
 #include "../wallet/wallet.h"
 #endif
@@ -27,24 +21,16 @@
 
 #include <boost/assign/list_of.hpp>
 
-extern UniValue CallRPC(std::string args);
-
 extern UniValue createrawtransaction(UniValue const & params, bool fHelp); // in rawtransaction.cpp
 extern UniValue fundrawtransaction(UniValue const & params, bool fHelp); // in rpcwallet.cpp
-extern UniValue signrawtransaction(const UniValue& params, bool fHelp); // in rawtransaction.cpp
-extern UniValue sendrawtransaction(const UniValue& params, bool fHelp); // in rawtransaction.cpp
+extern UniValue signrawtransaction(UniValue const & params, bool fHelp); // in rawtransaction.cpp
+extern UniValue sendrawtransaction(UniValue const & params, bool fHelp); // in rawtransaction.cpp
 extern UniValue getnewaddress(UniValue const & params, bool fHelp); // in rpcwallet.cpp
-extern bool EnsureWalletIsAvailable(bool avoidException);
+extern bool EnsureWalletIsAvailable(bool avoidException); // in rpcwallet.cpp
+extern bool DecodeHexTx(CTransaction & tx, std::string const & strHexTx); // in core_io.h
+extern std::string EncodeHexTx(CTransaction const & tx);
 
-extern bool DecodeHexTx(CTransaction& tx, const std::string& strHexTx); // in core_io.h
-extern std::string EncodeHexTx(const CTransaction& tx);
-
-
-//{ "masternodes",    "createraw_mn_announce",            &createraw_mn_announce,         true  },
-//{ "masternodes",    "createraw_mn_activate",            &createraw_mn_activate,         true  },
-//{ "masternodes",    "createraw_mn_dismissvote",         &createraw_mn_dismissvote,      true  },
-//{ "masternodes",    "createraw_mn_dismissvoterecall",   &createraw_mn_dismissvoterecall,true  },
-//{ "masternodes",    "createraw_mn_finalizevoting",      &createraw_mn_finalizevoting,   true  },
+extern void ScriptPubKeyToJSON(CScript const & scriptPubKey, UniValue & out, bool fIncludeHex); // in rawtransaction.cpp
 
 UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = CKeyID())
 {
@@ -96,10 +82,47 @@ UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = C
     return sent;
 }
 
+/*
+ * 'Wrapper' in the name is only to distinguish it from the rest 'Accesses'
+*/
+CCoins const * AccessCoinsWrapper(uint256 const & txid)
+{
+    // Just for now, use the easiest and clean way to get coins
+    return pcoinsTip->AccessCoins(txid);
 
-/// @todo @mn if inputs not empty, should match first input to given auth
-/// if empty - should find coins (at least one UTXO) for given auth
-void CheckAuthOfFirstInputOrFund(CKeyID const & auth, UniValue & inputs)
+    /// @todo @mn Investigate the magic of mempool|view switching from original 'signrawtransaction'
+    /// or simplified from 'gettxout'.
+
+    /// from 'signrawtransaction':
+    /*
+    CCoinsView viewDummy;
+    CCoinsViewCache view(&viewDummy);
+    {
+        LOCK(mempool.cs);
+        CCoinsViewCache &viewChain = *pcoinsTip;
+        CCoinsViewMemPool viewMempool(&viewChain, mempool);
+        view.SetBackend(viewMempool); // temporarily switch cache backend to db+mempool view
+
+        BOOST_FOREACH(const CTxIn& txin, mergedTx.vin) {
+            const uint256& prevHash = txin.prevout.hash;
+            CCoins coins;
+            view.AccessCoins(prevHash); // this is certainly allowed to fail
+        }
+
+        view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long
+    }
+    */
+    /// from 'gettxout':
+//    LOCK(mempool.cs);
+//    CCoinsViewMemPool view(pcoinsTip, mempool);
+}
+
+
+/*
+ * If inputs are not empty, matches first input to the given auth.
+ * If empty - looking for coins (at least one UTXO) for given auth
+*/
+void ProvideAuthOfFirstInput(CKeyID const & auth, UniValue & inputs)
 {
     if (inputs.size() > 0)
     {
@@ -119,25 +142,19 @@ void CheckAuthOfFirstInputOrFund(CKeyID const & auth, UniValue & inputs)
         {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, vout must be positive");
         }
-        // partially stolen from 'gettxout'.
-        // there is another version with some "pool switch magic" in 'signrawtransaction' and i don't know which is best
-        CCoins coins;
+
+        CCoins const * coins = AccessCoinsWrapper(txid);
+        if (!coins || !coins->IsAvailable(nOutput))
         {
-            LOCK(mempool.cs);
-            CCoinsViewMemPool view(pcoinsTip, mempool);
-            CCoins coins;
-            if (!view.GetCoins(txid, coins) || !coins.IsAvailable(nOutput))
-            {
-                throw JSONRPCError(RPC_INVALID_PARAMETER, "Input not found or already spent");
-            }
-            CScript const & prevPubKey = coins.vout[nOutput].scriptPubKey;
-            CTxDestination address;
-            ExtractDestination(prevPubKey, address);
-            CKeyID const * inputAuth = boost::get<CKeyID>(&address);
-            if (!inputAuth || *inputAuth != auth)
-            {
-                throw JSONRPCError(RPC_INVALID_PARAMETER, "Check of authorization failed");
-            }
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Input not found or already spent");
+        }
+        CScript const & prevPubKey = coins->vout[nOutput].scriptPubKey;
+        CTxDestination address;
+        ExtractDestination(prevPubKey, address);
+        CKeyID const * inputAuth = boost::get<CKeyID>(&address);
+        if (!inputAuth || *inputAuth != auth)
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Check of authentication failed");
         }
     }
     else
@@ -168,7 +185,7 @@ void CheckAuthOfFirstInputOrFund(CKeyID const & auth, UniValue & inputs)
         }
         if (inputs.size() == 0)
         {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Check of authorization failed. Can't find any coins matching auth.");
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Check of authentication failed. Can't find any coins matching auth.");
         }
     }
 }
@@ -191,11 +208,11 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
             "     ]\n"
             "2. \"metadata\"           (string, required) a json object with masternode metadata keys and values\n"
             "    {\n"
-            "      \"name\": name                       (string, required) Masternode human-friendly name, should be at least size 3 and less than 255\n"
-            "      \"ownerAuthAddress\": P2PKH          (string, required) Masternode owner auth address (P2PKH only, unique)\n"
-            "      \"operatorAuthAddress\": P2PKH       (string, required) Masternode operator auth address (P2PKH only, unique)\n"
-            "      \"ownerRewardAddress\": scriptPubKey (string, required) Masternode owner reward address (any valid scriptPubKey)\n"
-            "      \"collateralAddress\": scriptPubKey  (string, required) Any valid address for keeping collateral amount (any valid scriptPubKey)\n"
+            "      \"name\": name                        (string, required) Masternode human-friendly name, should be at least size 3 and less than 255\n"
+            "      \"ownerAuthAddress\": P2PKH           (string, required) Masternode owner auth address (P2PKH only, unique)\n"
+            "      \"operatorAuthAddress\": P2PKH        (string, required) Masternode operator auth address (P2PKH only, unique)\n"
+            "      \"ownerRewardAddress\": P2PKH or P2SH (string, required) Masternode owner reward address (any P2PKH or P2SH address)\n"
+            "      \"collateralAddress\": P2PKH or P2SH  (string, required) Any valid address for keeping collateral amount (any P2PKH or P2SH address)\n"
             "    }\n"
             "\nResult:\n"
             "\"hex\"             (string) The transaction hash in hex\n"
@@ -275,30 +292,34 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     CTxDestination collateralDest = DecodeDestination(collateralAddress);
     if (collateralDest.which() != 1 && collateralDest.which() != 2)
     {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "collateralAddress does not refer to a PK2H or PK2S address");
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "collateralAddress does not refer to a P2PKH or P2SH address");
     }
-    /// @todo @mn deep check of ownerRewardAddress!!!
+    CTxDestination ownerRewardDest = DecodeDestination(ownerRewardAddress);
+    if (ownerRewardDest.which() != 1 && ownerRewardDest.which() != 2)
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "ownerRewardAddress does not refer to a P2PKH or P2SH address");
+    }
 
-    CDataStream tmp(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
-    tmp << static_cast<unsigned char>(MasternodesTxType::AnnounceMasternode)
-        << name << *ownerAuthAddress << *operatorAuthAddress << ownerRewardAddress;
+    CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
+    metadata << static_cast<unsigned char>(MasternodesTxType::AnnounceMasternode)
+             << name << *ownerAuthAddress << *operatorAuthAddress << ToByteVector(GetScriptForDestination(ownerRewardDest));    /// @todo @mn check ownerRewardDest
 
-    std::vector<unsigned char> metaV(tmp.begin(), tmp.end());
-    std::string metaDest = EncodeDestination(CTxDestination(metaV));   // "4DGqvnmXeYuu9nHLDMrZmcr96"
+    CScript scriptMeta;
+    scriptMeta << OP_RETURN << ToByteVector(metadata);
+    CScript scriptCollateral = GetScriptForDestination(collateralDest);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(metaDest, ValueFromAmount(MN_ANNOUNCEMENT_FEE)));
-    vouts.push_back(Pair(collateralAddress, ValueFromAmount(MN_COLLATERAL_AMOUNT)));
+    vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptMeta)), ValueFromAmount(GetMnAnnouncementFee())));
+    vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptCollateral)), ValueFromAmount(GetMnCollateralAmount())));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(params[0]);
     newparams.push_back(vouts);
 
-//    return createrawtransaction(newparams, false);
     return RawCreateFundSignSend(newparams);
 }
 
-UniValue createraw_mn_activate(const UniValue& params, bool fHelp)
+UniValue createraw_mn_activate(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw std::runtime_error("@todo: Help"
@@ -309,12 +330,8 @@ UniValue createraw_mn_activate(const UniValue& params, bool fHelp)
 #else
     LOCK(cs_main);
 #endif
-
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
-    if (params[0].isNull())
-    {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameters, arguments 1 must be non-null");
-    }
+
     auto ids = pmasternodesview->AmIOperator();
     if (!ids)
     {
@@ -325,22 +342,34 @@ UniValue createraw_mn_activate(const UniValue& params, bool fHelp)
 
     CMasternode const & node = *optNode;
     int chainHeight = chainActive.Height() + 1;
-    if (node.activationTx != uint256() || node.collateralSpentTx != uint256() || node.dismissFinalizedTx != uint256() || node.minActivationHeight > chainHeight)
+    if (node.activationTx != uint256())
     {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, std::string() + "Masternode can't activate cause already active or dismissed or minActivationHeight not reached ");
+        throw JSONRPCError(RPC_INVALID_PARAMETER, std::string() + "Can't activate. MN was activated by " + node.activationTx.GetHex());
+    }
+    if (node.collateralSpentTx != uint256())
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, std::string() + "Can't activate. Collateral was spent by " + node.collateralSpentTx.GetHex());
+    }
+    if (node.dismissFinalizedTx != uint256())
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, std::string() + "Can't activate. MN was dismissed by voting " + node.dismissFinalizedTx.GetHex());
+    }
+    if (node.minActivationHeight > chainHeight)
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Can't activate. Minimal activation height not reached (block %d)", node.minActivationHeight));
     }
     UniValue inputs = params[0].get_array();
-    CheckAuthOfFirstInputOrFund(node.operatorAuthAddress, inputs);
+    ProvideAuthOfFirstInput(node.operatorAuthAddress, inputs);
 
-    CDataStream tmp(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
-    tmp << static_cast<unsigned char>(MasternodesTxType::ActivateMasternode)
-        << ids->id;
+    CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
+    metadata << static_cast<unsigned char>(MasternodesTxType::ActivateMasternode)
+             << ids->id;
 
-    std::vector<unsigned char> metaV(tmp.begin(), tmp.end());
-    std::string metaDest = EncodeDestination(CTxDestination(metaV));
+    CScript scriptMeta;
+    scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(metaDest, ValueFromAmount(MN_ACTIVATION_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_ACTIVATION_FEE)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);
@@ -349,7 +378,7 @@ UniValue createraw_mn_activate(const UniValue& params, bool fHelp)
     return RawCreateFundSignSend(newparams, node.operatorAuthAddress);
 }
 
-UniValue createraw_mn_dismissvote(const UniValue& params, bool fHelp)
+UniValue createraw_mn_dismissvote(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
         throw std::runtime_error("@todo: Help"
@@ -365,7 +394,7 @@ UniValue createraw_mn_dismissvote(const UniValue& params, bool fHelp)
     if (params[0].isNull() || params[1].isNull())
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameters, arguments 1 and 2 must be non-null, and argument 2 expected as object with "
-                                                  "{\"against\":hexhash-of-MN-id, \"reason_code\":N, \"reason_desc\":\"description\"}");
+                                                  "{\"against\":MN-id, \"reason_code\":N, \"reason_desc\":\"description\"}");
     }
     UniValue metaObj = params[1].get_obj();
     RPCTypeCheckObj(metaObj, boost::assign::map_list_of
@@ -401,7 +430,7 @@ UniValue createraw_mn_dismissvote(const UniValue& params, bool fHelp)
     // Checking votes from|against
     if (node.counterVotesFrom >= MAX_DISMISS_VOTES_PER_MN)
     {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("You are reach MAX_DISMISS_VOTES_PER_MN! (%d)", MAX_DISMISS_VOTES_PER_MN));
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("You've reached MAX_DISMISS_VOTES_PER_MN! (%d)", MAX_DISMISS_VOTES_PER_MN));
     }
     if (pmasternodesview->ExistActiveVoteIndex(CMasternodesView::VoteIndex::From, ids->id, against))
     {
@@ -409,17 +438,17 @@ UniValue createraw_mn_dismissvote(const UniValue& params, bool fHelp)
     }
 
     UniValue inputs = params[0].get_array();
-    CheckAuthOfFirstInputOrFund(node.operatorAuthAddress, inputs);
+    ProvideAuthOfFirstInput(node.operatorAuthAddress, inputs);
 
-    CDataStream tmp(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
-    tmp << static_cast<unsigned char>(MasternodesTxType::DismissVote)
-        << against << reason_code << reason_desc;
+    CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
+    metadata << static_cast<unsigned char>(MasternodesTxType::DismissVote)
+             << against << reason_code << reason_desc;
 
-    std::vector<unsigned char> metaV(tmp.begin(), tmp.end());
-    std::string metaDest = EncodeDestination(CTxDestination(metaV));
+    CScript scriptMeta;
+    scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(metaDest, ValueFromAmount(MN_DISMISSVOTE_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_DISMISSVOTE_FEE)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);
@@ -428,7 +457,7 @@ UniValue createraw_mn_dismissvote(const UniValue& params, bool fHelp)
     return RawCreateFundSignSend(newparams, node.operatorAuthAddress);
 }
 
-UniValue createraw_mn_dismissvoterecall(const UniValue& params, bool fHelp)
+UniValue createraw_mn_dismissvoterecall(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
         throw std::runtime_error("@todo: Help"
@@ -444,7 +473,7 @@ UniValue createraw_mn_dismissvoterecall(const UniValue& params, bool fHelp)
     if (params[0].isNull() || params[1].isNull())
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameters, arguments 1 and 2 must be non-null, and argument 2 expected as object with "
-                                                  "{\"against\":hexhash-of-MN-id}");
+                                                  "{\"against\":MN-id}");
     }
     UniValue metaObj = params[1].get_obj();
     RPCTypeCheckObj(metaObj, boost::assign::map_list_of
@@ -472,17 +501,17 @@ UniValue createraw_mn_dismissvoterecall(const UniValue& params, bool fHelp)
     }
 
     UniValue inputs = params[0].get_array();
-    CheckAuthOfFirstInputOrFund(ids->operatorAuthAddress, inputs);
+    ProvideAuthOfFirstInput(ids->operatorAuthAddress, inputs);
 
-    CDataStream tmp(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
-    tmp << static_cast<unsigned char>(MasternodesTxType::DismissVoteRecall)
-        << against;
+    CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
+    metadata << static_cast<unsigned char>(MasternodesTxType::DismissVoteRecall)
+             << against;
 
-    std::vector<unsigned char> metaV(tmp.begin(), tmp.end());
-    std::string metaDest = EncodeDestination(CTxDestination(metaV));
+    CScript scriptMeta;
+    scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(metaDest, ValueFromAmount(MN_DISMISSVOTERECALL_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_DISMISSVOTERECALL_FEE)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);
@@ -491,7 +520,7 @@ UniValue createraw_mn_dismissvoterecall(const UniValue& params, bool fHelp)
     return RawCreateFundSignSend(newparams, ids->operatorAuthAddress);
 }
 
-UniValue createraw_mn_finalizevoting(const UniValue& params, bool fHelp)
+UniValue createraw_mn_finalizedismissvoting(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() == 0)
         throw std::runtime_error("@todo: Help"
@@ -507,7 +536,7 @@ UniValue createraw_mn_finalizevoting(const UniValue& params, bool fHelp)
     if (params[0].isNull() || params[1].isNull())
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameters, arguments 1 and 2 must be non-null, and argument 2 expected as object with "
-                                                  "{\"against\":hexhash-of-MN-id}");
+                                                  "{\"against\":MN-id}");
     }
     UniValue metaObj = params[1].get_obj();
     RPCTypeCheckObj(metaObj, boost::assign::map_list_of
@@ -532,18 +561,18 @@ UniValue createraw_mn_finalizevoting(const UniValue& params, bool fHelp)
     }
 
     UniValue inputs = params[0].get_array();
-    // no need to check authorization nor special funding
-//    CheckAuthOfFirstInputOrFund(node.operatorAuthAddress, inputs);
+    // no need to check authentication nor special funding
+//    ProvideAuthOfFirstInput(node.operatorAuthAddress, inputs);
 
-    CDataStream tmp(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
-    tmp << static_cast<unsigned char>(MasternodesTxType::FinalizeDismissVoting)
-        << against;
+    CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
+    metadata << static_cast<unsigned char>(MasternodesTxType::FinalizeDismissVoting)
+             << against;
 
-    std::vector<unsigned char> metaV(tmp.begin(), tmp.end());
-    std::string metaDest = EncodeDestination(CTxDestination(metaV));
+    CScript scriptMeta;
+    scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(metaDest, ValueFromAmount(MN_FINALIZEDISMISSVOTING_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_FINALIZEDISMISSVOTING_FEE)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);
@@ -552,40 +581,283 @@ UniValue createraw_mn_finalizevoting(const UniValue& params, bool fHelp)
     return RawCreateFundSignSend(newparams);
 }
 
-UniValue listmns(const UniValue& params, bool fHelp)
+UniValue resign_mn(UniValue const & params, bool fHelp)
 {
-    UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("blabla", CLIENT_VERSION));
-    return obj;
+    if (fHelp || params.size() != 2)
+        throw std::runtime_error("@todo: Help"
+    );
+
+#ifdef ENABLE_WALLET
+    LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
+#else
+    LOCK(cs_main);
+#endif
+
+    RPCTypeCheck(params, boost::assign::list_of(UniValue::VSTR)(UniValue::VSTR), false);
+
+    uint256 nodeId = uint256S(params[0].getValStr());
+    auto optNode = pmasternodesview->ExistMasternode(nodeId);
+    if (!optNode || optNode->collateralSpentTx != uint256())
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Masternode %s does not exist", params[0].getValStr()));
+    }
+    if (optNode->collateralSpentTx != uint256())
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Collateral for masternode %s was already spent by tx %s", params[0].getValStr(), optNode->collateralSpentTx.GetHex()));
+    }
+
+    CTxDestination dest = DecodeDestination(params[1].getValStr());
+    if (dest.which() != 1 && dest.which() != 2)
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Destination address does not refer to a P2PKH or P2SH address");
+    }
+
+    const unsigned int collateralIn = 1;
+    CCoins const * coins = AccessCoinsWrapper(nodeId);
+    // After our previous check of collateralSpentTx in MNDB, this should not happen!
+    if (!coins || !coins->IsAvailable(collateralIn))
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Collateral for masternode was already spent!");
+    }
+    CScript const & prevPubKey = coins->vout[collateralIn].scriptPubKey;
+
+    // Simplified createrawtransaction
+    int nextBlockHeight = chainActive.Height() + 1;
+    CMutableTransaction rawTx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextBlockHeight);
+
+    uint32_t nSequence = (rawTx.nLockTime ? std::numeric_limits<uint32_t>::max() - 1 : std::numeric_limits<uint32_t>::max());
+    CTxIn in(COutPoint(nodeId, 1), CScript(), nSequence);
+    rawTx.vin.push_back(in);
+
+    CTxOut out(GetMnCollateralAmount(), GetScriptForDestination(dest));
+    rawTx.vout.push_back(out);
+    // end-of-createrawtransaction
+
+    // Calculate fee by dummy signature. Don't check its amount cause collateral is large enough
+    {
+        auto consensusBranchId = CurrentEpochBranchId(nextBlockHeight, Params().GetConsensus());
+        SignatureData sigdata;
+        ProduceSignature(DummySignatureCreator(pwalletMain), prevPubKey, sigdata, consensusBranchId);
+        UpdateTransaction(rawTx, 0, sigdata);
+        unsigned int nTxBytes = ::GetSerializeSize(rawTx, SER_NETWORK, PROTOCOL_VERSION);
+
+        CAmount nFeeNeeded = CWallet::GetMinimumFee(nTxBytes, nTxConfirmTarget, mempool);
+
+        rawTx.vout.back().nValue -= nFeeNeeded;
+        // Clear dummy script
+        rawTx.vin.back().scriptSig = CScript();
+    }
+
+    UniValue signparams(UniValue::VARR);
+    signparams.push_back(EncodeHexTx(rawTx));
+    UniValue signedTxObj = signrawtransaction(signparams, false);
+
+    UniValue sendparams(UniValue::VARR);
+    sendparams.push_back(signedTxObj["hex"]);
+    return sendrawtransaction(sendparams, false);
 }
 
-UniValue listactivemns(const UniValue& params, bool fHelp)
+UniValue listmns(UniValue const & params, bool fHelp)
 {
-    UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("blabla", CLIENT_VERSION));
-    return obj;
+    if (fHelp || params.size() != 0)
+        throw std::runtime_error("@todo: Help"
+    );
+
+    UniValue ret(UniValue(UniValue::VARR));
+
+    CMasternodes const & mns = pmasternodesview->GetMasternodes();
+    for (auto it = mns.begin(); it != mns.end(); ++it)
+    {
+        ret.push_back(it->first.GetHex());
+    }
+    return ret;
 }
 
-UniValue getdismissvotes(const UniValue& params, bool fHelp)
+UniValue listactivemns(UniValue const & params, bool fHelp)
 {
-    UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("blabla", CLIENT_VERSION));
-    return obj;
+    if (fHelp || params.size() != 0)
+        throw std::runtime_error("@todo: Help"
+    );
+
+    UniValue ret(UniValue(UniValue::VARR));
+
+    CActiveMasternodes const & mns = pmasternodesview->GetActiveMasternodes();
+    for (auto const & mn : mns)
+    {
+        ret.push_back(mn.GetHex());
+    }
+    return ret;
+}
+
+// Here (but not a class method) just by similarity with other '..ToJSON'
+UniValue mnToJSON(CMasternode const & node)
+{
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("name", node.name));
+    ret.push_back(Pair("ownerAuthAddress", node.ownerAuthAddress.GetHex()));
+    ret.push_back(Pair("operatorAuthAddress", node.operatorAuthAddress.GetHex()));
+
+    UniValue ownerRewardAddressJSON(UniValue::VOBJ);
+    ScriptPubKeyToJSON(node.ownerRewardAddress, ownerRewardAddressJSON, true);
+    ret.push_back(Pair("ownerRewardAddress", ownerRewardAddressJSON));
+
+    ret.push_back(Pair("height", static_cast<uint64_t>(node.height)));
+    ret.push_back(Pair("minActivationHeight", static_cast<uint64_t>(node.minActivationHeight)));
+    ret.push_back(Pair("activationHeight", static_cast<int>(node.activationHeight)));
+    ret.push_back(Pair("deadSinceHeight", static_cast<int>(node.deadSinceHeight)));
+
+    ret.push_back(Pair("activationTx", node.activationTx.GetHex()));
+    ret.push_back(Pair("collateralSpentTx", node.collateralSpentTx.GetHex()));
+    ret.push_back(Pair("dismissFinalizedTx", node.dismissFinalizedTx.GetHex()));
+
+    ret.push_back(Pair("counterVotesFrom", static_cast<uint64_t>(node.counterVotesFrom)));
+    ret.push_back(Pair("counterVotesAgainst", static_cast<uint64_t>(node.counterVotesAgainst)));
+
+    return ret;
+}
+
+UniValue dumpnode(uint256 const & id, CMasternode const & node)
+{
+    UniValue entry(UniValue::VOBJ);
+    entry.push_back(Pair("id", id.GetHex()));
+    entry.push_back(Pair("status", node.GetHumanReadableStatus()));
+    entry.push_back(Pair("mn", mnToJSON(node)));
+    return entry;
+}
+
+UniValue dumpmns(UniValue const & params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw std::runtime_error("@todo: Help"
+    );
+    RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
+
+    UniValue inputs(UniValue(UniValue::VARR));
+    if (params.size() > 0)
+    {
+        inputs = params[0].get_array();
+    }
+
+    UniValue ret(UniValue(UniValue::VARR));
+    CMasternodes const & mns = pmasternodesview->GetMasternodes();
+    if (inputs.empty())
+    {
+        // Dumps all!
+        for (auto it = mns.begin(); it != mns.end(); ++it)
+        {
+            ret.push_back(dumpnode(it->first, it->second));
+        }
+    }
+    else
+    {
+        for (size_t idx = 0; idx < inputs.size(); ++idx)
+        {
+            uint256 id = ParseHashV(inputs[idx], "masternode id");
+            auto const & node = pmasternodesview->ExistMasternode(id);
+            if (node)
+            {
+                ret.push_back(dumpnode(id, *node));
+            }
+        }
+    }
+    return ret;
+}
+
+
+UniValue dumpvote(uint256 const & voteid, CDismissVote const & vote)
+{
+    UniValue entry(UniValue::VOBJ);
+    entry.push_back(Pair("id", voteid.GetHex()));
+    entry.push_back(Pair("reasonCode", static_cast<int>(vote.reasonCode)));
+    entry.push_back(Pair("reasonDesc", vote.reasonDescription));
+    return entry;
+}
+
+
+UniValue dumpnodevotes(uint256 const & nodeId, CMasternode const & node)
+{
+    // 'node' is for counters or smth
+
+    UniValue votesFrom(UniValue::VARR);
+    {
+        auto const & range = pmasternodesview->GetActiveVotesFrom().equal_range(nodeId);
+        std::for_each(range.first, range.second, [&] (std::pair<uint256 const, uint256> const & it)
+        {
+            // it.first == nodeId (from), it.second == voteId
+            CDismissVote const & vote = pmasternodesview->GetVotes().at(it.second);
+            votesFrom.push_back(dumpvote(vote.against, vote));
+        });
+    }
+    UniValue votesAgainst(UniValue::VARR);
+    {
+        auto const & range = pmasternodesview->GetActiveVotesAgainst().equal_range(nodeId);
+        std::for_each(range.first, range.second, [&] (std::pair<uint256 const, uint256> const & it)
+        {
+            // it.first == nodeId (against), it.second == voteId
+            CDismissVote const & vote = pmasternodesview->GetVotes().at(it.second);
+            votesAgainst.push_back(dumpvote(vote.from, vote));
+        });
+    }
+    UniValue entry(UniValue::VOBJ);
+    entry.push_back(Pair("nodeId", nodeId.GetHex()));
+    entry.push_back(Pair("from", votesFrom));
+    entry.push_back(Pair("against", votesAgainst));
+    return entry;
+}
+
+UniValue getdismissvotes(UniValue const & params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw std::runtime_error("@todo: Help"
+    );
+    RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
+
+    UniValue inputs(UniValue(UniValue::VARR));
+    if (params.size() > 0)
+    {
+        inputs = params[0].get_array();
+    }
+
+    UniValue ret(UniValue(UniValue::VARR));
+    CMasternodes const & mns = pmasternodesview->GetMasternodes();
+    if (inputs.empty())
+    {
+        // Dumps all!
+        for (auto it = mns.begin(); it != mns.end(); ++it)
+        {
+            ret.push_back(dumpnodevotes(it->first, it->second));
+        }
+    }
+    else
+    {
+        for (size_t idx = 0; idx < inputs.size(); ++idx)
+        {
+            uint256 id = ParseHashV(inputs[idx], "masternode id");
+            auto const & node = pmasternodesview->ExistMasternode(id);
+            if (node)
+            {
+                ret.push_back(dumpnodevotes(id, *node));
+            }
+        }
+    }
+    return ret;
 }
 
 static const CRPCCommand commands[] =
-{ //  category          name                                actor (function)                okSafeMode
-  //  ----------------- ------------------------            -----------------------         ----------
-    { "masternodes",    "createraw_mn_announce",            &createraw_mn_announce,         true  },
-    { "masternodes",    "createraw_mn_activate",            &createraw_mn_activate,         true  },
-    { "masternodes",    "createraw_mn_dismissvote",         &createraw_mn_dismissvote,      true  },
-    { "masternodes",    "createraw_mn_dismissvoterecall",   &createraw_mn_dismissvoterecall,true  },
-    { "masternodes",    "createraw_mn_finalizevoting",      &createraw_mn_finalizevoting,   true  },
+{ //  category          name                                    actor (function)                    okSafeMode
+  //  ----------------- ------------------------                -----------------------             ----------
+    { "masternodes",    "createraw_mn_announce",                &createraw_mn_announce,             true  },
+    { "masternodes",    "createraw_mn_activate",                &createraw_mn_activate,             true  },
+    { "masternodes",    "createraw_mn_dismissvote",             &createraw_mn_dismissvote,          true  },
+    { "masternodes",    "createraw_mn_dismissvoterecall",       &createraw_mn_dismissvoterecall,    true  },
+    { "masternodes",    "createraw_mn_finalizedismissvoting",   &createraw_mn_finalizedismissvoting,true  },
 //    { "masternodes",        "createraw_set_operator_reward",&createraw_set_operator_reward, true  },
+    { "masternodes",    "resign_mn",                            &resign_mn,                         true  },
 
-    { "masternodes",    "listmns",                          &listmns,                       true  },
-    { "masternodes",    "listactivemns",                    &listactivemns,                 true  },
-    { "masternodes",    "getdismissvotes",                  &getdismissvotes,               true  },
+    { "masternodes",    "listmns",                          &listmns,                               true  },
+    { "masternodes",    "listactivemns",                    &listactivemns,                         true  },
+    { "masternodes",    "dumpmns",                          &dumpmns,                               true  },
+    { "masternodes",    "getdismissvotes",                  &getdismissvotes,                       true  },
 
     /* Not shown in help */
 //    { "hidden",         "createraw_mn_resign",              &createraw_mn_resign,           true  },

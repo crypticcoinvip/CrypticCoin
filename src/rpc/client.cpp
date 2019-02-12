@@ -138,8 +138,10 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "createraw_mn_dismissvote", 1},
     { "createraw_mn_dismissvoterecall", 0},
     { "createraw_mn_dismissvoterecall", 1},
-    { "createraw_mn_finalizevoting", 0},
-    { "createraw_mn_finalizevoting", 1}
+    { "createraw_mn_finalizedismissvoting", 0},
+    { "createraw_mn_finalizedismissvoting", 1}
+//    { "resign_mn", 0},
+//    { "resign_mn", 1}
 };
 
 class CRPCConvertTable

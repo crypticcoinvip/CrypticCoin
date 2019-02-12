@@ -296,9 +296,9 @@ public:
         return true;
     }
 
-    bool operator()(const CMetaData &metadata) const {
+    bool operator()(const CScript &rawscript) const {
         script->clear();
-        *script << OP_RETURN << ToByteVector(metadata);
+        *script = rawscript; // @todo @mn del me: << OP_RETURN << ToByteVector(metadata);
         return true;
     }
 };
