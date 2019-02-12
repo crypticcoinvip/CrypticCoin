@@ -20,7 +20,8 @@ static const char* ppszTypeName[] =
     "filtered block",
     "heartbeat",
     "prgntr_block",
-    "prgntr_vote"
+    "prgntr_vote",
+    "tx_vote"
 };
 
 CMessageHeader::CMessageHeader(const MessageStartChars& pchMessageStartIn)

@@ -4931,9 +4931,11 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_HEARTBEAT:
         return CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash) != nullptr;
     case MSG_PROGENITOR_BLOCK:
-        return dpos::getReceivedProgenitorBlock(inv.hash) != nullptr;
+        return CProgenitorBlockTracker::getInstance().getReceivedBlock(inv.hash) != nullptr;
     case MSG_PROGENITOR_VOTE:
-        return dpos::getReceivedProgenitorVote(inv.hash) != nullptr;
+        return CProgenitorVoteTracker::getInstance().getReceivedVote(inv.hash) != nullptr;
+    case MSG_TRANSACTION_VOTE:
+        return CTransactionVoteTracker::getInstance().getReceivedVote(inv.hash) != nullptr;
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -5044,13 +5046,13 @@ void static ProcessGetData(CNode* pfrom)
                            pushed = true;
                        }
                    } else if (inv.type == MSG_PROGENITOR_BLOCK) {
-                       const CBlock* pblock{dpos::getReceivedProgenitorBlock(inv.hash)};
-                       if (pblock != nullptr) {
-                           ss << *pblock;
+                       const CBlock* block{CProgenitorBlockTracker::getInstance().getReceivedBlock(inv.hash)};
+                       if (block != nullptr) {
+                           ss << *block;
                            pushed = true;
                        }
                    } else if (inv.type == MSG_PROGENITOR_VOTE) {
-                       const dpos::ProgenitorVote* vote{dpos::getReceivedProgenitorVote(inv.hash)};
+                       const CProgenitorVote* vote{CProgenitorVoteTracker::getInstance().getReceivedVote(inv.hash)};
                        if (vote != nullptr) {
                            ss << *vote;
                            pushed = true;
@@ -6012,13 +6014,17 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             CHeartBeatTracker::getInstance().relayMessage(message);
         });
     } else if (strCommand == CInv{MSG_PROGENITOR_VOTE, uint256{}}.GetCommand()) {
-        dpos::ProgenitorVote vote{};
+        CProgenitorVote vote{};
         vRecv >> vote;
-        ProcessInventoryCommand<dpos::ProgenitorVote>(vote, pfrom, MSG_PROGENITOR_VOTE, dpos::relayProgenitorVote);
+        ProcessInventoryCommand<CProgenitorVote>(vote, pfrom, MSG_PROGENITOR_VOTE, [](const CProgenitorVote& vote) {
+            CProgenitorVoteTracker::getInstance().relay(vote);
+        });
     } else if (strCommand == CInv{MSG_PROGENITOR_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex && dpos::checkIsActive()) {
         CBlock block{};
         vRecv >> block;
-        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_PROGENITOR_BLOCK, dpos::relayProgenitorBlock, [](const CBlock& block, CValidationState& state) {
+        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_PROGENITOR_BLOCK, [](const CBlock& block) {
+            CProgenitorBlockTracker::getInstance().relay(block);
+        }, [](const CBlock& block, CValidationState& state) {
             bool mutated{};
 
 //            if (block.hashMerkleRoot != block.hashMerkleRoot_PoW || block.hashMerkleRoot_PoW != block.BuildMerkleTree(&mutated)) {

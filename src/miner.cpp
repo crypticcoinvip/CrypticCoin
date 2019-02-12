@@ -496,7 +496,7 @@ static bool ProcessBlockFound(CBlock* pblock)
 //    }
 #endif
     if (dpos::checkIsActive()) {
-        dpos::postProgenitorBlock(*pblock);
+        CProgenitorBlockTracker::getInstance().post(*pblock);
     } else {
         // Process this block the same as if we had received it from another node
         CValidationState state;

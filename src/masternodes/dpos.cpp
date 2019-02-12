@@ -20,36 +20,28 @@
 namespace
 {
 using LockGuard = std::lock_guard<std::mutex>;
-
 std::mutex mutex_{};
-std::map<uint256, CBlock> recievedProgenitorBlocks_{};
-std::map<uint256, dpos::ProgenitorVote> recievedProgenitorVotes_{};
+CTransactionVoteTracker* transactionVoteTracker_{nullptr};
+CProgenitorVoteTracker* progenitorVoteTrackerInstance_{nullptr};
+CProgenitorBlockTracker* progenitorBlockTrackerInstance_{nullptr};
 std::array<unsigned char, 16> salt{0x4D, 0x48, 0x7A, 0x52, 0x5D, 0x4D, 0x37, 0x78, 0x42, 0x36, 0x5B, 0x64, 0x44, 0x79, 0x59, 0x4F};
 
 class ValidationListener : public CValidationInterface
 {
+public:
+    std::map<uint256, CTransactionVote> transactionVotes;
+    std::map<uint256, CProgenitorVote> progenitorVotes;
+    std::map<uint256, CBlock> progenitorBlocks;
 
 protected:
     void UpdatedBlockTip(const CBlockIndex* pindex) override
     {
-//        const auto removeProgenitorVote{[pindex](const std::pair<uint256, dpos::ProgenitorVote>& pair) {
-//            return pindex->pprev != nullptr &&
-//                   pair.second.tipBlockHash == pindex->pprev->GetBlockHash();
-//        }};
-//        const auto removeProgenitorBlock{[pindex](const std::pair<uint256, CBlock>& pair) {
-//            return pindex->pprev != nullptr &&
-//                   pair.second.hashPrevBlock == pindex->pprev->GetBlockHash();
-//        }};
         libsnark::UNUSED(pindex);
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
-        recievedProgenitorVotes_.clear();
-        recievedProgenitorBlocks_.clear();
-//        recievedProgenitorVotes_.erase( std::remove_if(recievedProgenitorVotes_.begin(), recievedProgenitorVotes_.end(), removeProgenitorVote),
-//                                        recievedProgenitorVotes_.end());
-//        recievedProgenitorBlocks_.erase( std::remove_if(recievedProgenitorBlocks_.begin(), recievedProgenitorBlocks_.end(), removeProgenitorBlock),
-//                                         recievedProgenitorBlocks_.end());
-        //TODO: clear recieved items on block disconnected
+        transactionVotes.clear();
+        progenitorVotes.clear();
+        progenitorBlocks.clear();
     }
 } validationListener_;
 
@@ -87,41 +79,6 @@ CKey extractOperatorKey()
     return rv;
 }
 
-const CBlock* findProgenitorBlock(const uint256& dposBlcokHash)
-{
-    for (const auto& pair: recievedProgenitorVotes_) {
-        if (pair.second.dposBlockHash == dposBlcokHash &&
-            recievedProgenitorBlocks_.find(pair.second.progenitorBlockHash) != recievedProgenitorBlocks_.end())
-        {
-            return &recievedProgenitorBlocks_[pair.second.progenitorBlockHash];
-        }
-    }
-    return nullptr;
-}
-
-const dpos::ProgenitorVote* findMyVote(const CKey& key)
-{
-    LockGuard lock{mutex_};
-    libsnark::UNUSED(lock);
-
-    for (const auto& pair: recievedProgenitorVotes_) {
-        CPubKey pubKey{};
-        CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
-        ss << pair.second.roundNumber
-           << pair.second.dposBlockHash
-           << pair.second.tipBlockHash
-           << pair.second.progenitorBlockHash
-           << salt;
-        if (pubKey.RecoverCompact(Hash(ss.begin(), ss.end()), pair.second.authSignature)) {
-            if (pubKey == key.GetPubKey()) {
-                return &pair.second;
-            }
-        }
-
-    }
-    return nullptr;
-}
-
 CBlock tranformProgenitorBlock(const CBlock& progenitorBlock)
 {
     CBlock rv{progenitorBlock.GetBlockHeader()};
@@ -133,42 +90,11 @@ CBlock tranformProgenitorBlock(const CBlock& progenitorBlock)
     return rv;
 }
 
-bool voteForProgenitorBlock(const CBlock& progenitorBlock, const CKey& operatorKey)
-{
-    if (operatorKey.IsValid() && findMyVote(operatorKey) == nullptr) {
-        dpos::ProgenitorVote vote{};
-        CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
-        CBlock dposBlock{tranformProgenitorBlock(progenitorBlock)};
-
-        vote.roundNumber = progenitorBlock.roundNumber;
-        vote.dposBlockHash = dposBlock.GetHash();
-        vote.tipBlockHash = progenitorBlock.hashPrevBlock;
-        vote.progenitorBlockHash = progenitorBlock.GetHash();
-        vote.authSignature.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
-
-        ss << vote.roundNumber
-           << vote.dposBlockHash
-           << vote.tipBlockHash
-           << vote.progenitorBlockHash
-           << salt;
-
-        if (operatorKey.SignCompact(Hash(ss.begin(), ss.end()), vote.authSignature)) {
-            dpos::postProgenitorVote(vote);
-        } else {
-            LogPrintf("%s: Can't vote for pre-block %s", __func__, progenitorBlock.GetHash().GetHex());
-        }
-    }
-}
 
 bool checkProgenitorBlockIsConvenient(const CBlock& block)
 {
     LOCK(cs_main);
     return block.hashPrevBlock == chainActive.Tip()->GetBlockHash();
-}
-
-bool checkProgenitorVoteIsConvenient(const dpos::ProgenitorVote& vote)
-{
-    return vote.tipBlockHash == chainActive.Tip()->GetBlockHash();
 }
 
 void printBlock(const CBlock& block)
@@ -194,17 +120,17 @@ void printBlock(const CBlock& block)
 
 }
 
-dpos::ProgenitorVote::ProgenitorVote()
+CTransactionVote::CTransactionVote()
 {
     SetNull();
 }
 
-bool dpos::ProgenitorVote::IsNull() const
+bool CTransactionVote::IsNull() const
 {
     return roundNumber == 0;
 }
 
-void dpos::ProgenitorVote::SetNull()
+void CTransactionVote::SetNull()
 {
     dposBlockHash.SetNull();
     roundNumber = 0;
@@ -213,28 +139,64 @@ void dpos::ProgenitorVote::SetNull()
     authSignature.clear();
 }
 
-uint256 dpos::ProgenitorVote::GetHash() const
+uint256 CTransactionVote::GetHash() const
 {
     return SerializeHash(*this);
 }
 
-bool dpos::checkIsActive()
+CProgenitorVote::CProgenitorVote()
 {
-    const CChainParams& params{Params()};
-    return NetworkUpgradeActive(chainActive.Height(), params.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
-           pmasternodesview->activeNodes.size() >= params.GetMinimalMasternodeCount();
+    SetNull();
 }
 
-void dpos::postProgenitorBlock(const CBlock& block)
+bool CProgenitorVote::IsNull() const
 {
-    if (recieveProgenitorBlock(block, true)) {
-        BroadcastInventory({MSG_PROGENITOR_BLOCK, block.GetHash()});
+    return roundNumber == 0;
+}
+
+void CProgenitorVote::SetNull()
+{
+    dposBlockHash.SetNull();
+    roundNumber = 0;
+    tipBlockHash.SetNull();
+    progenitorBlockHash.SetNull();
+    authSignature.clear();
+}
+
+uint256 CProgenitorVote::GetHash() const
+{
+    return SerializeHash(*this);
+}
+
+CTransactionVoteTracker& CTransactionVoteTracker::getInstance()
+{
+    if (transactionVoteTracker_ == nullptr) {
+        LockGuard lock{mutex_};
+        libsnark::UNUSED(lock);
+        if (transactionVoteTracker_ == nullptr) {
+            transactionVoteTracker_ = new CTransactionVoteTracker{};
+            transactionVoteTracker_->recievedVotes = &validationListener_.transactionVotes;
+        }
+    }
+    assert(transactionVoteTracker_ != nullptr);
+    return *transactionVoteTracker_;
+}
+
+void CTransactionVoteTracker::post(const CTransactionVote& vote)
+{
+    if (recieve(vote, true)) {
+        LogPrintf("%s: Post my vote %s for transaction %s on round %d\n",
+                  __func__,
+                  vote.GetHash().GetHex(),
+                  vote.tipBlockHash.GetHex(),
+                  vote.roundNumber);
+        BroadcastInventory(CInv{MSG_PROGENITOR_VOTE, vote.GetHash()});
     }
 }
 
-void dpos::relayProgenitorBlock(const CBlock& block)
+void CTransactionVoteTracker::relay(const CTransactionVote& vote)
 {
-    if (recieveProgenitorBlock(block, false)) {
+    if (recieve(vote, false)) {
         // Expire old relay messages
         LOCK(cs_mapRelay);
         while (!vRelayExpiration.empty() &&
@@ -246,10 +208,10 @@ void dpos::relayProgenitorBlock(const CBlock& block)
 
         // Save original serialized message so newer versions are preserved
         CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
-        const CInv inv{MSG_PROGENITOR_BLOCK, block.GetHash()};
+        const CInv inv{MSG_TRANSACTION_VOTE, vote.GetHash()};
 
         ss.reserve(1000);
-        ss << block;
+        ss << vote;
 
         mapRelay.insert(std::make_pair(inv, ss));
         vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
@@ -257,41 +219,29 @@ void dpos::relayProgenitorBlock(const CBlock& block)
     }
 }
 
-bool dpos::recieveProgenitorBlock(const CBlock& block, bool isMe)
+bool CTransactionVoteTracker::recieve(const CTransactionVote& vote, bool isMe)
 {
-    bool rv{false};
-    libsnark::UNUSED(isMe);
-
-    if (checkProgenitorBlockIsConvenient(block)) {
-        LockGuard lock{mutex_};
-        libsnark::UNUSED(lock);
-        rv = recievedProgenitorBlocks_.emplace(block.GetHash(), block).second;
-    }
-
-    if (rv) {
-        voteForProgenitorBlock(block, extractOperatorKey());
-    }
-
-    return rv;
+    return true;
 }
 
-const CBlock* dpos::getReceivedProgenitorBlock(const uint256& hash)
+const CTransactionVote* CTransactionVoteTracker::getReceivedVote(const uint256& hash)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
-    const auto it{recievedProgenitorBlocks_.find(hash)};
-    return it == recievedProgenitorBlocks_.end() ? nullptr : &it->second;
+    const auto it{this->recievedVotes->find(hash)};
+    return it == this->recievedVotes->end() ? nullptr : &it->second;
 }
 
-std::vector<CBlock> dpos::listReceivedProgenitorBlocks()
+
+std::vector<CTransactionVote> CTransactionVoteTracker::listReceivedVotes()
 {
-    std::vector<CBlock> rv{};
+    std::vector<CTransactionVote> rv{};
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
 
-    rv.reserve(recievedProgenitorBlocks_.size());
+    rv.reserve(this->recievedVotes->size());
 
-    for (const auto& pair : recievedProgenitorBlocks_) {
+    for (const auto& pair : *this->recievedVotes) {
         assert(pair.first == pair.second.GetHash());
         rv.emplace_back(pair.second);
     }
@@ -299,22 +249,35 @@ std::vector<CBlock> dpos::listReceivedProgenitorBlocks()
     return rv;
 }
 
-
-void dpos::postProgenitorVote(const ProgenitorVote& vote)
+CProgenitorVoteTracker& CProgenitorVoteTracker::getInstance()
 {
-    if (recieveProgenitorVote(vote, true)) {
+    if (progenitorVoteTrackerInstance_ == nullptr) {
+        LockGuard lock{mutex_};
+        libsnark::UNUSED(lock);
+        if (progenitorVoteTrackerInstance_ == nullptr) {
+            progenitorVoteTrackerInstance_ = new CProgenitorVoteTracker{};
+            progenitorVoteTrackerInstance_->recievedVotes = &validationListener_.progenitorVotes;
+        }
+    }
+    assert(progenitorVoteTrackerInstance_ != nullptr);
+    return *progenitorVoteTrackerInstance_;
+}
+
+void CProgenitorVoteTracker::post(const CProgenitorVote& vote)
+{
+    if (recieve(vote, true)) {
         LogPrintf("%s: Post my vote %s for pre-block %s on round %d\n",
                   __func__,
                   vote.GetHash().GetHex(),
-                  vote.progenitorBlockHash.GetHex(),
+                  vote.tipBlockHash.GetHex(),
                   vote.roundNumber);
         BroadcastInventory(CInv{MSG_PROGENITOR_VOTE, vote.GetHash()});
     }
 }
 
-void dpos::relayProgenitorVote(const ProgenitorVote& vote)
+void CProgenitorVoteTracker::relay(const CProgenitorVote& vote)
 {
-    if (recieveProgenitorVote(vote, false)) {
+    if (recieve(vote, false)) {
         // Expire old relay messages
         LOCK(cs_mapRelay);
         while (!vRelayExpiration.empty() &&
@@ -337,18 +300,18 @@ void dpos::relayProgenitorVote(const ProgenitorVote& vote)
     }
 }
 
-bool dpos::recieveProgenitorVote(const ProgenitorVote& vote, bool isMe)
+bool CProgenitorVoteTracker::recieve(const CProgenitorVote& vote, bool isMe)
 {
     using PVPair = std::pair<uint256, std::size_t>;
     std::map<PVPair::first_type, PVPair::second_type> progenitorVotes{};
 
-    if (checkProgenitorVoteIsConvenient(vote)) {
+    if (checkVoteIsConvenient(vote)) {
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
 
-        LogPrintf("%s: Pre-block vote recieved: %d\n", __func__, recievedProgenitorVotes_.count(vote.GetHash()));
-        if (recievedProgenitorVotes_.emplace(vote.GetHash(), vote).second) {
-            for (const auto& pair : recievedProgenitorVotes_) {
+        LogPrintf("%s: Pre-block vote recieved: %d\n", __func__, this->recievedVotes->count(vote.GetHash()));
+        if (this->recievedVotes->emplace(vote.GetHash(), vote).second) {
+            for (const auto& pair : *this->recievedVotes) {
                 progenitorVotes[pair.second.dposBlockHash]++;
             }
         }
@@ -366,7 +329,6 @@ bool dpos::recieveProgenitorVote(const ProgenitorVote& vote, bool isMe)
     const CKey operKey{extractOperatorKey()};
     if (operKey.IsValid()) {
         LogPrintf("%s: Pre-block vote rate: %d\n", __func__, 1.0 * itMax->second / pmasternodesview->activeNodes.size());
-
         if (isMe && 1.0 * itMax->second / pmasternodesview->activeNodes.size() >= 2.0 / 3.0) {
             const CBlock* pBlock{findProgenitorBlock(itMax->first)};
             if (pBlock != nullptr) {
@@ -390,29 +352,193 @@ bool dpos::recieveProgenitorVote(const ProgenitorVote& vote, bool isMe)
     return true;
 }
 
-const dpos::ProgenitorVote* dpos::getReceivedProgenitorVote(const uint256& hash)
+const CProgenitorVote* CProgenitorVoteTracker::getReceivedVote(const uint256& hash)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
-    const auto it{recievedProgenitorVotes_.find(hash)};
-    return it == recievedProgenitorVotes_.end() ? nullptr : &it->second;
+    const auto it{this->recievedVotes->find(hash)};
+    return it == this->recievedVotes->end() ? nullptr : &it->second;
 }
 
 
-std::vector<dpos::ProgenitorVote> dpos::listReceivedProgenitorVotes()
+std::vector<CProgenitorVote> CProgenitorVoteTracker::listReceivedVotes()
 {
-    std::vector<ProgenitorVote> rv{};
+    std::vector<CProgenitorVote> rv{};
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
 
-    rv.reserve(recievedProgenitorVotes_.size());
+    rv.reserve(this->recievedVotes->size());
 
-    for (const auto& pair : recievedProgenitorVotes_) {
+    for (const auto& pair : *this->recievedVotes) {
         assert(pair.first == pair.second.GetHash());
         rv.emplace_back(pair.second);
     }
 
     return rv;
+}
+
+const CBlock* CProgenitorVoteTracker::findProgenitorBlock(const uint256 &dposBlcokHash)
+{
+    for (const auto& pair: *this->recievedVotes) {
+        if (pair.second.dposBlockHash == dposBlcokHash) {
+            return CProgenitorBlockTracker::getInstance().getReceivedBlock(pair.second.progenitorBlockHash);
+        }
+    }
+    return nullptr;
+}
+
+bool CProgenitorVoteTracker::checkVoteIsConvenient(const CProgenitorVote &vote)
+{
+    return vote.tipBlockHash == chainActive.Tip()->GetBlockHash() &&
+           validationListener_.progenitorBlocks.find(vote.progenitorBlockHash) != validationListener_.progenitorBlocks.end();
+}
+
+CProgenitorBlockTracker& CProgenitorBlockTracker::getInstance()
+{
+    if (progenitorBlockTrackerInstance_ == nullptr) {
+        LockGuard lock{mutex_};
+        libsnark::UNUSED(lock);
+        if (progenitorBlockTrackerInstance_ == nullptr) {
+            progenitorBlockTrackerInstance_ = new CProgenitorBlockTracker{};
+            progenitorBlockTrackerInstance_->recievedBlocks = &validationListener_.progenitorBlocks;
+        }
+    }
+    assert(progenitorBlockTrackerInstance_ != nullptr);
+    return *progenitorBlockTrackerInstance_;
+}
+
+void CProgenitorBlockTracker::post(const CBlock& block)
+{
+    if (recieve(block, true)) {
+        BroadcastInventory({MSG_PROGENITOR_BLOCK, block.GetHash()});
+    }
+}
+
+void CProgenitorBlockTracker::relay(const CBlock& block)
+{
+    if (recieve(block, false)) {
+        // Expire old relay messages
+        LOCK(cs_mapRelay);
+        while (!vRelayExpiration.empty() &&
+               vRelayExpiration.front().first < GetTime())
+        {
+            mapRelay.erase(vRelayExpiration.front().second);
+            vRelayExpiration.pop_front();
+        }
+
+        // Save original serialized message so newer versions are preserved
+        CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
+        const CInv inv{MSG_PROGENITOR_BLOCK, block.GetHash()};
+
+        ss.reserve(1000);
+        ss << block;
+
+        mapRelay.insert(std::make_pair(inv, ss));
+        vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
+        BroadcastInventory(inv);
+    }
+}
+
+bool CProgenitorBlockTracker::recieve(const CBlock& block, bool isMe)
+{
+    bool rv{false};
+    libsnark::UNUSED(isMe);
+
+    if (checkProgenitorBlockIsConvenient(block)) {
+        LockGuard lock{mutex_};
+        libsnark::UNUSED(lock);
+        rv = this->recievedBlocks->emplace(block.GetHash(), block).second;
+    }
+
+    if (rv) {
+        voteForProgenitorBlock(block, extractOperatorKey());
+    } else {
+        LogPrintf("%s: Ignoring duplicating pre-block: %s\n", __func__, block.GetHash().GetHex());
+    }
+
+    return rv;
+}
+
+const CBlock* CProgenitorBlockTracker::getReceivedBlock(const uint256& hash)
+{
+    LockGuard lock{mutex_};
+    libsnark::UNUSED(lock);
+    const auto it{this->recievedBlocks->find(hash)};
+    return it == this->recievedBlocks->end() ? nullptr : &it->second;
+}
+
+std::vector<CBlock> CProgenitorBlockTracker::listReceivedBlocks()
+{
+    std::vector<CBlock> rv{};
+    LockGuard lock{mutex_};
+    libsnark::UNUSED(lock);
+
+    rv.reserve(this->recievedBlocks->size());
+
+    for (const auto& pair : *this->recievedBlocks) {
+        assert(pair.first == pair.second.GetHash());
+        rv.emplace_back(pair.second);
+    }
+
+    return rv;
+}
+
+
+const CProgenitorVote* CProgenitorBlockTracker::findMyVote(const CKey& key)
+{
+    LockGuard lock{mutex_};
+    libsnark::UNUSED(lock);
+
+    for (const auto& vote: CProgenitorVoteTracker::getInstance().listReceivedVotes()) {
+        CPubKey pubKey{};
+        CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
+        ss << vote.roundNumber
+           << vote.dposBlockHash
+           << vote.tipBlockHash
+           << vote.progenitorBlockHash
+           << salt;
+        if (pubKey.RecoverCompact(Hash(ss.begin(), ss.end()), vote.authSignature)) {
+            if (pubKey == key.GetPubKey()) {
+                return &vote;
+            }
+        }
+
+    }
+    return nullptr;
+}
+
+bool CProgenitorBlockTracker::voteForProgenitorBlock(const CBlock& progenitorBlock, const CKey& operatorKey)
+{
+    if (operatorKey.IsValid() && findMyVote(operatorKey) == nullptr) {
+        CProgenitorVote vote{};
+        CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
+        CBlock dposBlock{tranformProgenitorBlock(progenitorBlock)};
+
+        vote.roundNumber = progenitorBlock.roundNumber;
+        vote.dposBlockHash = dposBlock.GetHash();
+        vote.tipBlockHash = progenitorBlock.hashPrevBlock;
+        vote.progenitorBlockHash = progenitorBlock.GetHash();
+        vote.authSignature.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
+
+        ss << vote.roundNumber
+           << vote.dposBlockHash
+           << vote.tipBlockHash
+           << vote.progenitorBlockHash
+           << salt;
+
+        if (operatorKey.SignCompact(Hash(ss.begin(), ss.end()), vote.authSignature)) {
+            CProgenitorVoteTracker::getInstance().post(vote);
+        } else {
+            LogPrintf("%s: Can't vote for pre-block %s", __func__, progenitorBlock.GetHash().GetHex());
+        }
+    }
+}
+
+bool dpos::checkIsActive()
+{
+    const CChainParams& params{Params()};
+    return NetworkUpgradeActive(chainActive.Height(), params.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
+           pmasternodesview->activeNodes.size() >= params.GetMinimalMasternodeCount();
 }
 
 CValidationInterface* dpos::getValidationListener()

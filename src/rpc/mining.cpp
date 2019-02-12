@@ -277,7 +277,7 @@ UniValue generate(const UniValue& params, bool fHelp)
         }
 endloop:
         if (dpos::checkIsActive()) {
-            dpos::postProgenitorBlock(*pblock);
+            CProgenitorBlockTracker::getInstance().post(*pblock);
         } else {
             CValidationState state;
             if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
@@ -964,7 +964,7 @@ UniValue listprogenitorblocks(const UniValue& params, bool fHelp)
     }
 
     UniValue rv(UniValue::VARR);
-    for (const auto& block : dpos::listReceivedProgenitorBlocks()) {
+    for (const auto& block : CProgenitorBlockTracker::getInstance().listReceivedBlocks()) {
         UniValue jsonBlock{UniValue::VOBJ};
         jsonBlock.push_back(Pair("version", block.nVersion));
         jsonBlock.push_back(Pair("hash", block.GetHash().GetHex()));
@@ -1007,7 +1007,7 @@ UniValue listprogenitorvotes(const UniValue& params, bool fHelp)
     }
 
     UniValue rv(UniValue::VARR);
-    for (const auto& vote : dpos::listReceivedProgenitorVotes()) {
+    for (const auto& vote : CProgenitorVoteTracker::getInstance().listReceivedVotes()) {
         UniValue jsonVote{UniValue::VOBJ};
         jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
         jsonVote.push_back(Pair("dposBlock", vote.dposBlockHash.GetHex()));
