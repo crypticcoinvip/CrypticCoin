@@ -6,8 +6,10 @@
 #include "util.h"
 #include "masternodes.h"
 #include "../main.h"
+#include "../init.h"
 #include "../key.h"
 #include "../key_io.h"
+#include "../wallet/wallet.h"
 
 namespace
 {
@@ -126,4 +128,19 @@ void mns::mockMasternodesDB(const std::vector<std::string>& addresses, int activ
         }
     }
     pmasternodesview->WriteBatch();
+}
+
+CKey mns::extractOperatorKey()
+{
+    CKey rv{};
+#ifdef ENABLE_WALLET
+    const boost::optional<mns::CMasternodeIDs> mnId{mns::amIActiveOperator()};
+    if (mnId) {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
+        if (!pwalletMain->GetKey(mnId.get().operatorAuthAddress, rv)) {
+            rv = CKey{};
+        }
+    }
+#endif
+    return std::move(rv);
 }

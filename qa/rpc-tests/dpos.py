@@ -81,34 +81,10 @@ class dPoS_Test(BitcoinTestFramework):
             connect_nodes_bi(self.nodes, 2, 3)
             connect_nodes_bi(self.nodes, 3, 0)
 
-        # Check that nodes successfully synchronizied
-        assert_equal(len(self.nodes), self.num_nodes)
-        for node in self.nodes:
-            assert_equal(node.getblockcount(), 0)
-
-        predpos_hashes = self.mine_blocks(True)
-        for node in self.nodes:
-            assert_equal(len(node.listprogenitorblocks()), 0)
-
-        preblock_hashes = self.mine_blocks(False)
-        assert_equal(len(predpos_hashes), self.num_nodes)
-        assert_equal(len(preblock_hashes), len(predpos_hashes) / 2)
-        time.sleep(2)
-
-        for node in self.nodes:
-            pblocks = node.listprogenitorblocks()
-            assert_equal(node.getblockcount(), self.num_nodes)
-            assert_equal(len(pblocks), len(preblock_hashes))
-            for idx, pblock in enumerate(pblocks):
-                assert_equal(pblock["hash"], preblock_hashes[idx])
-
-        for node in self.nodes:
-            pvotes = node.listprogenitorvotes()
-            assert_equal(node.getblockcount(), self.num_nodes)
-            assert_equal(len(pvotes), len(preblock_hashes))
-
-#            for idx, pvote in enumerate(pvotes):
-#                assert_equal(pvote["hash"], preblock_hashes[idx])
+        self.check_initial_state()
+        predpos_hashes = self.check_predpos_blocks()
+        preblock_hashes = self.check_progenitor_blocks(predpos_hashes)
+        pbvote_hashes = self.check_progenitor_votes(preblock_hashes)
 
         self.stop_nodes()
 
@@ -142,6 +118,46 @@ class dPoS_Test(BitcoinTestFramework):
         for node in nodes:
             assert_equal(node.getblockcount(), self.num_nodes)
         return sorted(hashes, key=lambda h: h.decode("hex")[::-1])
+
+    def check_initial_state(self):
+        assert_equal(len(self.nodes), self.num_nodes)
+        for node in self.nodes:
+            assert_equal(node.getblockcount(), 0)
+
+    def check_predpos_blocks(self):
+        predpos_hashes = self.mine_blocks(True)
+        for node in self.nodes:
+            assert_equal(len(node.listprogenitorblocks()), 0)
+        return predpos_hashes
+
+    def check_progenitor_blocks(self, predpos_hashes):
+        preblock_hashes = self.mine_blocks(False)
+        assert_equal(len(predpos_hashes), self.num_nodes)
+        assert_equal(len(preblock_hashes), len(predpos_hashes) / 2)
+        time.sleep(2)
+
+        for node in self.nodes:
+            pblocks = node.listprogenitorblocks()
+            assert_equal(node.getblockcount(), self.num_nodes)
+            assert_equal(len(pblocks), len(preblock_hashes))
+            for idx, pblock in enumerate(pblocks):
+                assert_equal(pblock["hash"], preblock_hashes[idx])
+
+        return preblock_hashes
+
+    def check_progenitor_votes(self, preblock_hashes):
+        pbvote_hashes = []
+        for node in self.nodes:
+            pbvotes = node.listprogenitorvotes()
+            assert_equal(node.getblockcount(), self.num_nodes)
+            assert_equal(len(pbvotes), len(preblock_hashes) / 2)
+            for pbvote in pbvotes:
+                pbvote_hashes.append(pbvote["hash"])
+#        self.nodes[0].generate(1)
+#        time.sleep(2)
+#        for node in self.nodes:
+#            assert_equal(node.getblockcount(), self.num_nodes + 1)
+        return pbvote_hashes
 
 if __name__ == '__main__':
     dPoS_Test().main()

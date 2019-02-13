@@ -8,6 +8,7 @@
 
 #include "../uint256.h"
 #include "../pubkey.h"
+#include "../key.h"
 #include <boost/optional.hpp>
 
 namespace mns
@@ -23,6 +24,8 @@ boost::optional<CMasternodeIDs> amIOperator();
 boost::optional<CMasternodeIDs> amIActiveOperator();
 boost::optional<CMasternodeIDs> amIOwner();
 boost::optional<CMasternodeIDs> amIActiveOwner();
+
+CKey extractOperatorKey();
 
 void mockMasternodesDB(const std::vector<std::string>& addresses, int activationMask = 0);
 

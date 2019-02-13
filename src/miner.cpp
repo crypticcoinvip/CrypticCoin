@@ -587,7 +587,6 @@ void static BitcoinMiner()
             }
             CBlock *pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
-            pblock->hashMerkleRoot_PoW = pblock->hashMerkleRoot;
 
             LogPrintf("Running CrypticcoinMiner with %u transactions in block (%u bytes)\n", pblock->vtx.size(),
                 ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));

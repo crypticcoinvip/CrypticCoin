@@ -5028,7 +5028,8 @@ void static ProcessGetData(CNode* pfrom)
 
             if (inv.type == MSG_HEARTBEAT ||
                 inv.type == MSG_PROGENITOR_BLOCK ||
-                inv.type == MSG_PROGENITOR_VOTE)
+                inv.type == MSG_PROGENITOR_VOTE ||
+                inv.type == MSG_TRANSACTION_VOTE)
             {
                if (!pushed) {
                    LOCK(cs_mapRelay);
@@ -5053,6 +5054,12 @@ void static ProcessGetData(CNode* pfrom)
                        }
                    } else if (inv.type == MSG_PROGENITOR_VOTE) {
                        const CProgenitorVote* vote{CProgenitorVoteTracker::getInstance().getReceivedVote(inv.hash)};
+                       if (vote != nullptr) {
+                           ss << *vote;
+                           pushed = true;
+                       }
+                   } else if (inv.type == MSG_TRANSACTION_VOTE) {
+                       const CTransactionVote* vote{CTransactionVoteTracker::getInstance().getReceivedVote(inv.hash)};
                        if (vote != nullptr) {
                            ss << *vote;
                            pushed = true;
@@ -6018,6 +6025,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         vRecv >> vote;
         ProcessInventoryCommand<CProgenitorVote>(vote, pfrom, MSG_PROGENITOR_VOTE, [](const CProgenitorVote& vote) {
             CProgenitorVoteTracker::getInstance().relay(vote);
+        });
+    } else if (strCommand == CInv{MSG_TRANSACTION_VOTE, uint256{}}.GetCommand()) {
+        CTransactionVote vote{};
+        vRecv >> vote;
+        ProcessInventoryCommand<CTransactionVote>(vote, pfrom, MSG_TRANSACTION_VOTE, [](const CTransactionVote& vote) {
+            CTransactionVoteTracker::getInstance().relay(vote);
         });
     } else if (strCommand == CInv{MSG_PROGENITOR_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex && dpos::checkIsActive()) {
         CBlock block{};

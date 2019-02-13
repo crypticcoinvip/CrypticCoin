@@ -6,22 +6,61 @@
 #ifndef BITCOIN_MASTERNODES_DPOS_H
 #define BITCOIN_MASTERNODES_DPOS_H
 
-#include "../chain.h"
+#include "../uint256.h"
+#include "../serialize.h"
+#include "../primitives/block.h"
 #include <map>
 
 class CKey;
+class CTransaction;
 class CValidationInterface;
+
+class CVoteSignature : public std::vector<unsigned char>
+{
+public:
+    CVoteSignature();
+    explicit CVoteSignature(const std::vector<unsigned char>& vch);
+
+    std::string ToHex() const;
+
+    template<typename Stream>
+    void Serialize(Stream& s) const
+    {
+        s.write(reinterpret_cast<const char*>(data()), size());
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s)
+    {
+        s.read(reinterpret_cast<char*>(data()), size());
+    }
+};
+
+class CVoteChoice
+{
+public:
+    enum { decisionPass = -1, decisionNo, decisionYes };
+
+    uint256 hash;
+    int8_t decision;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action)
+    {
+        READWRITE(hash);
+        READWRITE(decision);
+    }
+};
 
 class CTransactionVote
 {
-    using Signature = std::vector<unsigned char>;
-
 public:
-    uint256 dposBlockHash;
-    uint16_t roundNumber;
     uint256 tipBlockHash;
-    uint256 progenitorBlockHash;
-    Signature authSignature;
+    uint16_t roundNumber;
+    std::vector<CVoteChoice> choices;
+    CVoteSignature authSignature;
 
     CTransactionVote();
 
@@ -30,10 +69,9 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(dposBlockHash);
-        READWRITE(roundNumber);
         READWRITE(tipBlockHash);
-        READWRITE(progenitorBlockHash);
+        READWRITE(roundNumber);
+        READWRITE(choices);
         READWRITE(authSignature);
     }
 
@@ -41,18 +79,18 @@ public:
     void SetNull();
 
     uint256 GetHash() const;
+    uint256 GetSignatureHash() const;
+
+    bool containsTransaction(const CTransaction& transaction) const;
 };
 
 class CProgenitorVote
 {
-    using Signature = std::vector<unsigned char>;
-
 public:
-    uint256 dposBlockHash;
-    uint16_t roundNumber;
     uint256 tipBlockHash;
-    uint256 progenitorBlockHash;
-    Signature authSignature;
+    uint16_t roundNumber;
+    CVoteChoice choice;
+    CVoteSignature authSignature;
 
     CProgenitorVote();
 
@@ -61,10 +99,9 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(dposBlockHash);
-        READWRITE(roundNumber);
         READWRITE(tipBlockHash);
-        READWRITE(progenitorBlockHash);
+        READWRITE(roundNumber);
+        READWRITE(choice);
         READWRITE(authSignature);
     }
 
@@ -72,6 +109,7 @@ public:
     void SetNull();
 
     uint256 GetHash() const;
+    uint256 GetSignatureHash() const;
 };
 
 class CTransactionVoteTracker
@@ -79,6 +117,7 @@ class CTransactionVoteTracker
 public:
     static CTransactionVoteTracker& getInstance();
 
+    void vote(const CTransaction& transaction, const CKey& operatorKey);
     void post(const CTransactionVote& vote);
     void relay(const CTransactionVote& vote);
     bool recieve(const CTransactionVote& vote, bool isMe);
@@ -87,6 +126,11 @@ public:
 
 protected:
     std::map<uint256, CTransactionVote>* recievedVotes;
+
+private:
+    CTransactionVoteTracker();
+    const CTransactionVote* findMyVote(const CKey& key, const CTransaction& transaction);
+    bool checkVoteIsConvenient(const CTransactionVote& vote);
 };
 
 class CProgenitorVoteTracker
@@ -97,6 +141,7 @@ public:
     void post(const CProgenitorVote& vote);
     void relay(const CProgenitorVote& vote);
     bool recieve(const CProgenitorVote& vote, bool isMe);
+    const CProgenitorVote* findMyVote(const CKey& key);
     const CProgenitorVote* getReceivedVote(const uint256& hash);
     std::vector<CProgenitorVote> listReceivedVotes();
 
@@ -104,7 +149,8 @@ protected:
     std::map<uint256, CProgenitorVote>* recievedVotes;
 
 private:
-    const CBlock* findProgenitorBlock(const uint256& dposBlcokHash);
+    CProgenitorVoteTracker();
+    const CBlock* findProgenitorBlock(const uint256& dposBlockHash);
     bool checkVoteIsConvenient(const CProgenitorVote& vote);
 };
 
@@ -113,6 +159,7 @@ class CProgenitorBlockTracker
 public:
     static CProgenitorBlockTracker& getInstance();
 
+    bool vote(const CBlock& progenitorBlock, const CKey& operatorKey);
     void post(const CBlock& pblock);
     void relay(const CBlock& pblock);
     bool recieve(const CBlock& pblock, bool isMe);
@@ -123,8 +170,8 @@ protected:
     std::map<uint256, CBlock>* recievedBlocks;
 
 private:
-    const CProgenitorVote* findMyVote(const CKey& key);
-    bool voteForProgenitorBlock(const CBlock& progenitorBlock, const CKey& operatorKey);
+    CProgenitorBlockTracker();
+    bool checkBlockIsConvenient(const CBlock& block);
 };
 
 namespace dpos

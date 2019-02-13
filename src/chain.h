@@ -179,9 +179,10 @@ public:
     //! block header
     int nVersion;
     uint256 hashMerkleRoot;
-    uint256 hashMerkleRoot_PoW;
     uint256 hashFinalSaplingRoot;
-    uint32_t vtxSize_dPoS;
+    uint256 hashReserved1;
+    uint256 hashReserved2;
+    uint16_t nRoundNumber;
     unsigned int nTime;
     unsigned int nBits;
     uint256 nNonce;
@@ -211,12 +212,12 @@ public:
         nChainSproutValue = boost::none;
         nSaplingValue = 0;
         nChainSaplingValue = boost::none;
-
         nVersion       = 0;
         hashMerkleRoot = uint256();
-        hashMerkleRoot_PoW     = uint256();
         hashFinalSaplingRoot   = uint256();
-        vtxSize_dPoS   = 0;
+        hashReserved1  = uint256();
+        hashReserved2  = uint256();
+        nRoundNumber   = 0;
         nTime          = 0;
         nBits          = 0;
         nNonce         = uint256();
@@ -234,9 +235,10 @@ public:
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
-        hashMerkleRoot_PoW     = block.hashMerkleRoot_PoW;
         hashFinalSaplingRoot   = block.hashFinalSaplingRoot;
-        vtxSize_dPoS   = block.vtxSize_dPoS;
+        hashReserved1  = block.hashReserved1;
+        hashReserved2  = block.hashReserved2;
+        nRoundNumber   = block.nRoundNumber;
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
@@ -268,9 +270,10 @@ public:
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
-        block.hashMerkleRoot_PoW = hashMerkleRoot_PoW;
         block.hashFinalSaplingRoot   = hashFinalSaplingRoot;
-        block.vtxSize_dPoS   = vtxSize_dPoS;
+        block.hashReserved1  = hashReserved1;
+        block.hashReserved2  = hashReserved2;
+        block.nRoundNumber   = nRoundNumber;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -393,15 +396,15 @@ public:
         READWRITE(hashPrev);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
+        if (nVersion >= CBlockHeader::SAPLING_VERSION) {
+            READWRITE(hashReserved1);
+            READWRITE(hashReserved2);
+            READWRITE(nRoundNumber);
+        }
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nSolution);
-
-        if (nVersion >= CBlockHeader::SAPLING_VERSION) {
-            READWRITE(hashMerkleRoot_PoW);
-            READWRITE(vtxSize_dPoS);
-        }
 
         // Only read/write nSproutValue if the client version used to create
         // this index was storing them.
@@ -425,9 +428,10 @@ public:
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
         block.hashMerkleRoot  = hashMerkleRoot;
-        block.hashMerkleRoot_PoW      = hashMerkleRoot_PoW;
         block.hashFinalSaplingRoot    = hashFinalSaplingRoot;
-        block.vtxSize_dPoS    = vtxSize_dPoS;
+        block.hashReserved1   = hashReserved1;
+        block.hashReserved2   = hashReserved2;
+        block.nRoundNumber    = nRoundNumber;
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;

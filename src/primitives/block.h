@@ -21,16 +21,16 @@ class CBlockHeader
 {
 public:
     // header
-    static const size_t HEADER_SIZE=4+32+32+32+32+4+4+4+4+32; // excluding Equihash solution
+    static const size_t HEADER_SIZE=4+32+32+32+32+32+2+4+4+4+32; // excluding Equihash solution
     static const int32_t CURRENT_VERSION=5;
     static const int32_t SAPLING_VERSION=CURRENT_VERSION;
     int32_t nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
     uint256 hashFinalSaplingRoot;
-    uint256 hashMerkleRoot_PoW;
-    uint32_t vtxSize_dPoS;
-    uint32_t roundNumber;
+    uint256 hashReserved1;
+    uint256 hashReserved2;
+    uint16_t nRoundNumber;
     uint32_t nTime;
     uint32_t nBits;
     uint256 nNonce;
@@ -49,16 +49,15 @@ public:
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
+        if (nVersion >= SAPLING_VERSION) {
+            READWRITE(hashReserved1);
+            READWRITE(hashReserved2);
+            READWRITE(nRoundNumber);
+        }
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nSolution);
-
-        if (nVersion >= SAPLING_VERSION) {
-            READWRITE(hashMerkleRoot_PoW);
-            READWRITE(vtxSize_dPoS);
-            READWRITE(roundNumber);
-        }
     }
 
     void SetNull()
@@ -67,9 +66,9 @@ public:
         hashPrevBlock.SetNull();
         hashMerkleRoot.SetNull();
         hashFinalSaplingRoot.SetNull();
-        hashMerkleRoot_PoW.SetNull();
-        vtxSize_dPoS = 0;
-        roundNumber = 0;
+        hashReserved1.SetNull();
+        hashReserved2.SetNull();
+        nRoundNumber = 0;
         nTime = 0;
         nBits = 0;
         nNonce.SetNull();
@@ -135,9 +134,9 @@ public:
         block.hashPrevBlock  = hashPrevBlock;
         block.hashMerkleRoot = hashMerkleRoot;
         block.hashFinalSaplingRoot = hashFinalSaplingRoot;
-        block.hashMerkleRoot_PoW   = hashMerkleRoot_PoW;
-        block.vtxSize_dPoS   = vtxSize_dPoS;
-        block.roundNumber    = roundNumber;
+        block.hashReserved1  = hashReserved1;
+        block.hashReserved2  = hashReserved2;
+        block.nRoundNumber   = nRoundNumber;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -176,13 +175,13 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(nVersion);
         READWRITE(hashPrevBlock);
-        if (nVersion < SAPLING_VERSION) {
-            READWRITE(hashMerkleRoot);
-        } else {
-            READWRITE(hashMerkleRoot_PoW);
-            READWRITE(roundNumber);
-        }
+        READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
+        if (nVersion >= SAPLING_VERSION) {
+            READWRITE(hashReserved1);
+            READWRITE(hashReserved2);
+            READWRITE(nRoundNumber);
+        }
         READWRITE(nTime);
         READWRITE(nBits);
     }
