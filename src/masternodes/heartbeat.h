@@ -61,8 +61,8 @@ public:
     bool recieveMessage(const CHeartBeatMessage& message);
     bool relayMessage(const CHeartBeatMessage& message);
 
+    bool findReceivedMessage(const uint256& hash, CHeartBeatMessage* message = nullptr) const;
     std::vector<CHeartBeatMessage> getReceivedMessages() const;
-    const CHeartBeatMessage* getReceivedMessage(const uint256& hash) const;
 
     int getMinPeriod() const;
     int getMaxPeriod() const;

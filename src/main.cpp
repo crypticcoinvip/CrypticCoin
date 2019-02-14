@@ -914,6 +914,12 @@ bool ContextualCheckTransaction(
     }
 
     if (saplingActive) {
+        // Reject dPoS transactions with missing overwintered flag
+        if (tx.fInstant && !tx.fOverwintered) {
+            return state.DoS(100, error("ContextualCheckTransaction(): with dPoS transaction overwintered flag must be set"),
+                REJECT_INVALID, "tx-overwintered-flag-not-set-with-dpos");
+        }
+
         // Reject transactions with valid version but missing overwintered flag
         if (tx.nVersion >= SAPLING_MIN_TX_VERSION && !tx.fOverwintered) {
             return state.DoS(dosLevel, error("ContextualCheckTransaction(): overwintered flag must be set"),
@@ -956,6 +962,11 @@ bool ContextualCheckTransaction(
         if (tx.fOverwintered && tx.nVersion > OVERWINTER_MAX_TX_VERSION ) {
             return state.DoS(100, error("CheckTransaction(): overwinter version too high"),
                 REJECT_INVALID, "bad-tx-overwinter-version-too-high");
+        }
+        // Reject transactions with dPoS flag is set
+        if (tx.fInstant) {
+            return state.DoS(100, error("ContextualCheckTransaction(): dPoS transaction not allowed"),
+                REJECT_INVALID, "tx-instant-supported-in-sapling");
         }
     }
 
@@ -4929,13 +4940,13 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_HEARTBEAT:
-        return CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash) != nullptr;
+        return CHeartBeatTracker::getInstance().findReceivedMessage(inv.hash);
     case MSG_PROGENITOR_BLOCK:
-        return CProgenitorBlockTracker::getInstance().getReceivedBlock(inv.hash) != nullptr;
+        return CProgenitorBlockTracker::getInstance().findReceivedBlock(inv.hash);
     case MSG_PROGENITOR_VOTE:
-        return CProgenitorVoteTracker::getInstance().getReceivedVote(inv.hash) != nullptr;
+        return CProgenitorVoteTracker::getInstance().findReceivedVote(inv.hash);
     case MSG_TRANSACTION_VOTE:
-        return CTransactionVoteTracker::getInstance().getReceivedVote(inv.hash) != nullptr;
+        return CTransactionVoteTracker::getInstance().findReceivedVote(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -5041,27 +5052,27 @@ void static ProcessGetData(CNode* pfrom)
                }
                if (!pushed) {
                    if (inv.type == MSG_HEARTBEAT) {
-                       const CHeartBeatMessage* message{CHeartBeatTracker::getInstance().getReceivedMessage(inv.hash)};
-                       if (message != nullptr) {
-                           ss << *message;
+                       CHeartBeatMessage message{};
+                       if (CHeartBeatTracker::getInstance().findReceivedMessage(inv.hash, &message)) {
+                           ss << message;
                            pushed = true;
                        }
                    } else if (inv.type == MSG_PROGENITOR_BLOCK) {
-                       const CBlock* block{CProgenitorBlockTracker::getInstance().getReceivedBlock(inv.hash)};
-                       if (block != nullptr) {
-                           ss << *block;
+                       CBlock block{};
+                       if (CProgenitorBlockTracker::getInstance().findReceivedBlock(inv.hash, &block)) {
+                           ss << block;
                            pushed = true;
                        }
                    } else if (inv.type == MSG_PROGENITOR_VOTE) {
-                       const CProgenitorVote* vote{CProgenitorVoteTracker::getInstance().getReceivedVote(inv.hash)};
-                       if (vote != nullptr) {
-                           ss << *vote;
+                       CProgenitorVote vote{};
+                       if (CProgenitorVoteTracker::getInstance().findReceivedVote(inv.hash, &vote)) {
+                           ss << vote;
                            pushed = true;
                        }
                    } else if (inv.type == MSG_TRANSACTION_VOTE) {
-                       const CTransactionVote* vote{CTransactionVoteTracker::getInstance().getReceivedVote(inv.hash)};
-                       if (vote != nullptr) {
-                           ss << *vote;
+                       CTransactionVote vote{};
+                       if (CTransactionVoteTracker::getInstance().findReceivedVote(inv.hash, &vote)) {
+                           ss << vote;
                            pushed = true;
                        }
                    }
@@ -5131,7 +5142,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         LogPrintf("dropmessagestest DROPPING RECV MESSAGE\n");
         return true;
     }
-
 
     if (strCommand == "version")
     {
@@ -5689,8 +5699,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         }
         headers.resize(nCount);
         for (unsigned int n = 0; n < nCount; n++) {
-            vRecv >> headers[n];
-            ReadCompactSize(vRecv); // ignore tx count; assume it is 0.
+            CBlock deserializedAsBlock;
+            vRecv >> deserializedAsBlock; // the header was serialized as a block, so we read it as a block
+            headers[n] = deserializedAsBlock.GetBlockHeader();
         }
 
         LOCK(cs_main);

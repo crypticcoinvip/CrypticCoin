@@ -22,9 +22,9 @@ std::mutex mutex_{};
 CTransactionVoteTracker* transactionVoteTracker_{nullptr};
 CProgenitorVoteTracker* progenitorVoteTrackerInstance_{nullptr};
 CProgenitorBlockTracker* progenitorBlockTrackerInstance_{nullptr};
-std::array<unsigned char, 16> salt{0x4D, 0x48, 0x7A, 0x52, 0x5D, 0x4D, 0x37, 0x78, 0x42, 0x36, 0x5B, 0x64, 0x44, 0x79, 0x59, 0x4F};
+std::array<unsigned char, 16> salt_{0x4D, 0x48, 0x7A, 0x52, 0x5D, 0x4D, 0x37, 0x78, 0x42, 0x36, 0x5B, 0x64, 0x44, 0x79, 0x59, 0x4F};
 
-class ValidationListener : public CValidationInterface
+class ChainListener : public CValidationInterface
 {
 public:
     std::map<uint256, CTransactionVote> transactionVotes;
@@ -46,11 +46,12 @@ protected:
     {
         libsnark::UNUSED(pblock);
         const uint256 txHash{tx.GetHash()};
-        if (mempool.exists(txHash)) {
+        if (mempool.exists(txHash) && tx.fInstant) {
             CTransactionVoteTracker::getInstance().vote(tx, mns::extractOperatorKey());
         }
     }
-} validationListener_;
+
+} chainListener_;
 
 void attachTransactions(CBlock& block)
 {
@@ -74,7 +75,7 @@ void attachTransactions(CBlock& block)
 CBlock tranformProgenitorBlock(const CBlock& progenitorBlock)
 {
     CBlock rv{progenitorBlock.GetBlockHeader()};
-    rv.nRoundNumber = progenitorBlock.nRoundNumber;
+//    rv.nRoundNumber = progenitorBlock.nRoundNumber;
     rv.vtx.resize(progenitorBlock.vtx.size());
     std::copy(progenitorBlock.vtx.begin(), progenitorBlock.vtx.end(), rv.vtx.begin());
     rv.hashMerkleRoot = rv.BuildMerkleTree();
@@ -97,7 +98,7 @@ void printBlock(const CBlock& block)
               block.GetHash().GetHex(),
               block.hashPrevBlock.GetHex(),
               block.hashMerkleRoot.GetHex(),
-              block.nRoundNumber,
+//              block.nRoundNumber,
               block.nBits,
               block.nTime,
               toHex(block.nSolution));
@@ -163,7 +164,7 @@ uint256 CTransactionVote::GetSignatureHash() const
     ss << tipBlockHash
        << roundNumber
        << choices
-       << salt;
+       << salt_;
     return Hash(ss.begin(), ss.end());
 }
 
@@ -206,7 +207,7 @@ uint256 CProgenitorVote::GetSignatureHash() const
     ss << tipBlockHash
        << roundNumber
        << choice
-       << salt;
+       << salt_;
     return Hash(ss.begin(), ss.end());
 }
 
@@ -224,7 +225,7 @@ CTransactionVoteTracker& CTransactionVoteTracker::getInstance()
         libsnark::UNUSED(lock);
         if (transactionVoteTracker_ == nullptr) {
             transactionVoteTracker_ = new CTransactionVoteTracker{};
-            transactionVoteTracker_->recievedVotes = &validationListener_.transactionVotes;
+            transactionVoteTracker_->recievedVotes = &chainListener_.transactionVotes;
         }
     }
     assert(transactionVoteTracker_ != nullptr);
@@ -233,6 +234,8 @@ CTransactionVoteTracker& CTransactionVoteTracker::getInstance()
 
 void CTransactionVoteTracker::vote(const CTransaction& transaction, const CKey& operatorKey)
 {
+    LogPrintf("%s: %d, %p", operatorKey.IsValid(), findMyVote(operatorKey, transaction));
+
     if (operatorKey.IsValid() && findMyVote(operatorKey, transaction) == nullptr) {
         CTransactionVote vote{};
         LOCK(cs_main);
@@ -303,12 +306,18 @@ bool CTransactionVoteTracker::recieve(const CTransactionVote& vote, bool isMe)
     return true;
 }
 
-const CTransactionVote* CTransactionVoteTracker::getReceivedVote(const uint256& hash)
+bool CTransactionVoteTracker::findReceivedVote(const uint256& hash, CTransactionVote* vote)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
     const auto it{this->recievedVotes->find(hash)};
-    return it == this->recievedVotes->end() ? nullptr : &it->second;
+    const auto rv{it != this->recievedVotes->end()};
+
+    if (rv && vote != nullptr) {
+        *vote = it->second;
+    }
+
+    return rv;
 }
 
 std::vector<CTransactionVote> CTransactionVoteTracker::listReceivedVotes()
@@ -366,7 +375,7 @@ CProgenitorVoteTracker& CProgenitorVoteTracker::getInstance()
         libsnark::UNUSED(lock);
         if (progenitorVoteTrackerInstance_ == nullptr) {
             progenitorVoteTrackerInstance_ = new CProgenitorVoteTracker{};
-            progenitorVoteTrackerInstance_->recievedVotes = &validationListener_.progenitorVotes;
+            progenitorVoteTrackerInstance_->recievedVotes = &chainListener_.progenitorVotes;
         }
     }
     assert(progenitorVoteTrackerInstance_ != nullptr);
@@ -442,10 +451,10 @@ bool CProgenitorVoteTracker::recieve(const CProgenitorVote& vote, bool isMe)
     if (operKey.IsValid()) {
         LogPrintf("%s: Pre-block vote rate: %d\n", __func__, 1.0 * itMax->second / pmasternodesview->activeNodes.size());
         if (isMe && 1.0 * itMax->second / pmasternodesview->activeNodes.size() >= 2.0 / 3.0) {
-            const CBlock* pBlock{findProgenitorBlock(itMax->first)};
-            if (pBlock != nullptr) {
+            CBlock pblock{};
+            if (findProgenitorBlock(itMax->first, &pblock)) {
                 CValidationState state{};
-                CBlock dposBlock{tranformProgenitorBlock(*pBlock)};
+                CBlock dposBlock{tranformProgenitorBlock(pblock)};
 
                 if (dposBlock.GetHash() != itMax->first ||
                     !ProcessNewBlock(state, NULL, &dposBlock, true, NULL))
@@ -464,29 +473,18 @@ bool CProgenitorVoteTracker::recieve(const CProgenitorVote& vote, bool isMe)
     return true;
 }
 
-const CProgenitorVote* CProgenitorVoteTracker::findMyVote(const CKey& key)
-{
-    LockGuard lock{mutex_};
-    libsnark::UNUSED(lock);
-
-    for (const auto& pair: *this->recievedVotes) {
-        CPubKey pubKey{};
-        if (pubKey.RecoverCompact(pair.second.GetSignatureHash(), pair.second.authSignature)) {
-            if (pubKey == key.GetPubKey()) {
-                return &pair.second;
-            }
-        }
-
-    }
-    return nullptr;
-}
-
-const CProgenitorVote* CProgenitorVoteTracker::getReceivedVote(const uint256& hash)
+bool CProgenitorVoteTracker::findReceivedVote(const uint256& hash, CProgenitorVote* vote)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
     const auto it{this->recievedVotes->find(hash)};
-    return it == this->recievedVotes->end() ? nullptr : &it->second;
+    const auto rv{it != this->recievedVotes->end()};
+
+    if (rv && vote != nullptr) {
+        *vote = it->second;
+    }
+
+    return rv;
 }
 
 
@@ -506,21 +504,38 @@ std::vector<CProgenitorVote> CProgenitorVoteTracker::listReceivedVotes()
     return rv;
 }
 
-const CBlock* CProgenitorVoteTracker::findProgenitorBlock(const uint256& dposBlockHash)
+const CProgenitorVote* CProgenitorVoteTracker::findMyVote(const CKey& key)
+{
+    LockGuard lock{mutex_};
+    libsnark::UNUSED(lock);
+
+    for (const auto& pair: *this->recievedVotes) {
+        CPubKey pubKey{};
+        if (pubKey.RecoverCompact(pair.second.GetSignatureHash(), pair.second.authSignature)) {
+            if (pubKey == key.GetPubKey()) {
+                return &pair.second;
+            }
+        }
+
+    }
+    return nullptr;
+}
+
+bool CProgenitorVoteTracker::findProgenitorBlock(const uint256& dposBlockHash, CBlock* block)
 {
     for (const auto& pair: *this->recievedVotes) {
         if (pair.second.choice.hash == dposBlockHash) {
-            return CProgenitorBlockTracker::getInstance().getReceivedBlock(dposBlockHash);
+            return CProgenitorBlockTracker::getInstance().findReceivedBlock(dposBlockHash, block);
         }
     }
-    return nullptr;
+    return false;
 }
 
 bool CProgenitorVoteTracker::checkVoteIsConvenient(const CProgenitorVote& vote)
 {
     LOCK(cs_main);
     return vote.tipBlockHash == chainActive.Tip()->GetBlockHash() &&
-           CProgenitorBlockTracker::getInstance().getReceivedBlock(vote.choice.hash) != nullptr;
+           CProgenitorBlockTracker::getInstance().findReceivedBlock(vote.choice.hash);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -537,7 +552,7 @@ CProgenitorBlockTracker& CProgenitorBlockTracker::getInstance()
         libsnark::UNUSED(lock);
         if (progenitorBlockTrackerInstance_ == nullptr) {
             progenitorBlockTrackerInstance_ = new CProgenitorBlockTracker{};
-            progenitorBlockTrackerInstance_->recievedBlocks = &validationListener_.progenitorBlocks;
+            progenitorBlockTrackerInstance_->recievedBlocks = &chainListener_.progenitorBlocks;
         }
     }
     assert(progenitorBlockTrackerInstance_ != nullptr);
@@ -549,7 +564,7 @@ bool CProgenitorBlockTracker::vote(const CBlock& progenitorBlock, const CKey& op
     if (operatorKey.IsValid() && CProgenitorVoteTracker::getInstance().findMyVote(operatorKey) == nullptr) {
         CProgenitorVote vote{};
         vote.choice.hash = progenitorBlock.GetHash();
-        vote.roundNumber = progenitorBlock.nRoundNumber;
+//        vote.roundNumber = progenitorBlock.nRoundNumber;
         vote.tipBlockHash = progenitorBlock.hashPrevBlock;
         vote.authSignature.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
 
@@ -613,12 +628,18 @@ bool CProgenitorBlockTracker::recieve(const CBlock& block, bool isMe)
     return rv;
 }
 
-const CBlock* CProgenitorBlockTracker::getReceivedBlock(const uint256& hash)
+bool CProgenitorBlockTracker::findReceivedBlock(const uint256& hash, CBlock* block)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
     const auto it{this->recievedBlocks->find(hash)};
-    return it == this->recievedBlocks->end() ? nullptr : &it->second;
+    const auto rv{it != this->recievedBlocks->end()};
+
+    if (rv && block != nullptr) {
+        *block = it->second;
+    }
+
+    return rv;
 }
 
 std::vector<CBlock> CProgenitorBlockTracker::listReceivedBlocks()
@@ -656,5 +677,5 @@ bool dpos::checkIsActive()
 
 CValidationInterface* dpos::getValidationListener()
 {
-    return &validationListener_;
+    return &chainListener_;
 }

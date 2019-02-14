@@ -121,7 +121,7 @@ public:
     void post(const CTransactionVote& vote);
     void relay(const CTransactionVote& vote);
     bool recieve(const CTransactionVote& vote, bool isMe);
-    const CTransactionVote* getReceivedVote(const uint256& hash);
+    bool findReceivedVote(const uint256& hash, CTransactionVote* vote = nullptr);
     std::vector<CTransactionVote> listReceivedVotes();
 
 protected:
@@ -135,14 +135,15 @@ private:
 
 class CProgenitorVoteTracker
 {
+    friend class CProgenitorBlockTracker;
+
 public:
     static CProgenitorVoteTracker& getInstance();
 
     void post(const CProgenitorVote& vote);
     void relay(const CProgenitorVote& vote);
     bool recieve(const CProgenitorVote& vote, bool isMe);
-    const CProgenitorVote* findMyVote(const CKey& key);
-    const CProgenitorVote* getReceivedVote(const uint256& hash);
+    bool findReceivedVote(const uint256& hash, CProgenitorVote* vote = nullptr);
     std::vector<CProgenitorVote> listReceivedVotes();
 
 protected:
@@ -150,7 +151,8 @@ protected:
 
 private:
     CProgenitorVoteTracker();
-    const CBlock* findProgenitorBlock(const uint256& dposBlockHash);
+    const CProgenitorVote* findMyVote(const CKey& key);
+    bool findProgenitorBlock(const uint256& dposBlockHash, CBlock* block);
     bool checkVoteIsConvenient(const CProgenitorVote& vote);
 };
 
@@ -163,7 +165,7 @@ public:
     void post(const CBlock& pblock);
     void relay(const CBlock& pblock);
     bool recieve(const CBlock& pblock, bool isMe);
-    const CBlock* getReceivedBlock(const uint256& hash);
+    bool findReceivedBlock(const uint256& hash, CBlock* block = nullptr);
     std::vector<CBlock> listReceivedBlocks();
 
 protected:

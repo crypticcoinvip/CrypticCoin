@@ -180,13 +180,13 @@ public:
     int nVersion;
     uint256 hashMerkleRoot;
     uint256 hashFinalSaplingRoot;
-    uint256 hashReserved1;
-    uint256 hashReserved2;
-    uint16_t nRoundNumber;
     unsigned int nTime;
     unsigned int nBits;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
+    uint256 hashReserved1;
+    uint256 hashReserved2;
+    uint16_t nRoundNumber;
 
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     uint32_t nSequenceId;
@@ -215,13 +215,13 @@ public:
         nVersion       = 0;
         hashMerkleRoot = uint256();
         hashFinalSaplingRoot   = uint256();
-        hashReserved1  = uint256();
-        hashReserved2  = uint256();
-        nRoundNumber   = 0;
         nTime          = 0;
         nBits          = 0;
         nNonce         = uint256();
         nSolution.clear();
+        hashReserved1  = uint256();
+        hashReserved2  = uint256();
+        nRoundNumber   = 0;
     }
 
     CBlockIndex()
@@ -236,13 +236,13 @@ public:
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
         hashFinalSaplingRoot   = block.hashFinalSaplingRoot;
-        hashReserved1  = block.hashReserved1;
-        hashReserved2  = block.hashReserved2;
-        nRoundNumber   = block.nRoundNumber;
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
         nSolution      = block.nSolution;
+        hashReserved1  = block.hashReserved1;
+        hashReserved2  = block.hashReserved2;
+        nRoundNumber   = block.nRoundNumber;
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -271,13 +271,13 @@ public:
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
         block.hashFinalSaplingRoot   = hashFinalSaplingRoot;
-        block.hashReserved1  = hashReserved1;
-        block.hashReserved2  = hashReserved2;
-        block.nRoundNumber   = nRoundNumber;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
+        block.hashReserved1  = hashReserved1;
+        block.hashReserved2  = hashReserved2;
+        block.nRoundNumber   = nRoundNumber;
         return block;
     }
 
@@ -396,15 +396,15 @@ public:
         READWRITE(hashPrev);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
-        if (nVersion >= CBlockHeader::SAPLING_VERSION) {
-            READWRITE(hashReserved1);
-            READWRITE(hashReserved2);
-            READWRITE(nRoundNumber);
-        }
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nSolution);
+        if (nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
+            READWRITE(hashReserved1);
+            READWRITE(hashReserved2);
+            READWRITE(nRoundNumber);
+        }
 
         // Only read/write nSproutValue if the client version used to create
         // this index was storing them.
@@ -429,13 +429,13 @@ public:
         block.hashPrevBlock   = hashPrev;
         block.hashMerkleRoot  = hashMerkleRoot;
         block.hashFinalSaplingRoot    = hashFinalSaplingRoot;
-        block.hashReserved1   = hashReserved1;
-        block.hashReserved2   = hashReserved2;
-        block.nRoundNumber    = nRoundNumber;
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;
         block.nSolution       = nSolution;
+        block.hashReserved1   = hashReserved1;
+        block.hashReserved2   = hashReserved2;
+        block.nRoundNumber    = nRoundNumber;
         return block.GetHash();
     }
 

@@ -21,20 +21,20 @@ class CBlockHeader
 {
 public:
     // header
-    static const size_t HEADER_SIZE=4+32+32+32+32+32+2+4+4+4+32; // excluding Equihash solution
+    static const size_t HEADER_SIZE=4+32+32+32+4+4+32+32+32+2; // excluding Equihash solution
     static const int32_t CURRENT_VERSION=5;
-    static const int32_t SAPLING_VERSION=CURRENT_VERSION;
+    static const int32_t SAPLING_BLOCK_VERSION=CURRENT_VERSION;
     int32_t nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
     uint256 hashFinalSaplingRoot;
-    uint256 hashReserved1;
-    uint256 hashReserved2;
-    uint16_t nRoundNumber;
     uint32_t nTime;
     uint32_t nBits;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
+    uint256 hashReserved1;
+    uint256 hashReserved2;
+    uint16_t nRoundNumber;
 
     CBlockHeader()
     {
@@ -49,15 +49,16 @@ public:
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
-        if (nVersion >= SAPLING_VERSION) {
-            READWRITE(hashReserved1);
-            READWRITE(hashReserved2);
-            READWRITE(nRoundNumber);
-        }
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nSolution);
+
+        if (nVersion >= SAPLING_BLOCK_VERSION) {
+            READWRITE(hashReserved1);
+            READWRITE(hashReserved2);
+            READWRITE(nRoundNumber);
+        }
     }
 
     void SetNull()
@@ -66,13 +67,13 @@ public:
         hashPrevBlock.SetNull();
         hashMerkleRoot.SetNull();
         hashFinalSaplingRoot.SetNull();
-        hashReserved1.SetNull();
-        hashReserved2.SetNull();
-        nRoundNumber = 0;
         nTime = 0;
         nBits = 0;
         nNonce.SetNull();
         nSolution.clear();
+        hashReserved1.SetNull();
+        hashReserved2.SetNull();
+        nRoundNumber = 0;
     }
 
     bool IsNull() const
@@ -134,13 +135,13 @@ public:
         block.hashPrevBlock  = hashPrevBlock;
         block.hashMerkleRoot = hashMerkleRoot;
         block.hashFinalSaplingRoot = hashFinalSaplingRoot;
-        block.hashReserved1  = hashReserved1;
-        block.hashReserved2  = hashReserved2;
-        block.nRoundNumber   = nRoundNumber;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
+        block.hashReserved1  = hashReserved1;
+        block.hashReserved2  = hashReserved2;
+        block.nRoundNumber   = nRoundNumber;
         return block;
     }
 
@@ -177,13 +178,13 @@ public:
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
-        if (nVersion >= SAPLING_VERSION) {
+        READWRITE(nTime);
+        READWRITE(nBits);
+        if (nVersion >= SAPLING_BLOCK_VERSION) {
             READWRITE(hashReserved1);
             READWRITE(hashReserved2);
             READWRITE(nRoundNumber);
         }
-        READWRITE(nTime);
-        READWRITE(nBits);
     }
 };
 

@@ -14,7 +14,7 @@ namespace
 {
 std::mutex mutex{};
 CHeartBeatTracker* instance{nullptr};
-std::array<unsigned char, 16> salt{0x36, 0x4D, 0x2B, 0x44, 0x58, 0x37, 0x78, 0x39, 0x7A, 0x78, 0x5E, 0x58, 0x68, 0x7A, 0x35, 0x75};
+std::array<unsigned char, 16> salt_{0x36, 0x4D, 0x2B, 0x44, 0x58, 0x37, 0x78, 0x39, 0x7A, 0x78, 0x5E, 0x58, 0x68, 0x7A, 0x35, 0x75};
 }
 
 CHeartBeatMessage::CHeartBeatMessage(const int64_t timestamp)
@@ -67,7 +67,7 @@ bool CHeartBeatMessage::GetPubKey(CPubKey& pubKey) const
 uint256 CHeartBeatMessage::getSignHash() const
 {
     CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
-    ss << timestamp << salt;
+    ss << timestamp << salt_;
     return Hash(ss.begin(), ss.end());
 }
 
@@ -207,6 +207,30 @@ bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
     return false;
 }
 
+bool CHeartBeatTracker::findReceivedMessage(const uint256& hash, CHeartBeatMessage* message) const
+{
+    LockGuard lock{mutex};
+    libsnark::UNUSED(lock);
+
+    assert(messageList.size() == keyMessageMap.size());
+    assert(keyMessageMap.size() == hashMessageMap.size());
+
+    const auto it{hashMessageMap.find(hash)};
+    const auto rv{it != this->hashMessageMap.end()};
+
+    if (rv && message != nullptr) {
+        *message = *it->second;
+    }
+
+    return rv;
+
+//    for (const auto & pair : keyMessageMap) {
+//        if (pair.second.getHash() == hash) {
+//            return &pair.second;
+//        }
+//    }
+//    return nullptr;
+}
 
 std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
 {
@@ -221,25 +245,6 @@ std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
     rv.assign(messageList.crbegin(), messageList.crend());
 
     return rv;
-}
-
-const CHeartBeatMessage* CHeartBeatTracker::getReceivedMessage(const uint256& hash) const
-{
-    LockGuard lock{mutex};
-    libsnark::UNUSED(lock);
-
-    assert(messageList.size() == keyMessageMap.size());
-    assert(keyMessageMap.size() == hashMessageMap.size());
-
-    const auto it{hashMessageMap.find(hash)};
-    return it != hashMessageMap.end() ? &*it->second : nullptr;
-
-//    for (const auto & pair : keyMessageMap) {
-//        if (pair.second.getHash() == hash) {
-//            return &pair.second;
-//        }
-//    }
-//    return nullptr;
 }
 
 int CHeartBeatTracker::getMinPeriod() const
