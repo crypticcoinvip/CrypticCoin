@@ -495,8 +495,8 @@ static bool ProcessBlockFound(CBlock* pblock)
 //        wallet.mapRequestCount[pblock->GetHash()] = 0;
 //    }
 #endif
-    if (dpos::checkIsActive()) {
-        CProgenitorBlockTracker::getInstance().post(*pblock);
+    if (dpos::isActive()) {
+        CProgenitorBlockTracker::getInstance().postBlock(*pblock);
     } else {
         // Process this block the same as if we had received it from another node
         CValidationState state;

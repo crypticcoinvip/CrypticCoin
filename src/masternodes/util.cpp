@@ -142,5 +142,5 @@ CKey mns::extractOperatorKey()
         }
     }
 #endif
-    return std::move(rv);
+    return rv;
 }

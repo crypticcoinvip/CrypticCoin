@@ -32,26 +32,19 @@ public:
     std::map<uint256, CBlock> progenitorBlocks;
 
 protected:
-    void UpdatedBlockTip(const CBlockIndex* pindex) override
-    {
-        libsnark::UNUSED(pindex);
-        LockGuard lock{mutex_};
-        libsnark::UNUSED(lock);
-        transactionVotes.clear();
-        progenitorVotes.clear();
-        progenitorBlocks.clear();
-    }
-
-    void SyncTransaction(const CTransaction& tx, const CBlock* pblock) override
-    {
-        libsnark::UNUSED(pblock);
-        const uint256 txHash{tx.GetHash()};
-        if (mempool.exists(txHash) && tx.fInstant) {
-            CTransactionVoteTracker::getInstance().vote(tx, mns::extractOperatorKey());
-        }
-    }
-
+    void UpdatedBlockTip(const CBlockIndex* pindex) override;
+    void SyncTransaction(const CTransaction& tx, const CBlock* pblock) override;
 } chainListener_;
+
+struct VoteDistribution
+{
+    std::size_t pro;
+    std::size_t contra;
+    std::size_t abstinendi;
+    std::size_t totus;
+
+    bool isSufficiently() const;
+};
 
 void attachTransactions(CBlock& block)
 {
@@ -84,24 +77,64 @@ CBlock tranformProgenitorBlock(const CBlock& progenitorBlock)
 }
 
 
-void printBlock(const CBlock& block)
+std::map<uint256, VoteDistribution> calcTxVoteStats()
 {
-    const auto toHex{[](const std::vector<unsigned char>& bin) {
-         std::ostringstream ss{};
-         for (const auto& v: bin) {
-            ss << std::hex << static_cast<int>(v) << ':';
-         }
-         return ss.str();
-    }};
-    LogPrintf("%s: hash: %s, hashPrev: %s, merkleRoot: %s, round: %d, bits: %d, time: %d, solution: %s\n",
-              __func__,
-              block.GetHash().GetHex(),
-              block.hashPrevBlock.GetHex(),
-              block.hashMerkleRoot.GetHex(),
-//              block.nRoundNumber,
-              block.nBits,
-              block.nTime,
-              toHex(block.nSolution));
+    std::map<uint256, VoteDistribution> rv{};
+
+    for (const auto& txVote : CTransactionVoteTracker::getInstance().listReceivedVotes()) {
+        for (const auto& choice : txVote.choices) {
+            VoteDistribution& stats{rv[choice.hash]};
+
+            switch (choice.decision) {
+            case CVoteChoice::decisionYes:
+                stats.pro++;
+                break;
+            case CVoteChoice::decisionNo:
+                stats.contra++;
+                break;
+            case CVoteChoice::decisionPass:
+                stats.abstinendi++;
+                break;
+            }
+            stats.totus++;
+        }
+    }
+    return rv;
+}
+
+std::size_t getActiveMasternodeCount()
+{
+    return pmasternodesview->activeNodes.size();
+}
+
+uint256 getTipBlockHash()
+{
+    LOCK(cs_main);
+    return chainActive.Tip()->GetBlockHash();
+}
+
+void ChainListener::UpdatedBlockTip(const CBlockIndex* pindex)
+{
+    libsnark::UNUSED(pindex);
+    LockGuard lock{mutex_};
+    libsnark::UNUSED(lock);
+    transactionVotes.clear();
+    progenitorVotes.clear();
+    progenitorBlocks.clear();
+}
+
+void ChainListener::SyncTransaction(const CTransaction& tx, const CBlock* pblock)
+{
+    libsnark::UNUSED(pblock);
+    const uint256 txHash{tx.GetHash()};
+    if (mempool.exists(txHash) && tx.fInstant) {
+        CTransactionVoteTracker::getInstance().voteForTransaction(tx, mns::extractOperatorKey());
+    }
+}
+
+bool VoteDistribution::isSufficiently() const
+{
+    return 1.0 * pro / getActiveMasternodeCount() >= 2.0 / 3.0;
 }
 
 } // anonymous namespace
@@ -232,28 +265,39 @@ CTransactionVoteTracker& CTransactionVoteTracker::getInstance()
     return *transactionVoteTracker_;
 }
 
-void CTransactionVoteTracker::vote(const CTransaction& transaction, const CKey& operatorKey)
+void CTransactionVoteTracker::voteForTransaction(const CTransaction& transaction, const CKey& masternodeKey)
 {
-    LogPrintf("%s: %d, %p", operatorKey.IsValid(), findMyVote(operatorKey, transaction));
-
-    if (operatorKey.IsValid() && findMyVote(operatorKey, transaction) == nullptr) {
+    if (masternodeKey.IsValid() && !checkMyVote(masternodeKey, transaction)) {
         CTransactionVote vote{};
-        LOCK(cs_main);
-        vote.tipBlockHash = chainActive.Tip()->GetBlockHash();
-        vote.roundNumber = 1;
-        vote.choices.push_back({transaction.GetHash(), CVoteChoice::decisionYes});
+        int decision{CVoteChoice::decisionYes};
 
-        if (operatorKey.SignCompact(vote.GetSignatureHash(), vote.authSignature)) {
-            post(vote);
+        if (interfereWithMyList(masternodeKey, transaction) ||
+            exeedSizeLimit(transaction) ||
+            interfereWithCommitedList(transaction))
+        {
+            decision = CVoteChoice::decisionNo;
+        }
+        else if (CProgenitorBlockTracker::getInstance().hasAnyReceivedBlock() ||
+                 CProgenitorVoteTracker::getInstance().hasAnyReceivedVote(CVoteChoice::decisionYes))
+        {
+            decision = CVoteChoice::decisionPass;
+        }
+
+        vote.tipBlockHash = getTipBlockHash();
+        vote.roundNumber = CProgenitorBlockTracker::getInstance().getCurrentRoundNumber();
+        vote.choices.push_back({transaction.GetHash(), static_cast<int8_t>(decision)});
+
+        if (masternodeKey.SignCompact(vote.GetSignatureHash(), vote.authSignature)) {
+            postTransaction(vote);
         } else {
             LogPrintf("%s: Can't vote for transaction %s", __func__, transaction.GetHash().GetHex());
         }
     }
 }
 
-void CTransactionVoteTracker::post(const CTransactionVote& vote)
+void CTransactionVoteTracker::postTransaction(const CTransactionVote& vote)
 {
-    if (recieve(vote, true)) {
+    if (recieveTransaction(vote, true)) {
         LogPrintf("%s: Post my vote %s for transaction %s on round %d\n",
                   __func__,
                   vote.GetHash().GetHex(),
@@ -263,9 +307,9 @@ void CTransactionVoteTracker::post(const CTransactionVote& vote)
     }
 }
 
-void CTransactionVoteTracker::relay(const CTransactionVote& vote)
+void CTransactionVoteTracker::relayTransaction(const CTransactionVote& vote)
 {
-    if (recieve(vote, false)) {
+    if (recieveTransaction(vote, false)) {
         // Expire old relay messages
         LOCK(cs_mapRelay);
         while (!vRelayExpiration.empty() &&
@@ -288,10 +332,10 @@ void CTransactionVoteTracker::relay(const CTransactionVote& vote)
     }
 }
 
-bool CTransactionVoteTracker::recieve(const CTransactionVote& vote, bool isMe)
+bool CTransactionVoteTracker::recieveTransaction(const CTransactionVote& vote, bool isMe)
 {
-    using PVPair = std::pair<uint256, std::size_t>;
-    std::map<PVPair::first_type, PVPair::second_type> progenitorVotes{};
+//    using PVPair = std::pair<uint256, std::size_t>;
+//    std::map<PVPair::first_type, PVPair::second_type> progenitorVotes{};
 
     if (checkVoteIsConvenient(vote)) {
         LockGuard lock{mutex_};
@@ -336,29 +380,71 @@ std::vector<CTransactionVote> CTransactionVoteTracker::listReceivedVotes()
     return rv;
 }
 
-const CTransactionVote* CTransactionVoteTracker::findMyVote(const CKey& key, const CTransaction& transaction)
+bool CTransactionVoteTracker::checkMyVote(const CKey& masternodeKey, const CTransaction& transaction)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
 
     for (const auto& pair: *this->recievedVotes) {
         CPubKey pubKey{};
-        if (pubKey.RecoverCompact(pair.second.GetSignatureHash(), pair.second.authSignature)) {
-            if (pubKey == key.GetPubKey()) {
-                if (pair.second.containsTransaction(transaction)) {
-                    return &pair.second;
+        if (pubKey.RecoverCompact(pair.second.GetSignatureHash(), pair.second.authSignature) &&
+            pubKey == masternodeKey.GetPubKey() &&
+            pair.second.containsTransaction(transaction))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::vector<CTransaction> CTransactionVoteTracker::listMyTransactions(const CKey& masternodeKey)
+{
+    std::vector<CTransaction> rv{};
+
+    LOCK2(cs_main, mempool.cs);
+    for (const auto& vote: listReceivedVotes()) {
+        CPubKey pubKey{};
+        if (pubKey.RecoverCompact(vote.GetSignatureHash(), vote.authSignature) &&
+            pubKey == masternodeKey.GetPubKey())
+        {
+            for (const auto& choice: vote.choices) {
+                rv.resize(rv.size() + 1);
+                if (!mempool.lookup(choice.hash, rv.back())) {
+                    rv.pop_back();
                 }
             }
         }
-
     }
-    return nullptr;
+
+    return std::move(rv);
 }
 
 bool CTransactionVoteTracker::checkVoteIsConvenient(const CTransactionVote& vote)
 {
     LOCK(cs_main);
     return vote.tipBlockHash == chainActive.Tip()->GetBlockHash();
+}
+
+bool CTransactionVoteTracker::interfereWithMyList(const CKey& masternodeKey, const CTransaction& transaction)
+{
+    return false;
+}
+
+bool CTransactionVoteTracker::interfereWithCommitedList(const CTransaction& transaction)
+{
+    return false;
+}
+
+bool CTransactionVoteTracker::exeedSizeLimit(const CTransaction& transaction)
+{
+    std::size_t size{GetSerializeSize(transaction, SER_NETWORK, PROTOCOL_VERSION)};
+
+    for (const auto& tx : dpos::listCommitedTransactions()) {
+        size += GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
+    }
+
+    return size >= DPOS_SECTION_SIZE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -382,9 +468,9 @@ CProgenitorVoteTracker& CProgenitorVoteTracker::getInstance()
     return *progenitorVoteTrackerInstance_;
 }
 
-void CProgenitorVoteTracker::post(const CProgenitorVote& vote)
+void CProgenitorVoteTracker::postVote(const CProgenitorVote& vote)
 {
-    if (recieve(vote, true)) {
+    if (recieveVote(vote, true)) {
         LogPrintf("%s: Post my vote %s for pre-block %s on round %d\n",
                   __func__,
                   vote.GetHash().GetHex(),
@@ -394,9 +480,9 @@ void CProgenitorVoteTracker::post(const CProgenitorVote& vote)
     }
 }
 
-void CProgenitorVoteTracker::relay(const CProgenitorVote& vote)
+void CProgenitorVoteTracker::relayVote(const CProgenitorVote& vote)
 {
-    if (recieve(vote, false)) {
+    if (recieveVote(vote, false)) {
         // Expire old relay messages
         LOCK(cs_mapRelay);
         while (!vRelayExpiration.empty() &&
@@ -419,7 +505,7 @@ void CProgenitorVoteTracker::relay(const CProgenitorVote& vote)
     }
 }
 
-bool CProgenitorVoteTracker::recieve(const CProgenitorVote& vote, bool isMe)
+bool CProgenitorVoteTracker::recieveVote(const CProgenitorVote& vote, bool isMe)
 {
     using PVPair = std::pair<uint256, std::size_t>;
     std::map<PVPair::first_type, PVPair::second_type> progenitorVotes{};
@@ -449,8 +535,8 @@ bool CProgenitorVoteTracker::recieve(const CProgenitorVote& vote, bool isMe)
 
     const CKey operKey{mns::extractOperatorKey()};
     if (operKey.IsValid()) {
-        LogPrintf("%s: Pre-block vote rate: %d\n", __func__, 1.0 * itMax->second / pmasternodesview->activeNodes.size());
-        if (isMe && 1.0 * itMax->second / pmasternodesview->activeNodes.size() >= 2.0 / 3.0) {
+        LogPrintf("%s: Pre-block vote rate: %d\n", __func__, 1.0 * itMax->second / getActiveMasternodeCount());
+        if (isMe && 1.0 * itMax->second / getActiveMasternodeCount() >= 2.0 / 3.0) {
             CBlock pblock{};
             if (findProgenitorBlock(itMax->first, &pblock)) {
                 CValidationState state{};
@@ -487,8 +573,17 @@ bool CProgenitorVoteTracker::findReceivedVote(const uint256& hash, CProgenitorVo
     return rv;
 }
 
+bool CProgenitorVoteTracker::hasAnyReceivedVote(int decision) const
+{
+    for (const auto& vote : listReceivedVotes()) {
+        if (vote.choice.decision == decision) {
+            return true;
+        }
+    }
+    return false;
+}
 
-std::vector<CProgenitorVote> CProgenitorVoteTracker::listReceivedVotes()
+std::vector<CProgenitorVote> CProgenitorVoteTracker::listReceivedVotes() const
 {
     std::vector<CProgenitorVote> rv{};
     LockGuard lock{mutex_};
@@ -504,21 +599,21 @@ std::vector<CProgenitorVote> CProgenitorVoteTracker::listReceivedVotes()
     return rv;
 }
 
-const CProgenitorVote* CProgenitorVoteTracker::findMyVote(const CKey& key)
+bool CProgenitorVoteTracker::checkMyVote(const CKey& masternodeKey)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
 
     for (const auto& pair: *this->recievedVotes) {
         CPubKey pubKey{};
-        if (pubKey.RecoverCompact(pair.second.GetSignatureHash(), pair.second.authSignature)) {
-            if (pubKey == key.GetPubKey()) {
-                return &pair.second;
-            }
+        if (pubKey.RecoverCompact(pair.second.GetSignatureHash(), pair.second.authSignature) &&
+            pubKey == masternodeKey.GetPubKey())
+        {
+            return true;
         }
 
     }
-    return nullptr;
+    return false;
 }
 
 bool CProgenitorVoteTracker::findProgenitorBlock(const uint256& dposBlockHash, CBlock* block)
@@ -559,33 +654,16 @@ CProgenitorBlockTracker& CProgenitorBlockTracker::getInstance()
     return *progenitorBlockTrackerInstance_;
 }
 
-bool CProgenitorBlockTracker::vote(const CBlock& progenitorBlock, const CKey& operatorKey)
+void CProgenitorBlockTracker::postBlock(const CBlock& block)
 {
-    if (operatorKey.IsValid() && CProgenitorVoteTracker::getInstance().findMyVote(operatorKey) == nullptr) {
-        CProgenitorVote vote{};
-        vote.choice.hash = progenitorBlock.GetHash();
-//        vote.roundNumber = progenitorBlock.nRoundNumber;
-        vote.tipBlockHash = progenitorBlock.hashPrevBlock;
-        vote.authSignature.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
-
-        if (operatorKey.SignCompact(vote.GetSignatureHash(), vote.authSignature)) {
-            CProgenitorVoteTracker::getInstance().post(vote);
-        } else {
-            LogPrintf("%s: Can't vote for pre-block %s", __func__, progenitorBlock.GetHash().GetHex());
-        }
-    }
-}
-
-void CProgenitorBlockTracker::post(const CBlock& block)
-{
-    if (recieve(block, true)) {
+    if (recieveBlcok(block, true)) {
         BroadcastInventory({MSG_PROGENITOR_BLOCK, block.GetHash()});
     }
 }
 
-void CProgenitorBlockTracker::relay(const CBlock& block)
+void CProgenitorBlockTracker::relayBlock(const CBlock& block)
 {
-    if (recieve(block, false)) {
+    if (recieveBlcok(block, false)) {
         // Expire old relay messages
         LOCK(cs_mapRelay);
         while (!vRelayExpiration.empty() &&
@@ -608,7 +686,24 @@ void CProgenitorBlockTracker::relay(const CBlock& block)
     }
 }
 
-bool CProgenitorBlockTracker::recieve(const CBlock& block, bool isMe)
+bool CProgenitorBlockTracker::voteForBlock(const CBlock& progenitorBlock, const CKey& masternodeKey)
+{
+    if (masternodeKey.IsValid() && !CProgenitorVoteTracker::getInstance().checkMyVote(masternodeKey)) {
+        CProgenitorVote vote{};
+        vote.choice.hash = progenitorBlock.GetHash();
+//        vote.roundNumber = progenitorBlock.nRoundNumber;
+        vote.tipBlockHash = progenitorBlock.hashPrevBlock;
+        vote.authSignature.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
+
+        if (masternodeKey.SignCompact(vote.GetSignatureHash(), vote.authSignature)) {
+            CProgenitorVoteTracker::getInstance().postVote(vote);
+        } else {
+            LogPrintf("%s: Can't vote for pre-block %s", __func__, progenitorBlock.GetHash().GetHex());
+        }
+    }
+}
+
+bool CProgenitorBlockTracker::recieveBlcok(const CBlock& block, bool isMe)
 {
     bool rv{false};
     libsnark::UNUSED(isMe);
@@ -620,7 +715,7 @@ bool CProgenitorBlockTracker::recieve(const CBlock& block, bool isMe)
     }
 
     if (rv) {
-        vote(block, mns::extractOperatorKey());
+        voteForBlock(block, mns::extractOperatorKey());
     } else {
         LogPrintf("%s: Ignoring duplicating pre-block: %s\n", __func__, block.GetHash().GetHex());
     }
@@ -628,7 +723,7 @@ bool CProgenitorBlockTracker::recieve(const CBlock& block, bool isMe)
     return rv;
 }
 
-bool CProgenitorBlockTracker::findReceivedBlock(const uint256& hash, CBlock* block)
+bool CProgenitorBlockTracker::findReceivedBlock(const uint256& hash, CBlock* block) const
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
@@ -642,7 +737,14 @@ bool CProgenitorBlockTracker::findReceivedBlock(const uint256& hash, CBlock* blo
     return rv;
 }
 
-std::vector<CBlock> CProgenitorBlockTracker::listReceivedBlocks()
+bool CProgenitorBlockTracker::hasAnyReceivedBlock() const
+{
+    LockGuard lock{mutex_};
+    libsnark::UNUSED(lock);
+    return !this->recievedBlocks->empty();
+}
+
+std::vector<CBlock> CProgenitorBlockTracker::listReceivedBlocks() const
 {
     std::vector<CBlock> rv{};
     LockGuard lock{mutex_};
@@ -658,6 +760,15 @@ std::vector<CBlock> CProgenitorBlockTracker::listReceivedBlocks()
     return rv;
 }
 
+int CProgenitorBlockTracker::getCurrentRoundNumber() const
+{
+    const std::vector<CBlock> blocks{listReceivedBlocks()};
+    const auto it{std::min_element(blocks.begin(), blocks.end(), [](const CBlock& lhs, const CBlock& rhs) {
+        return lhs.nRoundNumber < rhs.nRoundNumber;
+    })};
+    return it != blocks.end() ? it->nRoundNumber : 1;
+}
+
 bool CProgenitorBlockTracker::checkBlockIsConvenient(const CBlock& block)
 {
     LOCK(cs_main);
@@ -667,15 +778,37 @@ bool CProgenitorBlockTracker::checkBlockIsConvenient(const CBlock& block)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// \brief dpos::checkIsActive
 
-bool dpos::checkIsActive()
+bool dpos::isActive()
 {
     const CChainParams& params{Params()};
     LOCK(cs_main);
     return NetworkUpgradeActive(chainActive.Height(), params.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
-           pmasternodesview->activeNodes.size() >= params.GetMinimalMasternodeCount();
+           getActiveMasternodeCount() >= params.GetMinimalMasternodeCount();
 }
 
 CValidationInterface* dpos::getValidationListener()
 {
     return &chainListener_;
 }
+
+std::vector<CTransaction> dpos::listCommitedTransactions()
+{
+    std::vector<CTransaction> rv{};
+    const std::map<uint256, VoteDistribution> voteStats{calcTxVoteStats()};
+
+    rv.reserve(voteStats.size());
+    LOCK2(cs_main, mempool.cs);
+
+    for (const auto& pair: voteStats) {
+        rv.resize(rv.size() + 1);
+        if (!mempool.lookup(pair.first, rv.back()) ||
+            !rv.back().fInstant ||
+            !pair.second.isSufficiently())
+        {
+            rv.pop_back();
+        }
+    }
+
+    return rv;
+}
+

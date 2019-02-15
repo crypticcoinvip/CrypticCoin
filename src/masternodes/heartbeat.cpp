@@ -132,7 +132,7 @@ CHeartBeatMessage CHeartBeatTracker::postMessage(const CKey& signKey, int64_t ti
         BroadcastInventory(CInv{MSG_HEARTBEAT, rv.GetHash()});
     }
 
-    return std::move(rv);
+    return rv;
 }
 
 bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)

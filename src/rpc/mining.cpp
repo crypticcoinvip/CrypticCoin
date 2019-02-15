@@ -275,8 +275,8 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
-        if (dpos::checkIsActive()) {
-            CProgenitorBlockTracker::getInstance().post(*pblock);
+        if (dpos::isActive()) {
+            CProgenitorBlockTracker::getInstance().postBlock(*pblock);
         } else {
             CValidationState state;
             if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
@@ -933,136 +933,6 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp)
     return result;
 }
 
-
-UniValue listprogenitorblocks(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() != 0) {
-        throw runtime_error(
-            "listprogenitorblocks\n"
-            "\nReturns an array of json object containing progenitor block values."
-            "\nResult:\n"
-            "[\n"
-            "  {\n"
-            "    \"version\": xxxx,                (numeric) version of the block\n"
-            "    \"hash\": \"xxxx\",               (string) hash of the block\n"
-            "    \"prevBlock\": \"xxxx\",          (string) hash of the previous block\n"
-            "    \"merkleRoot\": \"xxxx\",         (string) hash of the block merkle root\n"
-            "    \"saplingRoot\": \"xxxx\",        (string) hash of the block sapling root\n"
-            "    \"merkleRoot_PoW\": \"xxxx\",     (string) hash of the PoW block merkle root\n"
-            "    \"vtxSize_dPoS\": xxxx,           (numeric) number of the dPoS transactions in block\n"
-            "    \"time\": xxxx,                   (numeric) time of the block\n"
-            "    \"bits\": xxxx,                   (numeric) bits value of the block\n"
-            "    \"nonce\": \"xxxx\",              (string) nonce value of the block\n"
-            "  },\n"
-            "  ...\n"
-            "]\n"
-            "\nExamples:\n"
-            + HelpExampleCli("listprogenitorblocks", "")
-            + HelpExampleRpc("listprogenitorblocks", "")
-        );
-    }
-
-    UniValue rv(UniValue::VARR);
-    for (const auto& block : CProgenitorBlockTracker::getInstance().listReceivedBlocks()) {
-        UniValue jsonBlock{UniValue::VOBJ};
-        jsonBlock.push_back(Pair("version", block.nVersion));
-        jsonBlock.push_back(Pair("hash", block.GetHash().GetHex()));
-        jsonBlock.push_back(Pair("prevBlock", block.hashPrevBlock.GetHex()));
-        jsonBlock.push_back(Pair("merkleRoot", block.hashMerkleRoot.GetHex()));
-        jsonBlock.push_back(Pair("saplingRoot", block.hashFinalSaplingRoot.GetHex()));
-        jsonBlock.push_back(Pair("roundNumber", static_cast<int>(block.nRoundNumber)));
-        jsonBlock.push_back(Pair("time", static_cast<int>(block.nTime)));
-        jsonBlock.push_back(Pair("bits", static_cast<int>(block.nBits)));
-        jsonBlock.push_back(Pair("nonce", block.nNonce.GetHex()));
-        rv.push_back(jsonBlock);
-    }
-
-    return rv;
-}
-
-
-UniValue listprogenitorvotes(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() != 0) {
-        throw runtime_error(
-            "listprogenitorvotes\n"
-            "\nReturns an array of json object containing progenitor vote values."
-            "\nResult:\n"
-            "[\n"
-            "  {\n"
-            "    \"hash\": \"xxxx\",               (string) hash of the vote\n"
-            "    \"choice_hash\": \"xxxx\",        (string) hash of the progenitor block\n"
-            "    \"choice_decision\": x,           (numeric) decision of the voting choice\n"
-            "    \"roundNumber\": xxx,             (numeric) round number of the voting\n"
-            "    \"tipBlock\": \"xxxx\",           (string) hash of the tip block\n"
-            "    \"signature\": \"xxxx\",          (string) signature of the vote\n"
-            "  },\n"
-            "  ...\n"
-            "]\n"
-            "\nExamples:\n"
-            + HelpExampleCli("listprogenitorvotes", "")
-            + HelpExampleRpc("listprogenitorvotes", "")
-        );
-    }
-
-    UniValue rv(UniValue::VARR);
-    for (const auto& vote : CProgenitorVoteTracker::getInstance().listReceivedVotes()) {
-        UniValue jsonVote{UniValue::VOBJ};
-        jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
-        jsonVote.push_back(Pair("tipBlock", vote.tipBlockHash.GetHex()));
-        jsonVote.push_back(Pair("roundNumber", vote.roundNumber));
-        jsonVote.push_back(Pair("choice_hash", vote.choice.hash.GetHex()));
-        jsonVote.push_back(Pair("choice_decision", vote.choice.decision));
-        jsonVote.push_back(Pair("signature", vote.authSignature.ToHex()));
-        rv.push_back(jsonVote);
-    }
-
-    return rv;
-}
-
-
-UniValue listtransactionvotes(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() != 0) {
-        throw runtime_error(
-            "listtransactionvotes\n"
-            "\nReturns an array of json object containing dpos-transaction vote values."
-            "\nResult:\n"
-            "[\n"
-            "  {\n"
-            "    \"hash\": \"xxxx\",               (string) hash of the vote\n"
-            "    \"choice_txid_N\": \"xxxx\",      (string) N-element of array of the transaction hash\n"
-            "    \"choice_decision_N\": x,         (numeric) N-element of array of the voting choice decision\n"
-            "    \"roundNumber\": xxxx,            (numeric) round number of the voting\n"
-            "    \"tipBlock\": \"xxxx\",           (string) hash of the tip block\n"
-            "    \"signature\": \"xxxx\",          (string) signature of the vote\n"
-            "  },\n"
-            "  ...\n"
-            "]\n"
-            "\nExamples:\n"
-            + HelpExampleCli("listtransactionvotes", "")
-            + HelpExampleRpc("listtransactionvotes", "")
-        );
-    }
-
-    UniValue rv(UniValue::VARR);
-    for (const auto& vote : CTransactionVoteTracker::getInstance().listReceivedVotes()) {
-        UniValue jsonVote{UniValue::VOBJ};
-        jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
-        jsonVote.push_back(Pair("tipBlock", vote.tipBlockHash.GetHex()));
-        jsonVote.push_back(Pair("roundNumber", vote.roundNumber));
-        for (std::size_t i{0}; i < vote.choices.size(); i++) {
-            std::string postfix{std::to_string(i)};
-            jsonVote.push_back(Pair("choice_txid_" + postfix, vote.choices[i].hash.GetHex()));
-            jsonVote.push_back(Pair("choice_decision_" + postfix, vote.choices[i].decision));
-        }
-        jsonVote.push_back(Pair("signature", vote.authSignature.ToHex()));
-        rv.push_back(jsonVote);
-    }
-
-    return rv;
-}
-
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1074,9 +944,6 @@ static const CRPCCommand commands[] =
     { "mining",             "getblocktemplate",       &getblocktemplate,       true  },
     { "mining",             "submitblock",            &submitblock,            true  },
     { "mining",             "getblocksubsidy",        &getblocksubsidy,        true  },
-    { "mining",             "listprogenitorblocks",   &listprogenitorblocks,   true  },
-    { "mining",             "listprogenitorvotes",    &listprogenitorvotes,    true  },
-
 
 #ifdef ENABLE_MINING
     { "generating",         "getgenerate",            &getgenerate,            true  },

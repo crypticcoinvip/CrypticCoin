@@ -39,7 +39,7 @@ public:
 class CVoteChoice
 {
 public:
-    enum { decisionPass = -1, decisionNo, decisionYes };
+    enum {decisionPass = -1, decisionNo, decisionYes};
 
     uint256 hash;
     int8_t decision;
@@ -114,62 +114,70 @@ public:
 
 class CTransactionVoteTracker
 {
-public:
-    static CTransactionVoteTracker& getInstance();
-
-    void vote(const CTransaction& transaction, const CKey& operatorKey);
-    void post(const CTransactionVote& vote);
-    void relay(const CTransactionVote& vote);
-    bool recieve(const CTransactionVote& vote, bool isMe);
-    bool findReceivedVote(const uint256& hash, CTransactionVote* vote = nullptr);
-    std::vector<CTransactionVote> listReceivedVotes();
-
 protected:
     std::map<uint256, CTransactionVote>* recievedVotes;
 
+public:
+    static CTransactionVoteTracker& getInstance();
+
+    void voteForTransaction(const CTransaction& transaction, const CKey& masternodeKey);
+    void postTransaction(const CTransactionVote& voteForTransaction);
+    void relayTransaction(const CTransactionVote& voteForTransaction);
+    bool recieveTransaction(const CTransactionVote& voteForTransaction, bool isMe);
+    bool findReceivedVote(const uint256& hash, CTransactionVote* voteForTransaction = nullptr);
+    std::vector<CTransactionVote> listReceivedVotes();
+
 private:
     CTransactionVoteTracker();
-    const CTransactionVote* findMyVote(const CKey& key, const CTransaction& transaction);
-    bool checkVoteIsConvenient(const CTransactionVote& vote);
+    bool checkMyVote(const CKey& masternodeKey, const CTransaction& transaction);
+    std::vector<CTransaction> listMyTransactions(const CKey& masternodeKey);
+    bool checkVoteIsConvenient(const CTransactionVote& voteForTransaction);
+    bool interfereWithMyList(const CKey& masternodeKey, const CTransaction& transaction);
+    bool interfereWithCommitedList(const CTransaction& transaction);
+    bool exeedSizeLimit(const CTransaction& transaction);
 };
 
 class CProgenitorVoteTracker
 {
     friend class CProgenitorBlockTracker;
 
-public:
-    static CProgenitorVoteTracker& getInstance();
-
-    void post(const CProgenitorVote& vote);
-    void relay(const CProgenitorVote& vote);
-    bool recieve(const CProgenitorVote& vote, bool isMe);
-    bool findReceivedVote(const uint256& hash, CProgenitorVote* vote = nullptr);
-    std::vector<CProgenitorVote> listReceivedVotes();
-
 protected:
     std::map<uint256, CProgenitorVote>* recievedVotes;
 
+public:
+    static CProgenitorVoteTracker& getInstance();
+
+    void postVote(const CProgenitorVote& vote);
+    void relayVote(const CProgenitorVote& vote);
+    bool recieveVote(const CProgenitorVote& vote, bool isMe);
+    bool findReceivedVote(const uint256& hash, CProgenitorVote* vote = nullptr);
+    bool hasAnyReceivedVote(int decision) const;
+    std::vector<CProgenitorVote> listReceivedVotes() const;
+
 private:
     CProgenitorVoteTracker();
-    const CProgenitorVote* findMyVote(const CKey& key);
+    bool checkMyVote(const CKey& masternodeKey);
     bool findProgenitorBlock(const uint256& dposBlockHash, CBlock* block);
     bool checkVoteIsConvenient(const CProgenitorVote& vote);
 };
 
 class CProgenitorBlockTracker
 {
+protected:
+    std::map<uint256, CBlock>* recievedBlocks;
+
 public:
     static CProgenitorBlockTracker& getInstance();
 
-    bool vote(const CBlock& progenitorBlock, const CKey& operatorKey);
-    void post(const CBlock& pblock);
-    void relay(const CBlock& pblock);
-    bool recieve(const CBlock& pblock, bool isMe);
-    bool findReceivedBlock(const uint256& hash, CBlock* block = nullptr);
-    std::vector<CBlock> listReceivedBlocks();
+    void postBlock(const CBlock& pblock);
+    void relayBlock(const CBlock& pblock);
+    bool voteForBlock(const CBlock& progenitorBlock, const CKey& masternodeKey);
+    bool recieveBlcok(const CBlock& pblock, bool isMe);
+    bool findReceivedBlock(const uint256& hash, CBlock* block = nullptr) const;
+    bool hasAnyReceivedBlock() const;
+    std::vector<CBlock> listReceivedBlocks() const;
 
-protected:
-    std::map<uint256, CBlock>* recievedBlocks;
+    int getCurrentRoundNumber() const;
 
 private:
     CProgenitorBlockTracker();
@@ -178,8 +186,9 @@ private:
 
 namespace dpos
 {
-    bool checkIsActive();
+    bool isActive();
     CValidationInterface * getValidationListener();
+    std::vector<CTransaction> listCommitedTransactions();
 }
 
 #endif // BITCOIN_MASTERNODES_DPOS_H

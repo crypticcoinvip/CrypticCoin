@@ -149,6 +149,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
 {
     entry.push_back(Pair("txid", tx.GetHash().GetHex()));
     entry.push_back(Pair("overwintered", tx.fOverwintered));
+    entry.push_back(Pair("instant", tx.fInstant));
     entry.push_back(Pair("version", tx.nVersion));
     if (tx.fOverwintered) {
         entry.push_back(Pair("versiongroupid", HexInt(tx.nVersionGroupId)));
@@ -452,7 +453,7 @@ UniValue verifytxoutproof(const UniValue& params, bool fHelp)
 
 UniValue createrawtransaction(const UniValue& params, bool fHelp)
 {
-    if (fHelp || params.size() < 2 || params.size() > 4)
+    if (fHelp || params.size() < 2 || params.size() > 5)
         throw runtime_error(
             "createrawtransaction [{\"txid\":\"id\",\"vout\":n},...] {\"address\":amount,...} ( locktime ) ( expiryheight )\n"
             "\nCreate a transaction spending the given inputs and sending to the given addresses.\n"
@@ -477,6 +478,7 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp)
             "    }\n"
             "3. locktime              (numeric, optional, default=0) Raw locktime. Non-0 value also locktime-activates inputs\n"
             "4. expiryheight          (numeric, optional, default=nextblockheight+" + strprintf("%d", DEFAULT_TX_EXPIRY_DELTA) + ") Expiry height of transaction (if Overwinter is active)\n"
+            "5. instantly             (boolean, optional, default=false) Use instant transaction send\n"
             "\nResult:\n"
             "\"transaction\"            (string) hex string of the transaction\n"
 
@@ -566,6 +568,8 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp)
         rawTx.vout.push_back(out);
     }
 
+    rawTx.fInstant = params.size() > 4 && params[4].get_bool();
+
     return EncodeHexTx(rawTx);
 }
 
@@ -583,6 +587,7 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp)
             "{\n"
             "  \"txid\" : \"id\",        (string) The transaction id\n"
             "  \"overwintered\" : bool   (boolean) The Overwintered flag\n"
+            "  \"instant\" : bool        (boolean) The Instant flag\n"
             "  \"version\" : n,          (numeric) The version\n"
             "  \"versiongroupid\": \"hex\"   (string, optional) The version group id (Overwintered txs)\n"
             "  \"locktime\" : ttt,       (numeric) The lock time\n"
@@ -987,15 +992,14 @@ UniValue signrawtransaction(const UniValue& params, bool fHelp)
 
 UniValue sendrawtransaction(const UniValue& params, bool fHelp)
 {
-    if (fHelp || params.size() < 1 || params.size() > 3)
+    if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "sendrawtransaction \"hexstring\" ( allowhighfees ) ( instantly )\n"
+            "sendrawtransaction \"hexstring\" ( allowhighfees )\n"
             "\nSubmits raw transaction (serialized, hex-encoded) to local node and network.\n"
             "\nAlso see createrawtransaction and signrawtransaction calls.\n"
             "\nArguments:\n"
             "1. \"hexstring\"    (string, required) The hex string of the raw transaction)\n"
             "2. allowhighfees    (boolean, optional, default=false) Allow high fees\n"
-            "3. instantly        (boolean, optional, default=false) Use instant transaction send\n"
             "\nResult:\n"
             "\"hex\"             (string) The transaction hash in hex\n"
             "\nExamples:\n"
@@ -1035,7 +1039,6 @@ UniValue sendrawtransaction(const UniValue& params, bool fHelp)
     if (params.size() > 1)
         fOverrideFees = params[1].get_bool();
 
-    *const_cast<bool*>(&tx.fInstant) = params.size() > 2 && params[2].get_bool();
 
     CCoinsViewCache &view = *pcoinsTip;
     const CCoins* existingCoins = view.AccessCoins(hashTx);

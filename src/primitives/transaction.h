@@ -38,6 +38,7 @@ static_assert(SAPLING_TX_VERSION <= SAPLING_MAX_TX_VERSION,
     "Sapling tx version must not be higher than maximum");
 
 static const int32_t HEADER_VERSION_MASK = 0x3FFFFFFF;
+static const size_t DPOS_SECTION_SIZE = 1024;
 
 /**
  * A shielded input to a transaction. It contains data that describes a Spend transfer.

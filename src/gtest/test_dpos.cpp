@@ -22,7 +22,7 @@ TEST(dPoS, Activating)
     SelectParams(CBaseChainParams::MAIN);
 
     EXPECT_EQ(getChainTip(), nullptr);
-    ASSERT_DEATH(dpos::checkIsActive(), "nHeight >= 0");
+    ASSERT_DEATH(dpos::isActive(), "nHeight >= 0");
     EXPECT_TRUE(ActivateBestChain(state));
     EXPECT_EQ(getChainTip(), nullptr);
 }
