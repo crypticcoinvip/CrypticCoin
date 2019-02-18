@@ -31,11 +31,11 @@ _WALLET_KEYS = [
     ("cQCtVNgf4J3CTTMtLqeXeeoFiZVCsSjv8gG7TRRD1xL69owZ1j9Z", "tmYDASd8j9bBLEVmiaU8tArTYmSVA9DJjXW")
 ]
 
-class dPoS_Test(BitcoinTestFramework):
+class dPoS_BaseTest(BitcoinTestFramework):
     def setup_chain(self):
-        print("Initializing dPoS_Test directory "+self.options.tmpdir)
+        print("Initializing dPoS Test directory "+self.options.tmpdir)
         self.num_nodes = len(_WALLET_KEYS)
-        self.dpos_block_count = _COINBASE_MATURITY + self.num_nodes
+        self.predpos_block_count = _COINBASE_MATURITY + self.num_nodes
         self.is_network_split = False
         initialize_chain_clean(self.options.tmpdir, self.num_nodes)
         sys.stdout.flush()
@@ -47,7 +47,7 @@ class dPoS_Test(BitcoinTestFramework):
                           help="Test dPoS work with connected nodes")
 
     def setup_network(self):
-        super(dPoS_Test, self).setup_network(False)
+        super(dPoS_BaseTest, self).setup_network(False)
         self.stop_nodes()
 
     def run_test(self):
@@ -85,19 +85,14 @@ class dPoS_Test(BitcoinTestFramework):
             connect_nodes_bi(self.nodes, 2, 3)
             connect_nodes_bi(self.nodes, 3, 0)
 
-        self.check_initial_state()
+        assert_equal(len(self.nodes), self.num_nodes)
+        for node in self.nodes:
+            assert_equal(node.getblockcount(), 0)
 
-        predpos_hashes = self.check_predpos_blocks()
-        to_address = self.nodes[3].getnewaddress()
-        rawtx = self.create_transaction(0, to_address, 10.0)
-        sigtx = self.nodes[0].signrawtransaction(rawtx)
-        self.nodes[0].sendrawtransaction(sigtx["hex"])
-        print(to_address, rawtx, sigtx)
-
-#        preblock_hashes = self.check_progenitor_blocks(predpos_hashes)
-#        pbvote_hashes = self.check_progenitor_votes(preblock_hashes)
-
-        self.stop_nodes()
+        predpos_hashes = self.mine_blocks(True, self.predpos_block_count)
+        for node in self.nodes:
+            assert_equal(len(node.listprogenitorblocks()), 0)
+        assert_equal(len(predpos_hashes), self.predpos_block_count)
 
     def start_nodes(self, args = []):
         if len(args) == 0:
@@ -106,11 +101,10 @@ class dPoS_Test(BitcoinTestFramework):
         for i in range(len(args)):
             args[i] = args[i][:]
             args[i] += [
-                '-nuparams=5ba81b19:' + str(self.dpos_block_count), # Overwinter
-                '-nuparams=76b809bb:' + str(self.dpos_block_count)  # Suppling
+                '-nuparams=5ba81b19:' + str(self.predpos_block_count), # Overwinter
+                '-nuparams=76b809bb:' + str(self.predpos_block_count)  # Suppling
             ]
-            if i != 1:
-                args[i] += ['-masternode-operator=' + _WALLET_KEYS[i][1]]
+            args[i] += ['-masternode-operator=' + _WALLET_KEYS[i][1]]
 
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
         for n in range(self.num_nodes):
@@ -136,52 +130,10 @@ class dPoS_Test(BitcoinTestFramework):
             assert_equal(node.getblockcount(), count)
         return sorted(hashes, key=lambda h: h.decode("hex")[::-1])
 
-    def create_transaction(self, node_idx, to_address, amount):
+    def create_transaction(self, node_idx, to_address, amount, instantly):
         node = self.nodes[node_idx]
         (total_in, inputs) = gather_inputs(node, amount)
         outputs = { to_address : amount - amount * 0.0002 }
-        return node.createrawtransaction(inputs, outputs, 0, node.getblockcount() + 21, True)
+        return node.createrawtransaction(inputs, outputs, 0, node.getblockcount() + 21, instantly)
 
-    def check_initial_state(self):
-        assert_equal(len(self.nodes), self.num_nodes)
-        for node in self.nodes:
-            assert_equal(node.getblockcount(), 0)
-
-    def check_predpos_blocks(self):
-        predpos_hashes = self.mine_blocks(True, self.dpos_block_count)
-        for node in self.nodes:
-            assert_equal(len(node.listprogenitorblocks()), 0)
-        assert_equal(len(predpos_hashes), self.dpos_block_count)
-        return predpos_hashes
-
-    def check_progenitor_blocks(self, predpos_hashes):
-        preblock_hashes = self.mine_blocks(False, self.num_nodes)
-        assert_equal(len(predpos_hashes), self.num_nodes)
-        assert_equal(len(preblock_hashes), len(predpos_hashes) / 2)
-        time.sleep(2)
-
-        for node in self.nodes:
-            pblocks = node.listprogenitorblocks()
-            assert_equal(node.getblockcount(), self.num_nodes)
-            assert_equal(len(pblocks), len(preblock_hashes))
-            for idx, pblock in enumerate(pblocks):
-                assert_equal(pblock["hash"], preblock_hashes[idx])
-
-        return preblock_hashes
-
-    def check_progenitor_votes(self, preblock_hashes):
-        pbvote_hashes = []
-        for node in self.nodes:
-            pbvotes = node.listprogenitorvotes()
-            assert_equal(node.getblockcount(), self.num_nodes)
-            assert_equal(len(pbvotes), len(preblock_hashes) / 2)
-            for pbvote in pbvotes:
-                pbvote_hashes.append(pbvote["hash"])
-#        self.nodes[0].generate(1)
-#        time.sleep(2)
-#        for node in self.nodes:
-#            assert_equal(node.getblockcount(), self.num_nodes + 1)
-        return pbvote_hashes
-
-if __name__ == '__main__':
-    dPoS_Test().main()
+assert(__name__ != '__main__')

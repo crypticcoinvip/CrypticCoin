@@ -171,7 +171,7 @@ public:
     void postBlock(const CBlock& pblock);
     void relayBlock(const CBlock& pblock);
     bool voteForBlock(const CBlock& progenitorBlock, const CKey& masternodeKey);
-    bool recieveBlcok(const CBlock& pblock, bool isMe);
+    bool recieveBlock(const CBlock& pblock, bool isMe);
     bool findReceivedBlock(const uint256& hash, CBlock* block = nullptr) const;
     bool hasAnyReceivedBlock() const;
     std::vector<CBlock> listReceivedBlocks() const;

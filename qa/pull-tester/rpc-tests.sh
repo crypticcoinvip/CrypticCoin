@@ -72,7 +72,7 @@ testScripts=(
     'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
     'send_heartbeat.py'
-    'dpos.py'
+    'dpos_positive.py'
 );
 testScriptsExt=(
     'getblocktemplate_longpoll.py'

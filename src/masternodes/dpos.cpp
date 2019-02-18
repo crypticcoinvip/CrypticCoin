@@ -105,7 +105,6 @@ std::size_t getActiveMasternodeCount()
     return pmasternodesview->activeNodes.size();
 }
 
-
 bool hasAnyUnfinishedTransaction(int roundNumber)
 {
 //    const std::map<uint256, VoteDistribution> voteStats{calcTxVoteStats()};
@@ -130,6 +129,30 @@ uint256 getTipBlockHash()
 {
     LOCK(cs_main);
     return chainActive.Tip()->GetBlockHash();
+}
+
+template<typename T>
+void relayObject(const T& obj, int type)
+{
+    // Expire old relay messages
+    LOCK(cs_mapRelay);
+    while (!vRelayExpiration.empty() &&
+           vRelayExpiration.front().first < GetTime())
+    {
+        mapRelay.erase(vRelayExpiration.front().second);
+        vRelayExpiration.pop_front();
+    }
+
+    // Save original serialized message so newer versions are preserved
+    CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
+    const CInv inv{type, obj.GetHash()};
+
+    ss.reserve(1024);
+    ss << obj;
+
+    mapRelay.insert(std::make_pair(inv, ss));
+    vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
+    BroadcastInventory(inv);
 }
 
 void ChainListener::UpdatedBlockTip(const CBlockIndex* pindex)
@@ -363,15 +386,16 @@ bool CTransactionVoteTracker::recieveVote(const CTransactionVote& vote, bool int
         LogPrintf("%s: Transaction vote recieved: %d\n", __func__, this->recievedVotes->count(vote.GetHash()));
         if (!this->recievedVotes->emplace(vote.GetHash(), vote).second) {
             LogPrintf("%s: Ignoring duplicating transaction vote: %s\n", __func__, vote.GetHash().GetHex());
+            return false;
         }
-        if (vote.round == CProgenitorBlockTracker::getInstance().getCurrentRoundNumber()) {
-            const CKey masternodeKey{mns::getOperatorKey()};
-            if (!CProgenitorVoteTracker::getInstance().wasVotedByMe(masternodeKey)) {
-                for (const auto& block : CProgenitorBlockTracker::getInstance().listReceivedBlocks()) {
-                    if (block.nRoundNumber == vote.round) {
-                        CProgenitorBlockTracker::getInstance().voteForBlock(block, masternodeKey);
-                        break;
-                    }
+    }
+    if (vote.round == CProgenitorBlockTracker::getInstance().getCurrentRoundNumber()) {
+        const CKey masternodeKey{mns::getOperatorKey()};
+        if (!CProgenitorVoteTracker::getInstance().wasVotedByMe(masternodeKey)) {
+            for (const auto& block : CProgenitorBlockTracker::getInstance().listReceivedBlocks()) {
+                if (block.nRoundNumber == vote.round) {
+                    CProgenitorBlockTracker::getInstance().voteForBlock(block, masternodeKey);
+                    break;
                 }
             }
         }
@@ -509,25 +533,26 @@ void CProgenitorVoteTracker::postVote(const CProgenitorVote& vote)
 void CProgenitorVoteTracker::relayVote(const CProgenitorVote& vote)
 {
     if (recieveVote(vote, false)) {
-        // Expire old relay messages
-        LOCK(cs_mapRelay);
-        while (!vRelayExpiration.empty() &&
-               vRelayExpiration.front().first < GetTime())
-        {
-            mapRelay.erase(vRelayExpiration.front().second);
-            vRelayExpiration.pop_front();
-        }
+//        // Expire old relay messages
+//        LOCK(cs_mapRelay);
+//        while (!vRelayExpiration.empty() &&
+//               vRelayExpiration.front().first < GetTime())
+//        {
+//            mapRelay.erase(vRelayExpiration.front().second);
+//            vRelayExpiration.pop_front();
+//        }
 
-        // Save original serialized message so newer versions are preserved
-        CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
-        const CInv inv{MSG_PROGENITOR_VOTE, vote.GetHash()};
+//        // Save original serialized message so newer versions are preserved
+//        CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
+//        const CInv inv{MSG_PROGENITOR_VOTE, vote.GetHash()};
 
-        ss.reserve(1000);
-        ss << vote;
+//        ss.reserve(1000);
+//        ss << vote;
 
-        mapRelay.insert(std::make_pair(inv, ss));
-        vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
-        BroadcastInventory(inv);
+//        mapRelay.insert(std::make_pair(inv, ss));
+//        vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
+//        BroadcastInventory(inv);
+        relayObject(vote, MSG_PROGENITOR_VOTE);
     }
 }
 
@@ -683,33 +708,15 @@ CProgenitorBlockTracker& CProgenitorBlockTracker::getInstance()
 
 void CProgenitorBlockTracker::postBlock(const CBlock& block)
 {
-    if (recieveBlcok(block, true)) {
+    if (recieveBlock(block, true)) {
         BroadcastInventory({MSG_PROGENITOR_BLOCK, block.GetHash()});
     }
 }
 
 void CProgenitorBlockTracker::relayBlock(const CBlock& block)
 {
-    if (recieveBlcok(block, false)) {
-        // Expire old relay messages
-        LOCK(cs_mapRelay);
-        while (!vRelayExpiration.empty() &&
-               vRelayExpiration.front().first < GetTime())
-        {
-            mapRelay.erase(vRelayExpiration.front().second);
-            vRelayExpiration.pop_front();
-        }
-
-        // Save original serialized message so newer versions are preserved
-        CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
-        const CInv inv{MSG_PROGENITOR_BLOCK, block.GetHash()};
-
-        ss.reserve(1000);
-        ss << block;
-
-        mapRelay.insert(std::make_pair(inv, ss));
-        vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
-        BroadcastInventory(inv);
+    if (recieveBlock(block, false)) {
+        relayObject(block, MSG_PROGENITOR_BLOCK);
     }
 }
 
@@ -743,7 +750,7 @@ bool CProgenitorBlockTracker::voteForBlock(const CBlock& progenitorBlock, const 
     return false;
 }
 
-bool CProgenitorBlockTracker::recieveBlcok(const CBlock& block, bool isMe)
+bool CProgenitorBlockTracker::recieveBlock(const CBlock& block, bool isMe)
 {
     bool rv{false};
     libsnark::UNUSED(isMe);
