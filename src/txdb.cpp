@@ -4,6 +4,8 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "txdb.h"
+#include "masternodes/masternodes.h"
+#include "masternodes/dpos.h"
 
 #include "chainparams.h"
 #include "hash.h"
@@ -42,6 +44,11 @@ static const char DB_LAST_BLOCK = 'l';
 static const char DB_MASTERNODES = 'M';
 static const char DB_MASTERNODESUNDO = 'U';
 static const char DB_DISMISSVOTES = 'V';
+
+// Prefixes to the dpos database (dpos/)
+static const char DB_TRANSACTIONVOTES = 't';
+static const char DB_PROGENITORVOTES = 'p';
+static const char DB_PROGENITORBLOCKS = 'b';
 
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
 }
@@ -495,4 +502,112 @@ bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> on
     }
     return true;
 
+}
+
+
+
+CDposDB::CDposDB(size_t nCacheSize, bool fMemory, bool fWipe) :
+    CDBWrapper(GetDataDir() / "dpos", nCacheSize, fMemory, fWipe)
+{
+}
+
+void CDposDB::WriteTransactionVote(const uint256& tip, const CTransactionVote& vote, CDBBatch& batch)
+{
+    batch.Write(make_pair(DB_TRANSACTIONVOTES, tip), vote);
+}
+
+void CDposDB::EraseTransactionVote(const uint256& tip, CDBBatch& batch)
+{
+    batch.Erase(make_pair(DB_TRANSACTIONVOTES, tip));
+}
+
+
+void CDposDB::WriteProgenitorVote(const uint256& tip, const CProgenitorVote& vote, CDBBatch& batch)
+{
+    batch.Write(make_pair(DB_PROGENITORVOTES, tip), vote);
+}
+
+void CDposDB::EraseProgenitorVote(const uint256& tip, CDBBatch& batch)
+{
+    batch.Erase(make_pair(DB_PROGENITORVOTES, tip));
+}
+
+
+void CDposDB::WriteProgenitorBlock(const uint256& tip, const CBlock& block, CDBBatch& batch)
+{
+    batch.Write(make_pair(DB_PROGENITORBLOCKS, tip), block);
+}
+
+void CDposDB::EraseProgenitorBlock(const uint256& tip, CDBBatch& batch)
+{
+    batch.Erase(make_pair(DB_PROGENITORBLOCKS, tip));
+}
+
+bool CDposDB::LoadTransactionVotes(std::function<void (const uint256&, const CTransactionVote&)> onTransactionVote)
+{
+    boost::scoped_ptr<CDBIterator> pcursor{NewIterator()};
+    pcursor->Seek(DB_TRANSACTIONVOTES);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char, uint256> key{};
+        if (pcursor->GetKey(key) && key.first == DB_TRANSACTIONVOTES) {
+            CTransactionVote vote{};
+            if (pcursor->GetValue(vote)) {
+                onTransactionVote(key.second, vote);
+            } else {
+                return error("CDposDB::LoadTransactionVotes() : unable to read value");
+            }
+        } else {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+bool CDposDB::LoadProgenitorVotes(std::function<void (const uint256&, const CProgenitorVote&)> onProgenitorVote)
+{
+    boost::scoped_ptr<CDBIterator> pcursor{NewIterator()};
+    pcursor->Seek(DB_PROGENITORVOTES);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char, uint256> key{};
+        if (pcursor->GetKey(key) && key.first == DB_PROGENITORVOTES) {
+            CProgenitorVote vote{};
+            if (pcursor->GetValue(vote)) {
+                onProgenitorVote(key.second, vote);
+            } else {
+                return error("CDposDB::LoadProgenitorVotes() : unable to read value");
+            }
+        } else {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+bool CDposDB::LoadProgenitorBlocks(std::function<void (const uint256&, const CBlock&)> onProgenitorBlock)
+{
+    boost::scoped_ptr<CDBIterator> pcursor{NewIterator()};
+    pcursor->Seek(DB_PROGENITORBLOCKS);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char, uint256> key{};
+        if (pcursor->GetKey(key) && key.first == DB_PROGENITORBLOCKS) {
+            CBlock block{};
+            if (pcursor->GetValue(block)) {
+                onProgenitorBlock(key.second, block);
+            } else {
+                return error("CDposDB::LoadProgenitorBlocks() : unable to read value");
+            }
+        } else {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
 }

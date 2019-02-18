@@ -9,7 +9,6 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
-#include "masternodes/masternodes.h"
 
 #include <map>
 #include <string>
@@ -20,6 +19,10 @@ class CBlockFileInfo;
 class CBlockIndex;
 struct CDiskTxPos;
 class uint256;
+class CMasternode;
+class CDismissVote;
+class CTransactionVote;
+class CProgenitorVote;
 
 //! -dbcache default (MiB)
 static const int64_t nDefaultDbCache = 450;
@@ -103,6 +106,30 @@ public:
     bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode);
     bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote);
     bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo);
+};
+
+
+/** Access to the dPoS votes and blocks database (dpos/) */
+class CDposDB : public CDBWrapper
+{
+public:
+    CDposDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    CDposDB(const CDposDB&) = delete;
+    CDposDB& operator=(const CDposDB&) = delete;
+
+public:
+    void WriteTransactionVote(const uint256& tip, const CTransactionVote& vote, CDBBatch& batch);
+    void EraseTransactionVote(const uint256& tip, CDBBatch & batch);
+
+    void WriteProgenitorVote(const uint256& tip, const CProgenitorVote& vote, CDBBatch& batch);
+    void EraseProgenitorVote(const uint256& tip, CDBBatch & batch);
+
+    void WriteProgenitorBlock(const uint256& tip, const CBlock& block, CDBBatch& batch);
+    void EraseProgenitorBlock(const uint256& tip, CDBBatch& batch);
+
+    bool LoadTransactionVotes(std::function<void(const uint256&, const CTransactionVote&)> onTransactionVote);
+    bool LoadProgenitorVotes(std::function<void(const uint256&, const CProgenitorVote&)> onProgenitorVote);
+    bool LoadProgenitorBlocks(std::function<void(const uint256&, const CBlock&)> onProgenitorBlock);
 };
 
 #endif // BITCOIN_TXDB_H
