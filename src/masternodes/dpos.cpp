@@ -46,41 +46,42 @@ struct VoteDistribution
     bool checkSufficiency() const;
 };
 
-void attachTransactions(CBlock& block)
-{
-    LOCK(cs_main);
-    const int nHeight{chainActive.Tip()->nHeight + 1};
-    const int64_t nMedianTimePast{chainActive.Tip()->GetMedianTimePast()};
-
-    for (auto mi{mempool.mapTx.begin()}; mi != mempool.mapTx.end(); ++mi) {
-        const CTransaction& tx = mi->GetTx();
-        const int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
-                                      ? nMedianTimePast
-                                      : block.GetBlockTime();
-
-        if (!tx.IsCoinBase() && IsFinalTx(tx, nHeight, nLockTimeCutoff) && !IsExpiredTx(tx, nHeight)) {
-            block.vtx.push_back(tx);
-        }
-    }
-}
-
-//CBlock tranformProgenitorBlock(const CBlock& progenitorBlock)
+//void attachTransactions(CBlock& block)
 //{
-//    CBlock rv{progenitorBlock.GetBlockHeader()};
-////    rv.nRoundNumber = progenitorBlock.nRoundNumber;
-//    rv.vtx.resize(progenitorBlock.vtx.size());
-//    std::copy(progenitorBlock.vtx.begin(), progenitorBlock.vtx.end(), rv.vtx.begin());
-//    rv.hashMerkleRoot = rv.BuildMerkleTree();
-//    //        attachTransactions(dposBlock);
-//    return rv;
+//    LOCK(cs_main);
+//    const int nHeight{chainActive.Tip()->nHeight + 1};
+//    const int64_t nMedianTimePast{chainActive.Tip()->GetMedianTimePast()};
+
+//    for (auto mi{mempool.mapTx.begin()}; mi != mempool.mapTx.end(); ++mi) {
+//        const CTransaction& tx = mi->GetTx();
+//        const int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
+//                                      ? nMedianTimePast
+//                                      : block.GetBlockTime();
+
+//        if (!tx.IsCoinBase() && IsFinalTx(tx, nHeight, nLockTimeCutoff) && !IsExpiredTx(tx, nHeight)) {
+//            block.vtx.push_back(tx);
+//        }
+//    }
 //}
 
-std::map<uint256, VoteDistribution> calcTxVoteStats()
+
+uint256 getTipBlockHash()
+{
+    LOCK(cs_main);
+    return chainActive.Tip()->GetBlockHash();
+}
+
+std::size_t getActiveMasternodeCount()
+{
+    return pmasternodesview->activeNodes.size();
+}
+
+std::map<uint256, VoteDistribution> calcTransactionVoteStats()
 {
     std::map<uint256, VoteDistribution> rv{};
 
-    for (const auto& txVote : CTransactionVoteTracker::getInstance().listReceivedVotes()) {
-        for (const auto& choice : txVote.choices) {
+    for (const auto& vote : CTransactionVoteTracker::getInstance().listReceivedVotes()) {
+        for (const auto& choice : vote.choices) {
             VoteDistribution& stats{rv[choice.hash]};
 
             switch (choice.decision) {
@@ -97,38 +98,88 @@ std::map<uint256, VoteDistribution> calcTxVoteStats()
             stats.totus++;
         }
     }
+
     return rv;
 }
 
-std::size_t getActiveMasternodeCount()
+std::map<uint256, VoteDistribution> calcProgenitorVoteStats()
 {
-    return pmasternodesview->activeNodes.size();
+    std::map<uint256, VoteDistribution> rv{};
+
+    for (const auto& vote : CProgenitorVoteTracker::getInstance().listReceivedVotes()) {
+        VoteDistribution& stats{rv[vote.choice.hash]};
+        switch (vote.choice.decision) {
+        case CVoteChoice::decisionYes:
+            stats.pro++;
+            break;
+        case CVoteChoice::decisionNo:
+            stats.contra++;
+            break;
+        case CVoteChoice::decisionPass:
+            stats.abstinendi++;
+            break;
+        }
+        stats.totus++;
+    }
+
+    return rv;
+}
+
+bool interfereWithList(const CTransaction& transaction, const std::vector<CTransaction>& txList)
+{
+    libsnark::UNUSED(transaction);
+    libsnark::UNUSED(txList);
+    return false;
+}
+
+bool interfereWithList(const CBlock& block, const std::vector<CTransaction>& txList)
+{
+    libsnark::UNUSED(block);
+    libsnark::UNUSED(txList);
+    return false;
 }
 
 bool hasAnyUnfinishedTransaction(int roundNumber)
 {
-//    const std::map<uint256, VoteDistribution> voteStats{calcTxVoteStats()};
-
-//    LOCK2(cs_main, mempool.cs);
-
-//    for (const auto& pair: voteStats) {
-//        CTransaction tx{};
-//        if (mempool.lookup(pair.first, tx) &&
-//            tx.fInstant &&
-//            pair.second.round == roundNumber &&
-//            !pair.second.checkSufficiency())
-//        {
-//            return true;
-//        }
-//    }
+    libsnark::UNUSED(roundNumber);
     return false;
 }
 
-
-uint256 getTipBlockHash()
+int getCurrentRoundNumber()
 {
-    LOCK(cs_main);
-    return chainActive.Tip()->GetBlockHash();
+    const std::vector<CBlock> blocks{CProgenitorBlockTracker::getInstance().listReceivedBlocks()};
+    const auto it{std::min_element(blocks.begin(), blocks.end(), [](const CBlock& lhs, const CBlock& rhs) {
+        return lhs.nRoundNumber < rhs.nRoundNumber;
+    })};
+    return it != blocks.end() ? it->nRoundNumber : 1;
+}
+
+void voteForBestProgenitorBlock()
+{
+    const CKey masternodeKey{mns::getOperatorKey()};
+    CProgenitorVoteTracker& voteTracker{CProgenitorVoteTracker::getInstance()};
+    CProgenitorBlockTracker& blockTracker{CProgenitorBlockTracker::getInstance()};
+
+    if (masternodeKey.IsValid() &&
+        !hasAnyUnfinishedTransaction(getCurrentRoundNumber()) &&
+        !voteTracker.wasVotedByMe(masternodeKey))
+    {
+        std::map<std::size_t, std::set<arith_uint256>> bestMap{};
+        for (const auto& pair: calcProgenitorVoteStats()) {
+            bestMap[pair.second.pro].insert(UintToArith256(pair.first));
+        }
+        for (auto it{bestMap.rbegin()}, end{bestMap.rend()}; it != end; ++it) {
+            for (const auto& arithBlockHash : it->second) {
+                CBlock block{};
+                if (blockTracker.findReceivedBlock(ArithToUint256(arithBlockHash), &block) &&
+                    voteTracker.voteForBlock(block, masternodeKey))
+                {
+                    return;
+                }
+            }
+        }
+    }
+    LogPrintf("%s: Can't find best progenitor block", __func__);
 }
 
 template<typename T>
@@ -308,7 +359,7 @@ CTransactionVoteTracker& CTransactionVoteTracker::getInstance()
     return *transactionVoteTracker_;
 }
 
-void CTransactionVoteTracker::voteForTransaction(const CTransaction& transaction, const CKey& masternodeKey)
+bool CTransactionVoteTracker::voteForTransaction(const CTransaction& transaction, const CKey& masternodeKey)
 {
     if (masternodeKey.IsValid() && !wasVotedByMe(masternodeKey, transaction)) {
         CTransactionVote vote{};
@@ -327,15 +378,17 @@ void CTransactionVoteTracker::voteForTransaction(const CTransaction& transaction
         }
 
         vote.tip = getTipBlockHash();
-        vote.round = CProgenitorBlockTracker::getInstance().getCurrentRoundNumber();
+        vote.round = getCurrentRoundNumber();
         vote.choices.push_back({transaction.GetHash(), static_cast<int8_t>(decision)});
 
-        if (masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
-            postVote(vote);
-        } else {
+        if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
             LogPrintf("%s: Can't vote for transaction %s", __func__, transaction.GetHash().GetHex());
+        } else {
+            postVote(vote);
+            return true;
         }
     }
+    return false;
 }
 
 void CTransactionVoteTracker::postVote(const CTransactionVote& vote)
@@ -389,15 +442,10 @@ bool CTransactionVoteTracker::recieveVote(const CTransactionVote& vote, bool int
             return false;
         }
     }
-    if (vote.round == CProgenitorBlockTracker::getInstance().getCurrentRoundNumber()) {
+    if (vote.round == getCurrentRoundNumber()) {
         const CKey masternodeKey{mns::getOperatorKey()};
         if (!CProgenitorVoteTracker::getInstance().wasVotedByMe(masternodeKey)) {
-            for (const auto& block : CProgenitorBlockTracker::getInstance().listReceivedBlocks()) {
-                if (block.nRoundNumber == vote.round) {
-                    CProgenitorBlockTracker::getInstance().voteForBlock(block, masternodeKey);
-                    break;
-                }
-            }
+            voteForBestProgenitorBlock();
         }
     }
 
@@ -480,12 +528,6 @@ bool CTransactionVoteTracker::checkVoteIsConvenient(const CTransactionVote& vote
     return vote.tip == getTipBlockHash();
 }
 
-bool CTransactionVoteTracker::interfereWithList(const CTransaction& transaction, const std::vector<CTransaction>& txList)
-{
-    return false;
-}
-
-
 bool CTransactionVoteTracker::exeedSizeLimit(const CTransaction& transaction)
 {
     std::size_t size{GetSerializeSize(transaction, SER_NETWORK, PROTOCOL_VERSION)};
@@ -518,6 +560,26 @@ CProgenitorVoteTracker& CProgenitorVoteTracker::getInstance()
     return *progenitorVoteTrackerInstance_;
 }
 
+bool CProgenitorVoteTracker::voteForBlock(const CBlock& progenitorBlock, const CKey& masternodeKey)
+{
+    if (masternodeKey.IsValid() && !interfereWithList(progenitorBlock, dpos::listCommitedTransactions())) {
+        CProgenitorVote vote{};
+
+        vote.tip = getTipBlockHash();
+        vote.round = getCurrentRoundNumber();
+        vote.choice.hash = progenitorBlock.GetHash();
+        vote.choice.decision = static_cast<int8_t>(CVoteChoice::decisionYes);
+
+        if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
+            LogPrintf("%s: Can't vote for progenitor block %s", __func__, progenitorBlock.GetHash().GetHex());
+        } else {
+            postVote(vote);
+            return true;
+        }
+    }
+    return false;
+}
+
 void CProgenitorVoteTracker::postVote(const CProgenitorVote& vote)
 {
     if (recieveVote(vote, true)) {
@@ -533,80 +595,41 @@ void CProgenitorVoteTracker::postVote(const CProgenitorVote& vote)
 void CProgenitorVoteTracker::relayVote(const CProgenitorVote& vote)
 {
     if (recieveVote(vote, false)) {
-//        // Expire old relay messages
-//        LOCK(cs_mapRelay);
-//        while (!vRelayExpiration.empty() &&
-//               vRelayExpiration.front().first < GetTime())
-//        {
-//            mapRelay.erase(vRelayExpiration.front().second);
-//            vRelayExpiration.pop_front();
-//        }
-
-//        // Save original serialized message so newer versions are preserved
-//        CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
-//        const CInv inv{MSG_PROGENITOR_VOTE, vote.GetHash()};
-
-//        ss.reserve(1000);
-//        ss << vote;
-
-//        mapRelay.insert(std::make_pair(inv, ss));
-//        vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
-//        BroadcastInventory(inv);
         relayObject(vote, MSG_PROGENITOR_VOTE);
     }
 }
 
 bool CProgenitorVoteTracker::recieveVote(const CProgenitorVote& vote, bool internal)
 {
-    using PVPair = std::pair<uint256, std::size_t>;
-    std::map<PVPair::first_type, PVPair::second_type> progenitorVotes{};
-
+    bool rv{false};
     if (checkVoteIsConvenient(vote)) {
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
 
         LogPrintf("%s: Pre-block vote recieved: %d\n", __func__, this->recievedVotes->count(vote.GetHash()));
-        if (this->recievedVotes->emplace(vote.GetHash(), vote).second) {
-            for (const auto& pair : *this->recievedVotes) {
-                if (pair.second.choice.decision == CVoteChoice::decisionYes) {
-                    progenitorVotes[pair.second.choice.hash]++;
-                }
-            }
-        }
+        rv = this->recievedVotes->emplace(vote.GetHash(), vote).second;
     }
 
-    const auto itEnd{progenitorVotes.end()};
-    const auto itMax{std::max_element(progenitorVotes.begin(), itEnd, [](const PVPair& p1, const PVPair& p2) {
-        return p1.second < p2.second;
-    })};
-    if (itMax == itEnd) {
+    if (!rv) {
         LogPrintf("%s: Ignoring duplicating pre-block vote: %s\n", __func__, vote.GetHash().GetHex());
-        return false;
-    }
-
-    const CKey operKey{mns::getOperatorKey()};
-    if (operKey.IsValid()) {
-        LogPrintf("%s: Pre-block vote rate: %d\n", __func__, 1.0 * itMax->second / getActiveMasternodeCount());
-        if (internal && 1.0 * itMax->second / getActiveMasternodeCount() >= 2.0 / 3.0) {
-            CBlock pblock{};
-            if (findProgenitorBlock(itMax->first, &pblock)) {
-                CValidationState state{};
-                CBlock dposBlock{pblock};
-
-                if (dposBlock.GetHash() != itMax->first ||
-                    !ProcessNewBlock(state, NULL, &dposBlock, true, NULL))
-                {
-                    LogPrintf("%s: Can't create new dpos block\n");
+    } else if (checkStalemate()) {
+        // on new round
+    } else {
+        for (const auto& pair : calcProgenitorVoteStats()) {
+            if (pair.second.checkSufficiency()) {
+                CBlock dposBlock{};
+                if (CProgenitorBlockTracker::getInstance().findReceivedBlock(pair.first, &dposBlock)) {
+                    CValidationState state{};
+                    if (ProcessNewBlock(state, NULL, &dposBlock, true, NULL)) {
+                        break;
+                    }
                 }
+                LogPrintf("%s: Can't create new dpos block\n");
+                break;
             }
         }
-//        else if (recievedProgenitorVotes_.size() == pmasternodesview->activeNodes.size()) {
-//            int roundNumber{recievedProgenitorVotes_.begin()->second.roundNumber + 1};
-//            recievedProgenitorVotes_.clear();
-//            assert(!recievedProgenitorBlocks_.empty());
-//            voteForProgenitorBlock(recievedProgenitorBlocks_.begin()->second, operKey, roundNumber);
-//        }
     }
+
     return true;
 }
 
@@ -644,7 +667,7 @@ bool CProgenitorVoteTracker::wasVotedByMe(const CKey& masternodeKey)
         if (pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature) &&
             pubKey == masternodeKey.GetPubKey() &&
             CProgenitorBlockTracker::getInstance().findReceivedBlock(vote.choice.hash, &block) &&
-            block.nRoundNumber == CProgenitorBlockTracker::getInstance().getCurrentRoundNumber())
+            block.nRoundNumber == getCurrentRoundNumber())
         {
             return true;
         }
@@ -667,6 +690,11 @@ std::vector<CProgenitorVote> CProgenitorVoteTracker::listReceivedVotes() const
     }
 
     return rv;
+}
+
+bool CProgenitorVoteTracker::checkStalemate()
+{
+    return false;
 }
 
 bool CProgenitorVoteTracker::checkVoteIsConvenient(const CProgenitorVote& vote)
@@ -709,6 +737,7 @@ CProgenitorBlockTracker& CProgenitorBlockTracker::getInstance()
 void CProgenitorBlockTracker::postBlock(const CBlock& block)
 {
     if (recieveBlock(block, true)) {
+        voteForBestProgenitorBlock();
         BroadcastInventory({MSG_PROGENITOR_BLOCK, block.GetHash()});
     }
 }
@@ -720,40 +749,10 @@ void CProgenitorBlockTracker::relayBlock(const CBlock& block)
     }
 }
 
-bool CProgenitorBlockTracker::voteForBlock(const CBlock& progenitorBlock, const CKey& masternodeKey)
-{
-    const int currentRound{getCurrentRoundNumber()};
-
-    if (masternodeKey.IsValid() &&
-        !hasAnyUnfinishedTransaction(currentRound) &&
-        CProgenitorVoteTracker::getInstance().hasAnyReceivedVote(getCurrentRoundNumber()))
-    {
-        return true;
-    }
-
-//    if (masternodeKey.IsValid() &&
-//        !hasAnyUnfinishedTransaction() &&
-//        !CProgenitorVoteTracker::getInstance().wasVotedByMe(masternodeKey))
-//    {
-//        CProgenitorVote vote{};
-//        vote.choice.hash = progenitorBlock.GetHash();
-////        vote.roundNumber = progenitorBlock.nRoundNumber;
-//        vote.tip = progenitorBlock.hashPrevBlock;
-
-//        if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
-//            LogPrintf("%s: Can't vote for pre-block %s", __func__, progenitorBlock.GetHash().GetHex());
-//        } else {
-//            CProgenitorVoteTracker::getInstance().postVote(vote);
-//            return true;
-//        }
-//    }
-    return false;
-}
-
-bool CProgenitorBlockTracker::recieveBlock(const CBlock& block, bool isMe)
+bool CProgenitorBlockTracker::recieveBlock(const CBlock& block, bool internal)
 {
     bool rv{false};
-    libsnark::UNUSED(isMe);
+    libsnark::UNUSED(internal);
 
     if (checkBlockIsConvenient(block)) {
         LockGuard lock{mutex_};
@@ -761,9 +760,7 @@ bool CProgenitorBlockTracker::recieveBlock(const CBlock& block, bool isMe)
         rv = this->recievedBlocks->emplace(block.GetHash(), block).second;
     }
 
-    if (rv) {
-        voteForBlock(block, mns::getOperatorKey());
-    } else {
+    if (!rv) {
         LogPrintf("%s: Ignoring duplicating pre-block: %s\n", __func__, block.GetHash().GetHex());
     }
 
@@ -807,25 +804,6 @@ std::vector<CBlock> CProgenitorBlockTracker::listReceivedBlocks() const
     return rv;
 }
 
-int CProgenitorBlockTracker::getCurrentRoundNumber() const
-{
-    const std::vector<CBlock> blocks{listReceivedBlocks()};
-    const auto it{std::min_element(blocks.begin(), blocks.end(), [](const CBlock& lhs, const CBlock& rhs) {
-        return lhs.nRoundNumber < rhs.nRoundNumber;
-    })};
-    return it != blocks.end() ? it->nRoundNumber : 1;
-}
-
-//void CProgenitorBlockTracker::doRoundVoting(const CKey& masternodeKey)
-//{
-//    const int currentRound{getCurrentRoundNumber()};
-
-//    if (masternodeKey.IsValid() &&
-//        !hasAnyUnfinishedTransaction(currentRound) &&
-//        CProgenitorVoteTracker::hasAnyReceivedVote(getCurrentRoundNumber())) {
-
-//    }
-//}
 
 bool CProgenitorBlockTracker::checkBlockIsConvenient(const CBlock& block)
 {
@@ -851,7 +829,7 @@ CValidationInterface* dpos::getValidationListener()
 std::vector<CTransaction> dpos::listCommitedTransactions()
 {
     std::vector<CTransaction> rv{};
-    const std::map<uint256, VoteDistribution> voteStats{calcTxVoteStats()};
+    const std::map<uint256, VoteDistribution> voteStats{calcTransactionVoteStats()};
 
     rv.reserve(voteStats.size());
     LOCK2(cs_main, mempool.cs);
@@ -868,4 +846,3 @@ std::vector<CTransaction> dpos::listCommitedTransactions()
 
     return rv;
 }
-

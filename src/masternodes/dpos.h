@@ -120,7 +120,7 @@ protected:
 public:
     static CTransactionVoteTracker& getInstance();
 
-    void voteForTransaction(const CTransaction& transaction, const CKey& masternodeKey);
+    bool voteForTransaction(const CTransaction& transaction, const CKey& masternodeKey);
     void postVote(const CTransactionVote& voteForTransaction);
     void relayVote(const CTransactionVote& voteForTransaction);
     bool recieveVote(const CTransactionVote& voteForTransaction, bool internal);
@@ -132,7 +132,6 @@ private:
     std::vector<CTransaction> listMyTransactions(const CKey& masternodeKey);
     bool wasVotedByMe(const CKey& masternodeKey, const CTransaction& transaction);
     bool checkVoteIsConvenient(const CTransactionVote& voteForTransaction);
-    bool interfereWithList(const CTransaction& transaction, const std::vector<CTransaction>& txList);
     bool exeedSizeLimit(const CTransaction& transaction);
 };
 
@@ -146,6 +145,7 @@ protected:
 public:
     static CProgenitorVoteTracker& getInstance();
 
+    bool voteForBlock(const CBlock& progenitorBlock, const CKey& masternodeKey);
     void postVote(const CProgenitorVote& vote);
     void relayVote(const CProgenitorVote& vote);
     bool recieveVote(const CProgenitorVote& vote, bool internal);
@@ -156,6 +156,7 @@ public:
 
 private:
     CProgenitorVoteTracker();
+    bool checkStalemate();
     bool checkVoteIsConvenient(const CProgenitorVote& vote);
     bool findProgenitorBlock(const uint256& dposBlockHash, CBlock* block);
 };
@@ -170,14 +171,10 @@ public:
 
     void postBlock(const CBlock& pblock);
     void relayBlock(const CBlock& pblock);
-    bool voteForBlock(const CBlock& progenitorBlock, const CKey& masternodeKey);
-    bool recieveBlock(const CBlock& pblock, bool isMe);
+    bool recieveBlock(const CBlock& pblock, bool internal);
     bool findReceivedBlock(const uint256& hash, CBlock* block = nullptr) const;
     bool hasAnyReceivedBlock() const;
     std::vector<CBlock> listReceivedBlocks() const;
-
-    int getCurrentRoundNumber() const;
-//    void doRoundVoting(const CKey& masternodeKey);
 
 private:
     CProgenitorBlockTracker();
