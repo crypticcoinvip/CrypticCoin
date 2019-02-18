@@ -46,25 +46,6 @@ struct VoteDistribution
     bool checkSufficiency() const;
 };
 
-//void attachTransactions(CBlock& block)
-//{
-//    LOCK(cs_main);
-//    const int nHeight{chainActive.Tip()->nHeight + 1};
-//    const int64_t nMedianTimePast{chainActive.Tip()->GetMedianTimePast()};
-
-//    for (auto mi{mempool.mapTx.begin()}; mi != mempool.mapTx.end(); ++mi) {
-//        const CTransaction& tx = mi->GetTx();
-//        const int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
-//                                      ? nMedianTimePast
-//                                      : block.GetBlockTime();
-
-//        if (!tx.IsCoinBase() && IsFinalTx(tx, nHeight, nLockTimeCutoff) && !IsExpiredTx(tx, nHeight)) {
-//            block.vtx.push_back(tx);
-//        }
-//    }
-//}
-
-
 uint256 getTipBlockHash()
 {
     LOCK(cs_main);
@@ -164,6 +145,7 @@ void voteForBestProgenitorBlock()
         !hasAnyUnfinishedTransaction(getCurrentRoundNumber()) &&
         !voteTracker.wasVotedByMe(masternodeKey))
     {
+        // sort the pre-blocks by number of votes, pre-block Hash (decreasing)
         std::map<std::size_t, std::set<arith_uint256>> bestMap{};
         for (const auto& pair: calcProgenitorVoteStats()) {
             bestMap[pair.second.pro].insert(UintToArith256(pair.first));
@@ -183,7 +165,7 @@ void voteForBestProgenitorBlock()
 }
 
 template<typename T>
-void relayObject(const T& obj, int type)
+void relayEntity(const T& obj, int type)
 {
     // Expire old relay messages
     LOCK(cs_mapRelay);
@@ -397,7 +379,7 @@ void CTransactionVoteTracker::postVote(const CTransactionVote& vote)
         LogPrintf("%s: Post my vote %s for transaction %s on round %d\n",
                   __func__,
                   vote.GetHash().GetHex(),
-                  vote.tip.GetHex(),
+                  vote.choices.front().hash.GetHex(),
                   vote.round);
         BroadcastInventory(CInv{MSG_PROGENITOR_VOTE, vote.GetHash()});
     }
@@ -406,25 +388,7 @@ void CTransactionVoteTracker::postVote(const CTransactionVote& vote)
 void CTransactionVoteTracker::relayVote(const CTransactionVote& vote)
 {
     if (recieveVote(vote, false)) {
-        // Expire old relay messages
-        LOCK(cs_mapRelay);
-        while (!vRelayExpiration.empty() &&
-               vRelayExpiration.front().first < GetTime())
-        {
-            mapRelay.erase(vRelayExpiration.front().second);
-            vRelayExpiration.pop_front();
-        }
-
-        // Save original serialized message so newer versions are preserved
-        CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
-        const CInv inv{MSG_TRANSACTION_VOTE, vote.GetHash()};
-
-        ss.reserve(1000);
-        ss << vote;
-
-        mapRelay.insert(std::make_pair(inv, ss));
-        vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
-        BroadcastInventory(inv);
+        relayEntity(vote, MSG_TRANSACTION_VOTE);
     }
 }
 
@@ -432,16 +396,19 @@ bool CTransactionVoteTracker::recieveVote(const CTransactionVote& vote, bool int
 {
     libsnark::UNUSED(internal);
 
-    if (checkVoteIsConvenient(vote)) {
+    if (!checkVoteIsConvenient(vote)) {
+        return false;
+    } else {
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
 
-        LogPrintf("%s: Transaction vote recieved: %d\n", __func__, this->recievedVotes->count(vote.GetHash()));
         if (!this->recievedVotes->emplace(vote.GetHash(), vote).second) {
-            LogPrintf("%s: Ignoring duplicating transaction vote: %s\n", __func__, vote.GetHash().GetHex());
+            LogPrintf("%s: Ignoring duplicating transaction vote %s\n", __func__, vote.GetHash().GetHex());
             return false;
         }
     }
+
+    LogPrintf("%s: Recieved transaction vote %s\n", __func__, vote.GetHash().GetHex());
     if (vote.round == getCurrentRoundNumber()) {
         const CKey masternodeKey{mns::getOperatorKey()};
         if (!CProgenitorVoteTracker::getInstance().wasVotedByMe(masternodeKey)) {
@@ -485,9 +452,10 @@ std::vector<CTransactionVote> CTransactionVoteTracker::listReceivedVotes()
 std::vector<CTransaction> CTransactionVoteTracker::listMyTransactions(const CKey& masternodeKey)
 {
     std::vector<CTransaction> rv{};
+    const std::vector<CTransactionVote> votes{listReceivedVotes()};
 
     LOCK2(cs_main, mempool.cs);
-    for (const auto& vote: listReceivedVotes()) {
+    for (const auto& vote: votes) {
         CPubKey pubKey{};
         if (pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature) &&
             pubKey == masternodeKey.GetPubKey())
@@ -501,7 +469,7 @@ std::vector<CTransaction> CTransactionVoteTracker::listMyTransactions(const CKey
         }
     }
 
-    return std::move(rv);
+    return rv;
 }
 
 bool CTransactionVoteTracker::wasVotedByMe(const CKey& masternodeKey, const CTransaction& transaction)
@@ -562,6 +530,7 @@ CProgenitorVoteTracker& CProgenitorVoteTracker::getInstance()
 
 bool CProgenitorVoteTracker::voteForBlock(const CBlock& progenitorBlock, const CKey& masternodeKey)
 {
+    //  first valid (against commited list) pre-block
     if (masternodeKey.IsValid() && !interfereWithList(progenitorBlock, dpos::listCommitedTransactions())) {
         CProgenitorVote vote{};
 
@@ -583,10 +552,10 @@ bool CProgenitorVoteTracker::voteForBlock(const CBlock& progenitorBlock, const C
 void CProgenitorVoteTracker::postVote(const CProgenitorVote& vote)
 {
     if (recieveVote(vote, true)) {
-        LogPrintf("%s: Post my vote %s for pre-block %s on round %d\n",
+        LogPrintf("%s: Posted my vote %s for pre-block %s on round %d\n",
                   __func__,
                   vote.GetHash().GetHex(),
-                  vote.tip.GetHex(),
+                  vote.choice.hash.GetHex(),
                   vote.round);
         BroadcastInventory(CInv{MSG_PROGENITOR_VOTE, vote.GetHash()});
     }
@@ -595,24 +564,29 @@ void CProgenitorVoteTracker::postVote(const CProgenitorVote& vote)
 void CProgenitorVoteTracker::relayVote(const CProgenitorVote& vote)
 {
     if (recieveVote(vote, false)) {
-        relayObject(vote, MSG_PROGENITOR_VOTE);
+        relayEntity(vote, MSG_PROGENITOR_VOTE);
     }
 }
 
 bool CProgenitorVoteTracker::recieveVote(const CProgenitorVote& vote, bool internal)
 {
-    bool rv{false};
-    if (checkVoteIsConvenient(vote)) {
+    libsnark::UNUSED(internal);
+
+    if (!checkVoteIsConvenient(vote)) {
+        return false;
+    } else {
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
 
-        LogPrintf("%s: Pre-block vote recieved: %d\n", __func__, this->recievedVotes->count(vote.GetHash()));
-        rv = this->recievedVotes->emplace(vote.GetHash(), vote).second;
+        if (!this->recievedVotes->emplace(vote.GetHash(), vote).second) {
+            LogPrintf("%s: Ignoring duplicating pre-block vote: %s\n", __func__, vote.GetHash().GetHex());
+            return false;
+        }
     }
 
-    if (!rv) {
-        LogPrintf("%s: Ignoring duplicating pre-block vote: %s\n", __func__, vote.GetHash().GetHex());
-    } else if (checkStalemate()) {
+    LogPrintf("%s: Recieved pre-block vote %s\n", __func__, vote.GetHash().GetHex());
+
+    if (checkStalemate()) {
         // on new round
     } else {
         for (const auto& pair : calcProgenitorVoteStats()) {
@@ -629,7 +603,6 @@ bool CProgenitorVoteTracker::recieveVote(const CProgenitorVote& vote, bool inter
             }
         }
     }
-
     return true;
 }
 
@@ -737,7 +710,9 @@ CProgenitorBlockTracker& CProgenitorBlockTracker::getInstance()
 void CProgenitorBlockTracker::postBlock(const CBlock& block)
 {
     if (recieveBlock(block, true)) {
-        voteForBestProgenitorBlock();
+        LogPrintf("%s: Posted pre-block %s\n",
+                  __func__,
+                  block.GetHash().GetHex());
         BroadcastInventory({MSG_PROGENITOR_BLOCK, block.GetHash()});
     }
 }
@@ -745,26 +720,28 @@ void CProgenitorBlockTracker::postBlock(const CBlock& block)
 void CProgenitorBlockTracker::relayBlock(const CBlock& block)
 {
     if (recieveBlock(block, false)) {
-        relayObject(block, MSG_PROGENITOR_BLOCK);
+        relayEntity(block, MSG_PROGENITOR_BLOCK);
     }
 }
 
 bool CProgenitorBlockTracker::recieveBlock(const CBlock& block, bool internal)
 {
-    bool rv{false};
     libsnark::UNUSED(internal);
 
-    if (checkBlockIsConvenient(block)) {
+    if (!checkBlockIsConvenient(block)) {
+        return false;
+    } else {
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
-        rv = this->recievedBlocks->emplace(block.GetHash(), block).second;
+        if (!this->recievedBlocks->emplace(block.GetHash(), block).second) {
+            LogPrintf("%s: Ignoring duplicating pre-block: %s\n", __func__, block.GetHash().GetHex());
+            return false;
+        }
     }
 
-    if (!rv) {
-        LogPrintf("%s: Ignoring duplicating pre-block: %s\n", __func__, block.GetHash().GetHex());
-    }
-
-    return rv;
+    LogPrintf("%s: Recieved pre-block %s\n", __func__, block.GetHash().GetHex());
+    voteForBestProgenitorBlock();
+    return true;
 }
 
 bool CProgenitorBlockTracker::findReceivedBlock(const uint256& hash, CBlock* block) const
@@ -846,3 +823,11 @@ std::vector<CTransaction> dpos::listCommitedTransactions()
 
     return rv;
 }
+
+//TODO:
+// 1. passed 20 minutes since round start (local time)
+// 2. stalemate while voting for transactions and pre-blocks
+// 3. save and restore votes to DB
+// 4. retrieve votes from p2p messages
+// 5. update rpc-methods (getinfo, getbalance, listunpent, etc...)
+// 6. reindex/restart
