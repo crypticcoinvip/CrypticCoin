@@ -1103,11 +1103,11 @@ UniValue listprogenitorvotes(const UniValue& params, bool fHelp)
     for (const auto& vote : CProgenitorVoteTracker::getInstance().listReceivedVotes()) {
         UniValue jsonVote{UniValue::VOBJ};
         jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
-        jsonVote.push_back(Pair("tipBlock", vote.tipBlockHash.GetHex()));
-        jsonVote.push_back(Pair("roundNumber", vote.roundNumber));
-        jsonVote.push_back(Pair("choice_hash", vote.choice.hash.GetHex()));
+        jsonVote.push_back(Pair("tipBlock", vote.tip.GetHex()));
+        jsonVote.push_back(Pair("roundNumber", vote.round));
+        jsonVote.push_back(Pair("choice_block", vote.choice.hash.GetHex()));
         jsonVote.push_back(Pair("choice_decision", vote.choice.decision));
-        jsonVote.push_back(Pair("signature", vote.authSignature.ToHex()));
+        jsonVote.push_back(Pair("signature", vote.signature.ToHex()));
         rv.push_back(jsonVote);
     }
 
@@ -1143,14 +1143,14 @@ UniValue listtransactionvotes(const UniValue& params, bool fHelp)
     for (const auto& vote : CTransactionVoteTracker::getInstance().listReceivedVotes()) {
         UniValue jsonVote{UniValue::VOBJ};
         jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
-        jsonVote.push_back(Pair("tipBlock", vote.tipBlockHash.GetHex()));
-        jsonVote.push_back(Pair("roundNumber", vote.roundNumber));
+        jsonVote.push_back(Pair("tipBlock", vote.tip.GetHex()));
+        jsonVote.push_back(Pair("roundNumber", vote.round));
         for (std::size_t i{0}; i < vote.choices.size(); i++) {
             std::string postfix{std::to_string(i)};
-            jsonVote.push_back(Pair("choice_txid_" + postfix, vote.choices[i].hash.GetHex()));
-            jsonVote.push_back(Pair("choice_decision_" + postfix, vote.choices[i].decision));
+            jsonVote.push_back(Pair("choice_txid#" + postfix, vote.choices[i].hash.GetHex()));
+            jsonVote.push_back(Pair("choice_decision#" + postfix, vote.choices[i].decision));
         }
-        jsonVote.push_back(Pair("signature", vote.authSignature.ToHex()));
+        jsonVote.push_back(Pair("signature", vote.signature.ToHex()));
         rv.push_back(jsonVote);
     }
 

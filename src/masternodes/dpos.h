@@ -39,7 +39,7 @@ public:
 class CVoteChoice
 {
 public:
-    enum {decisionPass = -1, decisionNo, decisionYes};
+    enum {decisionNo, decisionYes, decisionPass};
 
     uint256 hash;
     int8_t decision;
@@ -57,10 +57,10 @@ public:
 class CTransactionVote
 {
 public:
-    uint256 tipBlockHash;
-    uint16_t roundNumber;
+    uint256 tip;
+    uint16_t round;
     std::vector<CVoteChoice> choices;
-    CVoteSignature authSignature;
+    CVoteSignature signature;
 
     CTransactionVote();
 
@@ -69,10 +69,10 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(tipBlockHash);
-        READWRITE(roundNumber);
+        READWRITE(tip);
+        READWRITE(round);
         READWRITE(choices);
-        READWRITE(authSignature);
+        READWRITE(signature);
     }
 
     bool IsNull() const;
@@ -87,10 +87,10 @@ public:
 class CProgenitorVote
 {
 public:
-    uint256 tipBlockHash;
-    uint16_t roundNumber;
+    uint256 tip;
+    uint16_t round;
     CVoteChoice choice;
-    CVoteSignature authSignature;
+    CVoteSignature signature;
 
     CProgenitorVote();
 
@@ -99,10 +99,10 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(tipBlockHash);
-        READWRITE(roundNumber);
+        READWRITE(tip);
+        READWRITE(round);
         READWRITE(choice);
-        READWRITE(authSignature);
+        READWRITE(signature);
     }
 
     bool IsNull() const;
@@ -121,19 +121,18 @@ public:
     static CTransactionVoteTracker& getInstance();
 
     void voteForTransaction(const CTransaction& transaction, const CKey& masternodeKey);
-    void postTransaction(const CTransactionVote& voteForTransaction);
-    void relayTransaction(const CTransactionVote& voteForTransaction);
-    bool recieveTransaction(const CTransactionVote& voteForTransaction, bool isMe);
+    void postVote(const CTransactionVote& voteForTransaction);
+    void relayVote(const CTransactionVote& voteForTransaction);
+    bool recieveVote(const CTransactionVote& voteForTransaction, bool internal);
     bool findReceivedVote(const uint256& hash, CTransactionVote* voteForTransaction = nullptr);
     std::vector<CTransactionVote> listReceivedVotes();
 
 private:
     CTransactionVoteTracker();
-    bool checkMyVote(const CKey& masternodeKey, const CTransaction& transaction);
     std::vector<CTransaction> listMyTransactions(const CKey& masternodeKey);
+    bool wasVotedByMe(const CKey& masternodeKey, const CTransaction& transaction);
     bool checkVoteIsConvenient(const CTransactionVote& voteForTransaction);
-    bool interfereWithMyList(const CKey& masternodeKey, const CTransaction& transaction);
-    bool interfereWithCommitedList(const CTransaction& transaction);
+    bool interfereWithList(const CTransaction& transaction, const std::vector<CTransaction>& txList);
     bool exeedSizeLimit(const CTransaction& transaction);
 };
 
@@ -149,16 +148,16 @@ public:
 
     void postVote(const CProgenitorVote& vote);
     void relayVote(const CProgenitorVote& vote);
-    bool recieveVote(const CProgenitorVote& vote, bool isMe);
+    bool recieveVote(const CProgenitorVote& vote, bool internal);
     bool findReceivedVote(const uint256& hash, CProgenitorVote* vote = nullptr);
-    bool hasAnyReceivedVote(int decision) const;
+    bool hasAnyReceivedVote(int roundNumber, int decision = -1) const;
+    bool wasVotedByMe(const CKey& masternodeKey);
     std::vector<CProgenitorVote> listReceivedVotes() const;
 
 private:
     CProgenitorVoteTracker();
-    bool checkMyVote(const CKey& masternodeKey);
-    bool findProgenitorBlock(const uint256& dposBlockHash, CBlock* block);
     bool checkVoteIsConvenient(const CProgenitorVote& vote);
+    bool findProgenitorBlock(const uint256& dposBlockHash, CBlock* block);
 };
 
 class CProgenitorBlockTracker
@@ -178,6 +177,7 @@ public:
     std::vector<CBlock> listReceivedBlocks() const;
 
     int getCurrentRoundNumber() const;
+//    void doRoundVoting(const CKey& masternodeKey);
 
 private:
     CProgenitorBlockTracker();

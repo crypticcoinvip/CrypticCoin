@@ -130,7 +130,7 @@ void mns::mockMasternodesDB(const std::vector<std::string>& addresses, int activ
     pmasternodesview->WriteBatch();
 }
 
-CKey mns::extractOperatorKey()
+CKey mns::getOperatorKey()
 {
     CKey rv{};
 #ifdef ENABLE_WALLET

@@ -6041,7 +6041,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         CTransactionVote vote{};
         vRecv >> vote;
         ProcessInventoryCommand<CTransactionVote>(vote, pfrom, MSG_TRANSACTION_VOTE, [](const CTransactionVote& vote) {
-            CTransactionVoteTracker::getInstance().relayTransaction(vote);
+            CTransactionVoteTracker::getInstance().relayVote(vote);
         });
     } else if (strCommand == CInv{MSG_PROGENITOR_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex && dpos::isActive()) {
         CBlock block{};

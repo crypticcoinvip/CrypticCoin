@@ -25,7 +25,7 @@ boost::optional<CMasternodeIDs> amIActiveOperator();
 boost::optional<CMasternodeIDs> amIOwner();
 boost::optional<CMasternodeIDs> amIActiveOwner();
 
-CKey extractOperatorKey();
+CKey getOperatorKey();
 
 void mockMasternodesDB(const std::vector<std::string>& addresses, int activationMask = 0);
 
