@@ -4,8 +4,8 @@
 #ifndef BITCOIN_MASTERNODES_HEARTBEAT_H
 #define BITCOIN_MASTERNODES_HEARTBEAT_H
 
-#include "masternodes/masternodes.h"
-#include "serialize.h"
+#include "masternodes.h"
+#include "../serialize.h"
 #include <mutex>
 #include <list>
 

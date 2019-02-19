@@ -7,6 +7,7 @@
 #include "../main.h"
 #include "../init.h"
 #include "../key.h"
+#include "../txdb.h"
 #include "../chainparams.h"
 #include "../validationinterface.h"
 #include "../wallet/wallet.h"
@@ -15,6 +16,7 @@
 #include "../consensus/validation.h"
 #include "../snark/libsnark/common/utils.hpp"
 #include <mutex>
+#include <functional>
 
 namespace {
 using LockGuard = std::lock_guard<std::mutex>;
@@ -30,6 +32,8 @@ public:
     std::map<uint256, CTransactionVote> transactionVotes;
     std::map<uint256, CProgenitorVote> progenitorVotes;
     std::map<uint256, CBlock> progenitorBlocks;
+
+    void clear();
 
 protected:
     void UpdatedBlockTip(const CBlockIndex* pindex) override;
@@ -181,7 +185,7 @@ void voteForBestProgenitorBlock()
 }
 
 template<typename T>
-void relayEntity(const T& obj, int type)
+void relayEntity(const T& entity, int type)
 {
     // Expire old relay messages
     LOCK(cs_mapRelay);
@@ -194,24 +198,36 @@ void relayEntity(const T& obj, int type)
 
     // Save original serialized message so newer versions are preserved
     CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
-    const CInv inv{type, obj.GetHash()};
+    const CInv inv{type, entity.GetHash()};
 
     ss.reserve(1024);
-    ss << obj;
+    ss << entity;
 
     mapRelay.insert(std::make_pair(inv, ss));
     vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
     BroadcastInventory(inv);
 }
 
-void ChainListener::UpdatedBlockTip(const CBlockIndex* pindex)
+template<typename T, typename StoreMethod>
+void storeEntity(const T& entity, StoreMethod storeMethod)
 {
-    libsnark::UNUSED(pindex);
+    (pdposdb->*storeMethod)(getTipBlockHash(), entity);
+}
+
+void ChainListener::clear()
+{
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
+
     transactionVotes.clear();
     progenitorVotes.clear();
     progenitorBlocks.clear();
+}
+
+void ChainListener::UpdatedBlockTip(const CBlockIndex* pindex)
+{
+    libsnark::UNUSED(pindex);
+    clear();
 }
 
 void ChainListener::SyncTransaction(const CTransaction& tx, const CBlock* pblock)
@@ -425,6 +441,8 @@ bool CTransactionVoteTracker::recieveVote(const CTransactionVote& vote, bool int
     }
 
     LogPrintf("%s: Recieved transaction vote %s\n", __func__, vote.GetHash().GetHex());
+    storeEntity(vote, &CDposDB::WriteTransactionVote);
+
     if (vote.round == getCurrentRoundNumber()) {
         if (!CProgenitorVoteTracker::getInstance().wasVotedByMe(getMasternodeKey())) {
             voteForBestProgenitorBlock();
@@ -600,6 +618,7 @@ bool CProgenitorVoteTracker::recieveVote(const CProgenitorVote& vote, bool inter
     }
 
     LogPrintf("%s: Recieved pre-block vote %s\n", __func__, vote.GetHash().GetHex());
+    storeEntity(vote, &CDposDB::WriteProgenitorVote);
 
     if (checkStalemate()) {
         // on new round
@@ -755,6 +774,8 @@ bool CProgenitorBlockTracker::recieveBlock(const CBlock& block, bool internal)
     }
 
     LogPrintf("%s: Recieved pre-block %s\n", __func__, block.GetHash().GetHex());
+    storeEntity(block, &CDposDB::WriteProgenitorBlock);
+
     voteForBestProgenitorBlock();
     return true;
 }
@@ -839,10 +860,36 @@ std::vector<CTransaction> dpos::listCommitedTransactions()
     return rv;
 }
 
+void dpos::initFromDB()
+{
+    chainListener_.clear();
+    assert(pdposdb != nullptr);
+
+    pdposdb->LoadTransactionVotes([](const uint256& tip, const CTransactionVote& vote) {
+        LOCK(cs_main);
+        if (chainActive.Tip()->GetBlockHash() == tip) {
+            chainListener_.transactionVotes.emplace(vote.GetHash(), vote);
+        }
+    });
+    pdposdb->LoadProgenitorVotes([](const uint256& tip, const CProgenitorVote& vote) {
+        LOCK(cs_main);
+        if (chainActive.Tip()->GetBlockHash() == tip) {
+            chainListener_.progenitorVotes.emplace(vote.GetHash(), vote);
+        }
+    });
+    pdposdb->LoadProgenitorBlocks([](const uint256& tip, const CBlock& block) {
+        LOCK(cs_main);
+        if (chainActive.Tip()->GetBlockHash() == tip) {
+            chainListener_.progenitorBlocks.emplace(block.GetHash(), block);
+        }
+    });
+}
+
+
 //TODO:
 // 1. passed 20 minutes since round start (local time)
 // 2. stalemate while voting for transactions and pre-blocks
-// 3. save and restore votes to DB
-// 4. retrieve votes from p2p messages
-// 5. update rpc-methods (getinfo, getbalance, listunpent, etc...)
-// 6. reindex/restart
+// 3. retrieve votes from p2p messages
+// 4. update rpc-methods (getinfo, getbalance, listunpent, etc...)
+// 5. reindex/restart
+// 6. Erase from DB after UpdatedBlockTip

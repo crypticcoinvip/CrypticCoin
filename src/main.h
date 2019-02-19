@@ -580,6 +580,9 @@ extern CMasternodesDB * pmasternodesdb;
 class CMasternodesView;
 extern CMasternodesView * pmasternodesview;
 
+class CDposDB;
+extern CDposDB * pdposdb;
+
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().
  * While checking, GetBestBlock() refers to the parent block. (protected by cs_main)

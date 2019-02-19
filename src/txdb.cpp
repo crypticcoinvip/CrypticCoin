@@ -511,35 +511,41 @@ CDposDB::CDposDB(size_t nCacheSize, bool fMemory, bool fWipe) :
 {
 }
 
-void CDposDB::WriteTransactionVote(const uint256& tip, const CTransactionVote& vote, CDBBatch& batch)
+void CDposDB::WriteTransactionVote(const uint256& tip, const CTransactionVote& vote)
 {
+    CDBBatch batch{*this};
     batch.Write(make_pair(DB_TRANSACTIONVOTES, tip), vote);
 }
 
-void CDposDB::EraseTransactionVote(const uint256& tip, CDBBatch& batch)
+void CDposDB::EraseTransactionVote(const uint256& tip)
 {
+    CDBBatch batch{*this};
     batch.Erase(make_pair(DB_TRANSACTIONVOTES, tip));
 }
 
 
-void CDposDB::WriteProgenitorVote(const uint256& tip, const CProgenitorVote& vote, CDBBatch& batch)
+void CDposDB::WriteProgenitorVote(const uint256& tip, const CProgenitorVote& vote)
 {
+    CDBBatch batch{*this};
     batch.Write(make_pair(DB_PROGENITORVOTES, tip), vote);
 }
 
-void CDposDB::EraseProgenitorVote(const uint256& tip, CDBBatch& batch)
+void CDposDB::EraseProgenitorVote(const uint256& tip)
 {
+    CDBBatch batch{*this};
     batch.Erase(make_pair(DB_PROGENITORVOTES, tip));
 }
 
 
-void CDposDB::WriteProgenitorBlock(const uint256& tip, const CBlock& block, CDBBatch& batch)
+void CDposDB::WriteProgenitorBlock(const uint256& tip, const CBlock& block)
 {
+    CDBBatch batch{*this};
     batch.Write(make_pair(DB_PROGENITORBLOCKS, tip), block);
 }
 
-void CDposDB::EraseProgenitorBlock(const uint256& tip, CDBBatch& batch)
+void CDposDB::EraseProgenitorBlock(const uint256& tip)
 {
+    CDBBatch batch{*this};
     batch.Erase(make_pair(DB_PROGENITORBLOCKS, tip));
 }
 

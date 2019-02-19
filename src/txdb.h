@@ -118,14 +118,14 @@ public:
     CDposDB& operator=(const CDposDB&) = delete;
 
 public:
-    void WriteTransactionVote(const uint256& tip, const CTransactionVote& vote, CDBBatch& batch);
-    void EraseTransactionVote(const uint256& tip, CDBBatch & batch);
+    void WriteTransactionVote(const uint256& tip, const CTransactionVote& vote);
+    void EraseTransactionVote(const uint256& tip);
 
-    void WriteProgenitorVote(const uint256& tip, const CProgenitorVote& vote, CDBBatch& batch);
-    void EraseProgenitorVote(const uint256& tip, CDBBatch & batch);
+    void WriteProgenitorVote(const uint256& tip, const CProgenitorVote& vote);
+    void EraseProgenitorVote(const uint256& tip);
 
-    void WriteProgenitorBlock(const uint256& tip, const CBlock& block, CDBBatch& batch);
-    void EraseProgenitorBlock(const uint256& tip, CDBBatch& batch);
+    void WriteProgenitorBlock(const uint256& tip, const CBlock& block);
+    void EraseProgenitorBlock(const uint256& tip);
 
     bool LoadTransactionVotes(std::function<void(const uint256&, const CTransactionVote&)> onTransactionVote);
     bool LoadProgenitorVotes(std::function<void(const uint256&, const CProgenitorVote&)> onProgenitorVote);

@@ -570,10 +570,11 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
     return chain.Genesis();
 }
 
-CCoinsViewCache *pcoinsTip = NULL;
-CBlockTreeDB *pblocktree = NULL;
-CMasternodesDB *pmasternodesdb = NULL;
-CMasternodesView *pmasternodesview = NULL;
+CCoinsViewCache *pcoinsTip = nullptr;
+CBlockTreeDB *pblocktree = nullptr;
+CMasternodesDB *pmasternodesdb = nullptr;
+CMasternodesView *pmasternodesview = nullptr;
+CDposDB * pdposdb = nullptr;
 
 //////////////////////////////////////////////////////////////////////////////
 //

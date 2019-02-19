@@ -1572,6 +1572,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 delete pblocktree;
                 delete pmasternodesview;
                 delete pmasternodesdb;
+                delete pdposdb;
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
@@ -1580,6 +1581,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 /// @todo @mn cash size???
                 pmasternodesdb = new CMasternodesDB(nMinDbCache << 20, false, fReindex);
                 pmasternodesview = new CMasternodesView(*pmasternodesdb);
+                pdposdb = new CDposDB(nMinDbCache << 20, false, fReindex);
 
                 pmasternodesview->Load();
 
@@ -1642,6 +1644,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 strLoadError = _("Error opening block database");
                 break;
             }
+
+            dpos::initFromDB();
 
             fLoaded = true;
         } while(false);

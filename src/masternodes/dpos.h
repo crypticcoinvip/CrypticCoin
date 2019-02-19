@@ -184,6 +184,7 @@ namespace dpos
     bool isActive();
     CValidationInterface * getValidationListener();
     std::vector<CTransaction> listCommitedTransactions();
+    void initFromDB();
 }
 
 #endif // BITCOIN_MASTERNODES_DPOS_H
