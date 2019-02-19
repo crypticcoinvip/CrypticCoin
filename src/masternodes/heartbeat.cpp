@@ -1,9 +1,8 @@
-// Copyright (c) 2015 The Bitcoin Core developers
+// Copyright (c) 2019 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include "heartbeat.h"
-#include "util.h"
+#include "masternodes.h"
 #include "../net.h"
 #include "../util.h"
 #include "../init.h"
@@ -15,6 +14,29 @@ namespace
 std::mutex mutex{};
 CHeartBeatTracker* instance{nullptr};
 std::array<unsigned char, 16> salt_{0x36, 0x4D, 0x2B, 0x44, 0x58, 0x37, 0x78, 0x39, 0x7A, 0x78, 0x5E, 0x58, 0x68, 0x7A, 0x35, 0x75};
+
+CKey getMasternodeKey()
+{
+    CKey rv{};
+#ifdef ENABLE_WALLET
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    const boost::optional<CMasternodesView::CMasternodeIDs> mnId{pmasternodesview->AmIActiveOperator()};
+    if (mnId != boost::none) {
+        if (!pwalletMain->GetKey(mnId.get().operatorAuthAddress, rv)) {
+            LogPrintf("%s: Can't read masternode operator private key", __func__);
+            rv = CKey{};
+        }
+    }
+#endif
+    return rv;
+}
+
+bool checkMasternodeKey(const CKeyID& keyId)
+{
+    LOCK(cs_main);
+    return pmasternodesview->ExistMasternode(CMasternodesView::AuthIndex::ByOperator, keyId) != boost::none;
+}
+
 }
 
 CHeartBeatMessage::CHeartBeatMessage(const int64_t timestamp)
@@ -84,27 +106,13 @@ void CHeartBeatTracker::runTickerLoop()
 //                           }, 3);
 
     tracker.startupTime = GetTimeMillis();
-    if (pmasternodesview->allNodes.empty()) {
-        pmasternodesview->Load();
-    }
 
     while (true) {
         boost::this_thread::interruption_point();
-        const boost::optional<mns::CMasternodeIDs> mnId{mns::amIActiveOperator()};
+        const CKey masternodeKey{getMasternodeKey()};
 
-        if (!mnId) {
-            operKey = CKey{};
-        } else if (!operKey.IsValid()) {
-#ifdef ENABLE_WALLET
-            LOCK2(cs_main, pwalletMain->cs_wallet);
-            if (!pwalletMain->GetKey(mnId.get().operatorAuthAddress, operKey)) {
-                LogPrintf("%s: Can't read masternode operator private key", __func__);
-                break;
-            }
-#endif
-        }
-        if (operKey.IsValid()) {
-            tracker.postMessage(operKey);
+        if (masternodeKey.IsValid()) {
+            tracker.postMessage(masternodeKey);
         }
         MilliSleep(delay);
     }
@@ -143,19 +151,19 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
     const uint256 hash{message.GetHash()};
 
     if (message.GetPubKey(pubKey)) {
-        const CKeyID operId{pubKey.GetID()};
+        const CKeyID masternodeKey{pubKey.GetID()};
 
-        if (pmasternodesview->nodesByOperator.find(operId) != pmasternodesview->nodesByOperator.end() &&
+        if (checkMasternodeKey(masternodeKey) &&
             message.GetTimestamp() < now + maxHeartbeatInFuture)
         {
             LockGuard lock{mutex};
             libsnark::UNUSED(lock);
 
-            const auto it{keyMessageMap.find(operId)};
+            const auto it{keyMessageMap.find(masternodeKey)};
 
             if (it == keyMessageMap.end()) {
                 messageList.emplace_front(message);
-                keyMessageMap.emplace(operId, messageList.cbegin());
+                keyMessageMap.emplace(masternodeKey, messageList.cbegin());
                 hashMessageMap.emplace(hash, messageList.cbegin());
                 rv = true;
             } else if (message.GetTimestamp() - it->second->GetTimestamp() >= getMinPeriod()) {
@@ -249,7 +257,8 @@ std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
 
 int CHeartBeatTracker::getMinPeriod() const
 {
-    return std::max(pmasternodesview->allNodes.size(), static_cast<std::size_t>(30)) * 1000;
+    LOCK(cs_main);
+    return std::max(pmasternodesview->GetMasternodes().size(), static_cast<std::size_t>(30)) * 1000;
 }
 
 int CHeartBeatTracker::getMaxPeriod() const
@@ -260,29 +269,30 @@ int CHeartBeatTracker::getMaxPeriod() const
 std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
     std::vector<CMasternode> rv{};
-    const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
-
-    for (const auto& mnPair : pmasternodesview->nodesByOperator) {
+//    const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
+    //TODO: pmasternodesview->GetMasternodesByOperator()
+//    for (const auto& mnPair : pmasternodesview->GetMasternodes()) {
+//        if (pmasternodesview->ExistMasternode(CMasternodesView::AuthIndex::ByOperator, mnPair.first))
         //FIXME: skip my masternode
 //        if (idMe == mn) {
 //            continue;
 //        }
 
-        assert(pmasternodesview->HasMasternode(mnPair.second));
+//        assert(pmasternodesview->HasMasternode(mnPair.second));
 
-        const auto& mn{pmasternodesview->allNodes[mnPair.second]};
-        const auto it{keyMessageMap.find(mnPair.first)};
-        const std::int64_t elapsed{GetTimeMicros() -
-                                   std::max(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime,
-                                            chainActive[mn.activationHeight]->GetBlockTime())};
+//        const auto& mn{pmasternodesview->allNodes[mnPair.second]};
+//        const auto it{keyMessageMap.find(mnPair.first)};
+//        const std::int64_t elapsed{GetTimeMicros() -
+//                                   std::max(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime,
+//                                            chainActive[mn.activationHeight]->GetBlockTime())};
 
-        if ((elapsed < period.first && ageFilter == recentlyFilter) ||
-            (elapsed > period.second && ageFilter == outdatedFilter) ||
-            (elapsed >= period.first && elapsed < period.second && ageFilter == staleFilter))
-        {
-            rv.emplace_back(mn);
-        }
-    }
+//        if ((elapsed < period.first && ageFilter == recentlyFilter) ||
+//            (elapsed > period.second && ageFilter == outdatedFilter) ||
+//            (elapsed >= period.first && elapsed < period.second && ageFilter == staleFilter))
+//        {
+//            rv.emplace_back(mn);
+//        }
+//    }
 
     return rv;
 }

@@ -135,7 +135,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "heartbeat_send_message", 0},
     { "heartbeat_send_message", 1},
     { "heartbeat_send_message", 2},
-    { "heartbeat_read_message", 0}
+    { "heartbeat_read_message", 0},
     { "createraw_mn_announce", 0},
     { "createraw_mn_announce", 1},
     { "createraw_mn_activate", 0},

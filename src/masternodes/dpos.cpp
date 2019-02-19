@@ -1,15 +1,15 @@
-// Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2019 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include "dpos.h"
-#include "util.h"
 #include "../protocol.h"
 #include "../net.h"
 #include "../main.h"
+#include "../init.h"
+#include "../key.h"
 #include "../chainparams.h"
 #include "../validationinterface.h"
+#include "../wallet/wallet.h"
 #include "../masternodes/masternodes.h"
 #include "../consensus/upgrades.h"
 #include "../consensus/validation.h"
@@ -52,9 +52,25 @@ uint256 getTipBlockHash()
     return chainActive.Tip()->GetBlockHash();
 }
 
+CKey getMasternodeKey()
+{
+    CKey rv{};
+#ifdef ENABLE_WALLET
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    const boost::optional<CMasternodesView::CMasternodeIDs> mnId{pmasternodesview->AmIActiveOperator()};
+    if (mnId != boost::none) {
+        if (!pwalletMain->GetKey(mnId.get().operatorAuthAddress, rv)) {
+            rv = CKey{};
+        }
+    }
+#endif
+    return rv;
+}
+
 std::size_t getActiveMasternodeCount()
 {
-    return pmasternodesview->activeNodes.size();
+    LOCK(cs_main);
+    return pmasternodesview->GetActiveMasternodes().size();
 }
 
 std::map<uint256, VoteDistribution> calcTransactionVoteStats()
@@ -137,7 +153,7 @@ int getCurrentRoundNumber()
 
 void voteForBestProgenitorBlock()
 {
-    const CKey masternodeKey{mns::getOperatorKey()};
+    const CKey masternodeKey{getMasternodeKey()};
     CProgenitorVoteTracker& voteTracker{CProgenitorVoteTracker::getInstance()};
     CProgenitorBlockTracker& blockTracker{CProgenitorBlockTracker::getInstance()};
 
@@ -203,7 +219,7 @@ void ChainListener::SyncTransaction(const CTransaction& tx, const CBlock* pblock
     libsnark::UNUSED(pblock);
     const uint256 txHash{tx.GetHash()};
     if (mempool.exists(txHash) && tx.fInstant) {
-        CTransactionVoteTracker::getInstance().voteForTransaction(tx, mns::getOperatorKey());
+        CTransactionVoteTracker::getInstance().voteForTransaction(tx, getMasternodeKey());
     }
 }
 
@@ -410,8 +426,7 @@ bool CTransactionVoteTracker::recieveVote(const CTransactionVote& vote, bool int
 
     LogPrintf("%s: Recieved transaction vote %s\n", __func__, vote.GetHash().GetHex());
     if (vote.round == getCurrentRoundNumber()) {
-        const CKey masternodeKey{mns::getOperatorKey()};
-        if (!CProgenitorVoteTracker::getInstance().wasVotedByMe(masternodeKey)) {
+        if (!CProgenitorVoteTracker::getInstance().wasVotedByMe(getMasternodeKey())) {
             voteForBestProgenitorBlock();
         }
     }
