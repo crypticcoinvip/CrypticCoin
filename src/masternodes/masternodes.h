@@ -1,5 +1,4 @@
-// Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2019 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef MASTERNODES_H
@@ -13,15 +12,21 @@
 #include "dbwrapper.h"
 #include "uint256.h"
 
-//#include <assert.h>
 #include <map>
 #include <stdint.h>
 
 #include <boost/scoped_ptr.hpp>
 
-static const CAmount MN_ANNOUNCEMENT_FEE = COIN; /// @todo change me
-static const CAmount MN_COLLATERAL_AMOUNT = 1000 * COIN;
+static const CAmount MN_COMMON_FEE = COIN/1000; /// @todo change me
+static const CAmount MN_ACTIVATION_FEE = MN_COMMON_FEE;
+static const CAmount MN_SETOPERATOR_FEE = MN_COMMON_FEE;
+static const CAmount MN_DISMISSVOTE_FEE = MN_COMMON_FEE;
+static const CAmount MN_DISMISSVOTERECALL_FEE = MN_COMMON_FEE;
+static const CAmount MN_FINALIZEDISMISSVOTING_FEE = MN_COMMON_FEE;
+
 static const int MAX_DISMISS_VOTES_PER_MN = 20;
+
+static const std::vector<unsigned char> MnTxMarker = {'M', 'n', 'T', 'x'};  // 4d6e5478
 
 enum class MasternodesTxType : unsigned char
 {
@@ -35,18 +40,21 @@ enum class MasternodesTxType : unsigned char
     CollateralSpent       = 'C'
 };
 
+// Works instead of constants cause 'regtest' differs (don't want to overcharge chainparams)
+int GetMnActivationDelay();
+CAmount GetMnCollateralAmount();
+CAmount GetMnAnnouncementFee();
+
 class CMasternode
 {
 public:
-    typedef CKeyID CBitcoinAddress;
-
     //! Announcement metadata section
     //! Human readable name of this MN, len >= 3, len <= 255
     std::string name;
     //! Owner auth address. Can be used as an ID
-    CBitcoinAddress ownerAuthAddress;
+    CKeyID ownerAuthAddress;
     //! Operator auth address. Can be used as an ID
-    CBitcoinAddress operatorAuthAddress;
+    CKeyID operatorAuthAddress;
     //! Owner reward address.
     CScript ownerRewardAddress;
 
@@ -77,27 +85,7 @@ public:
     CMasternode() {}
 
     //! constructor helper, runs without any checks
-    void FromTx(CTransaction const & tx, int heightIn, std::vector<unsigned char> const & metadata)
-    {
-        CDataStream ss(metadata, SER_NETWORK, PROTOCOL_VERSION);
-        ss >> name;
-        ss >> ownerAuthAddress;
-        ss >> operatorAuthAddress;
-        ss >> *(CScriptBase*)(&ownerRewardAddress);
-
-        height = heightIn;
-        /// @todo @mn: minActivationHeight = height + std::max(100, GetActiveMasternodesCount());
-        minActivationHeight = height + 100;
-        activationHeight = -1;
-        deadSinceHeight = -1;
-
-        activationTx = uint256();
-        collateralSpentTx = uint256();
-        dismissFinalizedTx = uint256();
-
-        counterVotesFrom = 0;
-        counterVotesAgainst = 0;
-    }
+    void FromTx(CTransaction const & tx, int heightIn, std::vector<unsigned char> const & metadata);
 
     //! construct a CMasternode from a CTransaction, at a given height
     CMasternode(CTransaction const & tx, int heightIn, std::vector<unsigned char> const & metadata)
@@ -109,6 +97,8 @@ public:
     {
         return activationTx != uint256() && collateralSpentTx == uint256() && dismissFinalizedTx == uint256();
     }
+
+    std::string GetHumanReadableStatus() const;
 
     ADD_SERIALIZE_METHODS;
 
@@ -123,7 +113,7 @@ public:
 //        READWRITE(operatorRewardAmount);
         READWRITE(height);
         READWRITE(minActivationHeight);
-//        READWRITE(activationHeight);    //! totally unused!!!
+        READWRITE(activationHeight);    //! totally unused!!!
         READWRITE(deadSinceHeight);
 
         READWRITE(activationTx);
@@ -136,27 +126,8 @@ public:
     }
 
     //! equality test
-    friend bool operator==(const CMasternode & a, const CMasternode & b)
-    {
-        return (a.name == b.name &&
-                a.ownerAuthAddress == b.ownerAuthAddress &&
-                a.operatorAuthAddress == b.operatorAuthAddress &&
-                a.ownerRewardAddress == b.ownerRewardAddress &&
-                a.height == b.height &&
-                a.minActivationHeight == b.minActivationHeight &&
-                a.activationHeight == b.activationHeight &&
-                a.deadSinceHeight == b.deadSinceHeight &&
-                a.activationTx == b.activationTx &&
-                a.collateralSpentTx == b.collateralSpentTx &&
-                a.dismissFinalizedTx == b.dismissFinalizedTx &&
-                a.counterVotesFrom == b.counterVotesFrom &&
-                a.counterVotesAgainst == b.counterVotesAgainst
-                );
-    }
-    friend bool operator!=(const CMasternode & a, const CMasternode & b)
-    {
-        return !(a == b);
-    }
+    friend bool operator==(CMasternode const & a, CMasternode const & b);
+    friend bool operator!=(CMasternode const & a, CMasternode const & b);
 };
 
 //! Active dismiss votes, committed by masternode. len <= MAX_DISMISS_VOTES_PER_MN
@@ -178,16 +149,7 @@ public:
     //! Deactiavation transaction affected by, own or alien (recall vote or finalize dismission)
     uint256 disabledByTx;
 
-    void FromTx(CTransaction const & tx, std::vector<unsigned char> const & metadata)
-    {
-        from = uint256();
-        CDataStream ss(metadata, SER_NETWORK, PROTOCOL_VERSION);
-        ss >> against;
-        ss >> reasonCode;
-        ss >> reasonDescription;
-        deadSinceHeight = -1;
-        disabledByTx = uint256();
-    }
+    void FromTx(CTransaction const & tx, std::vector<unsigned char> const & metadata);
 
     //! construct a CMasternode from a CTransaction, at a given height
     CDismissVote(CTransaction const & tx, std::vector<unsigned char> const & metadata)
@@ -200,7 +162,7 @@ public:
 
     bool IsActive() const
     {
-        return disabledByTx != uint256();
+        return disabledByTx == uint256();
     }
 
     ADD_SERIALIZE_METHODS;
@@ -216,22 +178,8 @@ public:
         READWRITE(disabledByTx);
     }
 
-    friend bool operator==(CDismissVote const & a, CDismissVote const & b)
-    {
-        return (a.from == b.from &&
-                a.against == b.against &&
-                a.reasonCode == b.reasonCode &&
-                a.reasonDescription == b.reasonDescription &&
-                a.deadSinceHeight == b.deadSinceHeight &&
-                a.disabledByTx == b.disabledByTx
-                );
-    }
-
-    friend bool operator!=(CDismissVote const & a, CDismissVote const & b)
-    {
-        return !(a == b);
-    }
-
+    friend bool operator==(CDismissVote const & a, CDismissVote const & b);
+    friend bool operator!=(CDismissVote const & a, CDismissVote const & b);
 };
 
 typedef std::map<uint256, CMasternode> CMasternodes;  // nodeId -> masternode object,
@@ -251,7 +199,7 @@ class CMasternodesView
 private:
     CMasternodesDB & db;
     boost::scoped_ptr<CDBBatch> currentBatch;
-public:
+
     CMasternodes allNodes;
     CActiveMasternodes activeNodes;
     CMasternodesByAuth nodesByOwner;
@@ -263,13 +211,51 @@ public:
 
     CMasternodesUndo txsUndo;
 
+public:
+    typedef struct {
+        uint256 id;
+        CKeyID operatorAuthAddress;
+        CKeyID ownerAuthAddress;
+    } CMasternodeIDs;
+
+    enum class AuthIndex { ByOwner, ByOperator };
+    enum class VoteIndex { From, Against };
+
     CMasternodesView(CMasternodesDB & mndb) : db(mndb) {}
     ~CMasternodesView() {}
 
-    bool HasMasternode(uint256 nodeId)
+    CMasternodes const & GetMasternodes() const
     {
-        return allNodes.find(nodeId) != allNodes.end();
+        return allNodes;
     }
+
+    CActiveMasternodes const & GetActiveMasternodes() const
+    {
+        return activeNodes;
+    }
+
+    boost::optional<CMasternodesByAuth::const_iterator>
+    ExistMasternode(AuthIndex where, CKeyID const & auth) const;
+
+    CMasternode const * ExistMasternode(uint256 const & id) const;
+
+    CDismissVotes const & GetVotes() const
+    {
+        return votes;
+    }
+
+    CDismissVotesIndex const & GetActiveVotesFrom() const
+    {
+        return votesFrom;
+    }
+
+    CDismissVotesIndex const & GetActiveVotesAgainst() const
+    {
+        return votesAgainst;
+    }
+
+    boost::optional<CDismissVotesIndex::const_iterator>
+    ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against) const;
 
     //! Initial load of all data
     void Load();
@@ -293,15 +279,17 @@ public:
     void DropBatch();
 
 private:
+    boost::optional<CMasternodeIDs> AmI(AuthIndex where) const;
+public:
+    boost::optional<CMasternodeIDs> AmIOperator() const;
+    boost::optional<CMasternodeIDs> AmIOwner() const;
+    boost::optional<CMasternodeIDs> AmIActiveOperator() const;
+    boost::optional<CMasternodeIDs> AmIActiveOwner() const;
+
+private:
     void Clear();
     void DeactivateVote(uint256 const & voteId, uint256 const & txid, int height);
     void DeactivateVotesFor(uint256 const & nodeId, uint256 const & txid, int height);
-
-    enum class VoteIndex { From, Against };
-
-    boost::optional<CDismissVotesIndex::const_iterator>
-    ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against);
-
 };
 
 //! Checks if given tx is probably one of 'MasternodeTx', returns tx type and serialized metadata in 'data'

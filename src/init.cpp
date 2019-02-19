@@ -1581,6 +1581,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pmasternodesdb = new CMasternodesDB(nMinDbCache << 20, false, fReindex);
                 pmasternodesview = new CMasternodesView(*pmasternodesdb);
 
+                pmasternodesview->Load();
+
                 if (fReindex) {
                     pblocktree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files

@@ -157,6 +157,13 @@ public:
         }
         return obj;
     }
+
+    UniValue operator()(const CScript & rawscript) const {
+        UniValue obj(UniValue::VOBJ);
+        obj.push_back(Pair("metadata", HexStr(rawscript)));
+        return obj;
+    }
+
 };
 #endif
 

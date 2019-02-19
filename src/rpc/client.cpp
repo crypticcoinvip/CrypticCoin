@@ -136,6 +136,17 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "heartbeat_send_message", 1},
     { "heartbeat_send_message", 2},
     { "heartbeat_read_message", 0}
+    { "createraw_mn_announce", 0},
+    { "createraw_mn_announce", 1},
+    { "createraw_mn_activate", 0},
+    { "createraw_mn_dismissvote", 0},
+    { "createraw_mn_dismissvote", 1},
+    { "createraw_mn_dismissvoterecall", 0},
+    { "createraw_mn_dismissvoterecall", 1},
+    { "createraw_mn_finalizedismissvoting", 0},
+    { "createraw_mn_finalizedismissvoting", 1}
+//    { "resign_mn", 0},
+//    { "resign_mn", 1}
 };
 
 class CRPCConvertTable

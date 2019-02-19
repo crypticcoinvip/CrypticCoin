@@ -41,6 +41,15 @@ public:
         return EncodeBase58Check(data);
     }
 
+    std::string operator()(const CScript& rawscript) const
+    {
+        /// @todo @mn trying w/o any prefixes!
+//        std::vector<unsigned char> data = m_params.Base58Prefix(CChainParams::MNTX_MARKER);
+//        data.insert(data.end(), rawscript.begin(), rawscript.end());
+//        return EncodeBase58Check(data);
+        return EncodeBase58Check(std::vector<unsigned char>(rawscript.begin(), rawscript.end()));
+    }
+
     std::string operator()(const CNoDestination& no) const { return {}; }
 };
 
@@ -64,6 +73,14 @@ CTxDestination DecodeDestination(const std::string& str, const CChainParams& par
             std::copy(data.begin() + script_prefix.size(), data.end(), hash.begin());
             return CScriptID(hash);
         }
+        /// @todo @mn trying w/o any prefixes!
+        // base58-encoded serialized Masternodes metadata, prefixed by 'MnTx' marker (and prefixed by it again, inside base58 to distinguish MN info from common 'op_return')
+//        const std::vector<unsigned char>& prefix = params.Base58Prefix(CChainParams::MNTX_MARKER);
+//        if (std::equal(prefix.begin(), prefix.end(), data.begin())) {
+//            return CScript(data.begin() + prefix.size(), data.end());
+//        }
+        /// @attention DO NOT use CScript(vector), cause it calls operator<<() !!!
+        return CScript(data.begin(), data.end());
     }
     return CNoDestination();
 }

@@ -412,8 +412,6 @@ UniValue dumpprivkey(const UniValue& params, bool fHelp)
     return EncodeSecret(vchSecret);
 }
 
-
-
 UniValue z_exportwallet(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))

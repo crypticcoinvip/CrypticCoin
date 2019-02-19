@@ -2320,7 +2320,10 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (i > 0) { // not coinbases
             const CTxUndo &txundo = blockUndo.vtxundo[i-1];
             if (txundo.vprevout.size() != tx.vin.size())
+            {
+                pmasternodesview->DropBatch();
                 return error("DisconnectBlock(): transaction and undo data inconsistent");
+            }
             for (unsigned int j = tx.vin.size(); j-- > 0;) {
                 const COutPoint &out = tx.vin[j].prevout;
                 const CTxInUndo &undo = txundo.vprevout[j];
@@ -2329,8 +2332,11 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             }
         }
         // process transaction revert for masternodes.
-        // if we are kicked out from this loop (with checks above), mnview will be spoiled. but it is safe, cause it will lead to reindexing
-        pmasternodesview->OnUndo(hash);
+//         if we are kicked out from this loop (with checks above), mnview will be spoiled. but it is safe, cause it will lead to reindexing
+        if (pfClean == nullptr)
+        {
+            pmasternodesview->OnUndo(hash);
+        }
     }
 
     // set the old best Sprout anchor back
@@ -2351,10 +2357,14 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     view.SetBestBlock(pindex->pprev->GetBlockHash());
 
     // fix masternodes view state
-    if (fClean)
+    if (fClean && pfClean == nullptr)
     {
         pmasternodesview->WriteBatch();
     }
+//    else
+//    {
+//        pmasternodesview->DropBatch();
+//    }
 
     if (pfClean) {
         *pfClean = fClean;
@@ -2464,7 +2474,7 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck)
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck, bool calledByVerifyDB)
 {
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
@@ -2704,8 +2714,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
 
     // If we are here - everything is OK
-    ProcessMasternodeTxsOnConnect(block, pindex->nHeight);
-
+    if (!calledByVerifyDB)
+    {
+        ProcessMasternodeTxsOnConnect(block, pindex->nHeight);
+    }
     return true;
 }
 
@@ -4278,7 +4290,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
                 /// @todo @mn check if it is possible to DisconnectBlock() == true, but fClean == false ???
                 /// or this is all done 'in memory' and we should not take any changes at all??? I'm disappointed :(
                 /// update: if DisconnectBlock() called with pfClean (from VerifyDB) - it always retuns 'true'. false only on hard DB errors
-                pmasternodesview->DropBatch();
+//                pmasternodesview->DropBatch();
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             }
             pindexState = pindex->pprev;
@@ -4304,7 +4316,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
             CBlock block;
             if (!ReadBlockFromDisk(block, pindex))
                 return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
-            if (!ConnectBlock(block, state, pindex, coins))
+            if (!ConnectBlock(block, state, pindex, coins, false, true))
                 return error("VerifyDB(): *** found unconnectable block at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         }
     }
@@ -6535,6 +6547,10 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
         // 1.
         CheckInputsForCollateralSpent(tx, height);
 
+        if (tx.vout.size() == 0)
+        {
+            continue;
+        }
         // 2. Check if it is masternode tx with metadata
         std::vector<unsigned char> metadata;
         MasternodesTxType guess = GuessMasternodeTxType(tx, metadata);
@@ -6584,14 +6600,14 @@ CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
     std::vector<unsigned char> data;
     // Signature first, then pubkey. I think, that in all cases it will be OP_PUSHDATA1, but...
     if (!scriptSig.GetOp(pc, opcode, data) ||
-            (opcode != OP_PUSHDATA1 &&
+            (opcode > OP_PUSHDATA1 &&
              opcode != OP_PUSHDATA2 &&
              opcode != OP_PUSHDATA4))
     {
         return CPubKey();
     }
     if (!scriptSig.GetOp(pc, opcode, data) ||
-            (opcode != OP_PUSHDATA1 &&
+            (opcode > OP_PUSHDATA1 &&
              opcode != OP_PUSHDATA2 &&
              opcode != OP_PUSHDATA4))
     {
@@ -6610,7 +6626,7 @@ void CheckInputsForCollateralSpent(CTransaction const & tx, int height)
     {
         COutPoint const & prevout = tx.vin[i].prevout;
         // Checks if it was collateral output.
-        if (prevout.n == 1 && pmasternodesview->HasMasternode(prevout.hash))
+        if (prevout.n == 1 && pmasternodesview->ExistMasternode(prevout.hash))
         {
             pmasternodesview->OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
         }
@@ -6625,21 +6641,22 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
 {
     // Check quick conditions first
     if (tx.vout.size() < 2 ||
-        tx.vout[0].nValue != MN_ANNOUNCEMENT_FEE ||
-        tx.vout[1].nValue != MN_COLLATERAL_AMOUNT)
+        tx.vout[0].nValue != GetMnAnnouncementFee() ||
+        tx.vout[1].nValue != GetMnCollateralAmount() ||
+        tx.vout[1].scriptPubKey.size() > 127) // collateralAddress
     {
         return false;
     }
     CMasternode node(tx, height, metadata);
-    // We cannot check validness of 'ownerAuthAddress' or 'operatorAuthAddress'
     /// @todo @mn Check for serialization of metainfo
-    if (node.ownerRewardAddress.empty() ||
-            node.ownerAuthAddress.IsNull() ||
-            node.operatorAuthAddress.IsNull() ||
-            !(node.name.size() >= 3 && node.name.size() <= 255))
+    /// @todo @mn optional operatorRewardAddress
+    if (node.ownerRewardAddress.empty() || node.ownerRewardAddress.size() > 127 ||
+        node.ownerAuthAddress.IsNull() || node.operatorAuthAddress.IsNull() || node.ownerAuthAddress == node.operatorAuthAddress ||
+        !(node.name.size() >= 3 && node.name.size() <= 255))
     {
         return false;
     }
+    node.minActivationHeight = height + std::max(GetMnActivationDelay(), static_cast<int>(pmasternodesview->GetActiveMasternodes().size()));
     return pmasternodesview->OnMasternodeAnnounce(tx.GetHash(), node);
 }
 

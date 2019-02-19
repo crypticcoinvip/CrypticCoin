@@ -295,6 +295,12 @@ public:
         *script << OP_HASH160 << ToByteVector(scriptID) << OP_EQUAL;
         return true;
     }
+
+    bool operator()(const CScript &rawscript) const {
+        script->clear();
+        *script = rawscript; // @todo @mn del me: << OP_RETURN << ToByteVector(metadata);
+        return true;
+    }
 };
 }
 
