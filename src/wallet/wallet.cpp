@@ -22,6 +22,7 @@
 #include "crypticcoin/Note.hpp"
 #include "crypter.h"
 #include "crypticcoin/zip32.h"
+#include "../masternodes/dpos.h"
 
 #include <assert.h>
 
@@ -2826,6 +2827,27 @@ CAmount CWallet::GetImmatureBalance() const
         }
     }
     return nTotal;
+}
+
+CAmount CWallet::GetInstantBalance() const
+{
+    CAmount rv{0};
+
+    for (const auto& tx : dpos::listCommitedTransactions()) {
+        if (!CheckFinalTx(tx) || tx.vin.empty()) {
+            continue;
+        }
+
+        for (unsigned int i = 0; i < tx.vout.size(); i++) {
+            const CTxOut &txout = tx.vout[i];
+            rv += GetCredit(txout, ISMINE_SPENDABLE);
+            if (!MoneyRange(rv)) {
+                throw std::runtime_error("CWallet::GetInstantBalance() : value out of range");
+            }
+        }
+    }
+
+    return rv;
 }
 
 CAmount CWallet::GetWatchOnlyBalance() const
