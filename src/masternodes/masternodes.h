@@ -237,14 +237,7 @@ public:
     boost::optional<CMasternodesByAuth::const_iterator>
     ExistMasternode(AuthIndex where, CKeyID const & auth) const;
 
-    /// @attention boost::optional does not allow 'const &' so you should be very accurate with result!
-    boost::optional<CMasternode &>
-    ExistMasternode(uint256 const & id);
-
-    bool HasMasternode(uint256 const & nodeId) const
-    {
-        return allNodes.find(nodeId) != allNodes.end();
-    }
+    CMasternode const * ExistMasternode(uint256 const & id) const;
 
     CDismissVotes const & GetVotes() const
     {

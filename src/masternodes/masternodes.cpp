@@ -167,15 +167,14 @@ boost::optional<CMasternodesByAuth::const_iterator> CMasternodesView::ExistMaste
 /*
  * Searching all masternodes for given 'id'
  */
-/// @attention boost::optional does not allow 'const &' so you should be very accurate with result!
-boost::optional<CMasternode &> CMasternodesView::ExistMasternode(uint256 const & id)
+CMasternode const * CMasternodesView::ExistMasternode(uint256 const & id) const
 {
-    CMasternodes::iterator it = allNodes.find(id);
+    CMasternodes::const_iterator it = allNodes.find(id);
     if (it == allNodes.end())
     {
-        return {};
+        return nullptr;
     }
-    return {it->second};
+    return &it->second;
 }
 
 /*
@@ -314,7 +313,7 @@ bool CMasternodesView::OnCollateralSpent(uint256 const & nodeId, uint256 const &
 bool CMasternodesView::OnMasternodeAnnounce(uint256 const & nodeId, CMasternode const & node)
 {
     // Check, that there in no MN with such 'ownerAuthAddress' or 'operatorAuthAddress'
-    if (HasMasternode(nodeId) ||
+    if (ExistMasternode(nodeId) ||
             nodesByOwner.find(node.ownerAuthAddress) != nodesByOwner.end() ||
             nodesByOwner.find(node.operatorAuthAddress) != nodesByOwner.end() ||
             nodesByOperator.find(node.ownerAuthAddress) != nodesByOperator.end() ||

@@ -6517,7 +6517,7 @@ void CheckInputsForCollateralSpent(CTransaction const & tx, int height)
     {
         COutPoint const & prevout = tx.vin[i].prevout;
         // Checks if it was collateral output.
-        if (prevout.n == 1 && pmasternodesview->HasMasternode(prevout.hash))
+        if (prevout.n == 1 && pmasternodesview->ExistMasternode(prevout.hash))
         {
             pmasternodesview->OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
         }

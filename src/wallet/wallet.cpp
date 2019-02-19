@@ -2903,7 +2903,7 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
             if (nDepth < 0)
                 continue;
 
-            if (pmasternodesview->HasMasternode(wtxid))
+            if (pmasternodesview->ExistMasternode(wtxid))
                 continue;
 
             for (unsigned int i = 0; i < pcoin->vout.size(); i++) {
