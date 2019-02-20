@@ -1,8 +1,8 @@
 // Copyright (c) 2019 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-#ifndef BITCOIN_MASTERNODES_HEARTBEAT_H
-#define BITCOIN_MASTERNODES_HEARTBEAT_H
+#ifndef MASTERNODES_HEARTBEAT_H
+#define MASTERNODES_HEARTBEAT_H
 
 #include "masternodes.h"
 #include "../serialize.h"
@@ -79,4 +79,4 @@ private:
     std::map<uint256, MessageList::const_iterator> hashMessageMap;
 };
 
-#endif // BITCOIN_MASTERNODES_HEARTBEAT_H
+#endif // MASTERNODES_HEARTBEAT_H

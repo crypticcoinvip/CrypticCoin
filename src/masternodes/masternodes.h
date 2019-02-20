@@ -48,6 +48,8 @@ CAmount GetMnAnnouncementFee();
 class CMasternode
 {
 public:
+    using ID = uint256;
+
     //! Announcement metadata section
     //! Human readable name of this MN, len >= 3, len <= 255
     std::string name;
