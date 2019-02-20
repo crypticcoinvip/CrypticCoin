@@ -190,6 +190,10 @@ void ProvideAuthOfFirstInput(CKeyID const & auth, UniValue & inputs)
     }
 }
 
+/*
+ *
+ *  Issued by: any
+*/
 UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
@@ -238,14 +242,17 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
                     ("name",                UniValue::VSTR)
                     ("ownerAuthAddress",    UniValue::VSTR)
                     ("operatorAuthAddress", UniValue::VSTR)
-                    ("ownerAuthAddress",    UniValue::VSTR)
                     ("ownerRewardAddress",  UniValue::VSTR)
                     );
     std::string const name =                      metaObj["name"].getValStr();
     std::string const ownerAuthAddressBase58 =    metaObj["ownerAuthAddress"].getValStr();
     std::string const operatorAuthAddressBase58 = metaObj["operatorAuthAddress"].getValStr();
     std::string const ownerRewardAddress =        metaObj["ownerRewardAddress"].getValStr();
-    std::string       collateralAddress =   metaObj["collateralAddress"].getValStr();
+
+    std::string const operatorRewardAddress =     metaObj["operatorRewardAddress"].getValStr();
+    CAmount     const operatorRewardRatio =       metaObj["operatorRewardRatio"].isNull() ? 0 : AmountFromValue(metaObj["operatorRewardRatio"]);
+    std::string       collateralAddress =         metaObj["collateralAddress"].getValStr();
+
 
     // Parameters validation block
     if (name.size() < 3 || name.size() >= 255)
@@ -285,10 +292,11 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Masternode with operatorAuthAddress already exists");
     }
 
-    if (collateralAddress.empty())
-    {
-        collateralAddress = getnewaddress(UniValue(), false).getValStr();
-    }
+    /// @todo @mn if we generate collateralAddress, we should report about it in out result
+//    if (collateralAddress.empty())
+//    {
+//        collateralAddress = getnewaddress(UniValue(), false).getValStr();
+//    }
     CTxDestination collateralDest = DecodeDestination(collateralAddress);
     if (collateralDest.which() != 1 && collateralDest.which() != 2)
     {
@@ -299,10 +307,24 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "ownerRewardAddress does not refer to a P2PKH or P2SH address");
     }
+    // Optional
+    CTxDestination operatorRewardDest = DecodeDestination(operatorRewardAddress);
+    if (!operatorRewardAddress.empty() && operatorRewardDest.which() != 1 && operatorRewardDest.which() != 2)
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardAddress does not refer to a P2PKH or P2SH address");
+    }
+    // Optional
+    if (operatorRewardRatio < 0 || operatorRewardRatio > COIN) // COIN == 100% == 1
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardRatio should be >= 0 and <= 1");
+    }
 
     CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
     metadata << static_cast<unsigned char>(MasternodesTxType::AnnounceMasternode)
-             << name << *ownerAuthAddress << *operatorAuthAddress << ToByteVector(GetScriptForDestination(ownerRewardDest));    /// @todo @mn check ownerRewardDest
+             << name << *ownerAuthAddress << *operatorAuthAddress
+             << ToByteVector(GetScriptForDestination(ownerRewardDest))
+             << ToByteVector(GetScriptForDestination(operatorRewardDest))
+             << operatorRewardRatio;
 
     CScript scriptMeta;
     scriptMeta << OP_RETURN << ToByteVector(metadata);
@@ -319,6 +341,10 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     return RawCreateFundSignSend(newparams);
 }
 
+/*
+ *
+ *  Issued by: operator
+*/
 UniValue createraw_mn_activate(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -378,6 +404,10 @@ UniValue createraw_mn_activate(UniValue const & params, bool fHelp)
     return RawCreateFundSignSend(newparams, node.operatorAuthAddress);
 }
 
+/*
+ *
+ *  Issued by: active operator
+*/
 UniValue createraw_mn_dismissvote(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
@@ -457,6 +487,10 @@ UniValue createraw_mn_dismissvote(UniValue const & params, bool fHelp)
     return RawCreateFundSignSend(newparams, node.operatorAuthAddress);
 }
 
+/*
+ *
+ *  Issued by: active operator
+*/
 UniValue createraw_mn_dismissvoterecall(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
@@ -520,6 +554,10 @@ UniValue createraw_mn_dismissvoterecall(UniValue const & params, bool fHelp)
     return RawCreateFundSignSend(newparams, ids->operatorAuthAddress);
 }
 
+/*
+ *
+ *  Issued by: any
+*/
 UniValue createraw_mn_finalizedismissvoting(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() == 0)
@@ -580,6 +618,96 @@ UniValue createraw_mn_finalizedismissvoting(UniValue const & params, bool fHelp)
 
     return RawCreateFundSignSend(newparams);
 }
+
+
+/*
+ *
+ *  Issued by: owner
+*/
+UniValue createraw_set_operator_reward(UniValue const & params, bool fHelp)
+{
+    if (fHelp || params.size() == 0)
+        throw std::runtime_error("@todo: Help"
+    );
+
+#ifdef ENABLE_WALLET
+    LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
+#else
+    LOCK(cs_main);
+#endif
+
+    RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR)(UniValue::VOBJ), true);
+    if (params[0].isNull() || params[1].isNull())
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameters, arguments 1 and 2 must be non-null, and argument 2 expected as object with "
+                                                  "{\"operatorAuthAddress\",\"operatorRewardAddress\",\"operatorRewardRatio\"}");
+    }
+    UniValue metaObj = params[1].get_obj();
+    RPCTypeCheckObj(metaObj, boost::assign::map_list_of
+                    ("operatorAuthAddress",   UniValue::VSTR)
+                    ("operatorRewardAddress", UniValue::VSTR)
+                    ("operatorRewardRatio",   UniValue::VNUM)
+                    );
+
+    std::string const operatorAuthAddressBase58 = metaObj["operatorAuthAddress"].getValStr();
+    std::string const operatorRewardAddress =     metaObj["operatorRewardAddress"].getValStr();
+    CAmount     const operatorRewardRatio =       metaObj["operatorRewardRatio"].isNull() ? 0 : AmountFromValue(metaObj["operatorRewardRatio"]);
+
+    auto ids = pmasternodesview->AmIOwner();
+    if (!ids)
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "You are not an owner!");
+    }
+    auto optNode = pmasternodesview->ExistMasternode(ids->id);
+    assert(optNode); // after AmIOwner it should be true
+
+    CMasternode const & node = *optNode;
+
+    CTxDestination destOperator = DecodeDestination(operatorAuthAddressBase58);
+    CKeyID const * operatorAuthAddress = boost::get<CKeyID>(&destOperator);
+    if (!operatorAuthAddress || operatorAuthAddress->IsNull())
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorAuthAddress does not refer to a PK2H address");
+    }
+    if (pmasternodesview->ExistMasternode(CMasternodesView::AuthIndex::ByOwner, *operatorAuthAddress) ||
+        (pmasternodesview->ExistMasternode(CMasternodesView::AuthIndex::ByOperator, *operatorAuthAddress) && *operatorAuthAddress != ids->operatorAuthAddress))
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Masternode with operatorAuthAddress already exists");
+    }
+
+    // Optional
+    CTxDestination operatorRewardDest = DecodeDestination(operatorRewardAddress);
+    if (!operatorRewardAddress.empty() && operatorRewardDest.which() != 1 && operatorRewardDest.which() != 2)
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardAddress does not refer to a P2PKH or P2SH address");
+    }
+    // Optional
+    if (operatorRewardRatio < 0 || operatorRewardRatio > COIN) // COIN == 100% == 1
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardRatio should be >= 0 and <= 1");
+    }
+
+
+    UniValue inputs = params[0].get_array();
+    ProvideAuthOfFirstInput(node.ownerAuthAddress, inputs);
+
+    CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
+    metadata << static_cast<unsigned char>(MasternodesTxType::SetOperatorReward)
+             << *operatorAuthAddress << ToByteVector(GetScriptForDestination(operatorRewardDest)) << operatorRewardRatio;
+
+    CScript scriptMeta;
+    scriptMeta << OP_RETURN << ToByteVector(metadata);
+
+    UniValue vouts(UniValue::VOBJ);
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_SETOPERATOR_FEE)));
+
+    UniValue newparams(UniValue::VARR);
+    newparams.push_back(inputs);
+    newparams.push_back(vouts);
+
+    return RawCreateFundSignSend(newparams);
+}
+
 
 UniValue resign_mn(UniValue const & params, bool fHelp)
 {
@@ -851,7 +979,7 @@ static const CRPCCommand commands[] =
     { "masternodes",    "createraw_mn_dismissvote",             &createraw_mn_dismissvote,          true  },
     { "masternodes",    "createraw_mn_dismissvoterecall",       &createraw_mn_dismissvoterecall,    true  },
     { "masternodes",    "createraw_mn_finalizedismissvoting",   &createraw_mn_finalizedismissvoting,true  },
-//    { "masternodes",        "createraw_set_operator_reward",&createraw_set_operator_reward, true  },
+    { "masternodes",    "createraw_set_operator_reward",        &createraw_set_operator_reward,     true  },
     { "masternodes",    "resign_mn",                            &resign_mn,                         true  },
 
     { "masternodes",    "listmns",                          &listmns,                               true  },

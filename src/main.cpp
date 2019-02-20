@@ -6454,7 +6454,7 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
                 CheckActivateMasternodeTx(tx, height, metadata);
                 break;
             case MasternodesTxType::SetOperatorReward:
-//                CheckOperatorRewardTx(tx, height, metadata);
+                CheckSetOperatorRewardTx(tx, height, metadata);
                 break;
             case MasternodesTxType::DismissVote:
                 CheckDismissVoteTx(tx, height, metadata);
@@ -6470,14 +6470,15 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
         }
 
     }
-    pmasternodesview->CalcNextDposTeam(block.GetHash(), height);
-
+    pmasternodesview->CalcNextDposTeam(pmasternodesview->GetActiveMasternodes(), block.GetHash(), height); /// @todo @mn 'height' or 'height-1' ???
     pmasternodesview->WriteBatch();
 }
 
 void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height)
 {
-    pmasternodesview->RevertDposTeam(height);
+    // We don't need to revert team cause it always gets by request in place
+//    pmasternodesview->ReadDposTeam(height - 1);
+
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; --i)
     {
@@ -6541,9 +6542,8 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
         return false;
     }
     CMasternode node(tx, height, metadata);
-    /// @todo @mn Check for serialization of metainfo
-    /// @todo @mn optional operatorRewardAddress
     if (node.ownerRewardAddress.empty() || node.ownerRewardAddress.size() > 127 ||
+        node.operatorRewardAddress.size() > 127 || node.operatorRewardRatio < 0 || node.operatorRewardRatio > COIN ||
         node.ownerAuthAddress.IsNull() || node.operatorAuthAddress.IsNull() || node.ownerAuthAddress == node.operatorAuthAddress ||
         !(node.name.size() >= 3 && node.name.size() <= 255))
     {
@@ -6567,6 +6567,27 @@ bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<
     // Make it simple, until metadata consists only of masternode id (serialization mismatch?)
     uint256 nodeId(metadata);
     return pmasternodesview->OnMasternodeActivate(tx.GetHash(), nodeId, auth, height);
+}
+
+bool CheckSetOperatorRewardTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+{
+    // We can not access prevout.scriptPubKey cause it already spent!!! :(
+    // We can access it only in main transaction validation circle. Try another way...
+    CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
+
+    CKeyID newOperatorAuthAddress;
+    CScript newOperatorRewardAddress;
+    CAmount newOperatorRewardRatio;
+    CDataStream ss(metadata, SER_NETWORK, PROTOCOL_VERSION);
+    ss >> newOperatorAuthAddress;
+    ss >> *(CScriptBase*)(&newOperatorRewardAddress);
+    ss >> newOperatorRewardRatio;
+
+    if (newOperatorAuthAddress.IsNull() || newOperatorRewardAddress.size() > 127 || newOperatorRewardRatio < 0 || newOperatorRewardRatio > COIN)
+    {
+        return false;
+    }
+    return pmasternodesview->OnSetOperatorReward(tx.GetHash(), auth, newOperatorAuthAddress, newOperatorRewardAddress, newOperatorRewardRatio, height);
 }
 
 bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)

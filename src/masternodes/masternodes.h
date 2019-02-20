@@ -61,11 +61,11 @@ public:
     //! Owner reward address.
     CScript ownerRewardAddress;
 
-//    //! Operator reward metadata section
-//    //! Operator reward address. Optional
-//    CScript operatorRewardAddress;
-//    //! Amount of reward, transferred to <Operator reward address>, instead of <Owner reward address>. Optional
-//    CAmount operatorRewardAmount;
+    //! Operator reward metadata section
+    //! Operator reward address. Optional
+    CScript operatorRewardAddress;
+    //! Amount of reward, transferred to <Operator reward address>, instead of <Owner reward address>. Optional
+    CAmount operatorRewardRatio;
 
     //! Announcement block height
     uint32_t height;
@@ -112,8 +112,9 @@ public:
         READWRITE(ownerAuthAddress);
         READWRITE(operatorAuthAddress);
         READWRITE(*(CScriptBase*)(&ownerRewardAddress));
-//        READWRITE(*(CScriptBase*)(&operatorRewardAddress));
-//        READWRITE(operatorRewardAmount);
+        READWRITE(*(CScriptBase*)(&operatorRewardAddress));
+        READWRITE(operatorRewardRatio);
+
         READWRITE(height);
         READWRITE(minActivationHeight);
         READWRITE(activationHeight);    //! totally unused!!!
@@ -185,6 +186,7 @@ public:
     friend bool operator!=(CDismissVote const & a, CDismissVote const & b);
 };
 
+/// @todo @mn refactor: hide this typedefs into CMasternodesView
 typedef std::map<uint256, CMasternode> CMasternodes;  // nodeId -> masternode object,
 typedef std::set<uint256> CActiveMasternodes;         // just nodeId's,
 typedef std::map<CKeyID, uint256> CMasternodesByAuth; // for two indexes, owner->nodeId, operator->nodeId
@@ -194,13 +196,43 @@ typedef std::map<uint256, int32_t> CTeam;             // nodeId -> joinHeight - 
 typedef std::map<uint256, CDismissVote> CDismissVotes;
 typedef std::multimap<uint256, uint256> CDismissVotesIndex; // just index, from->against or against->from
 
-// 'multi' used only in to ways: for collateral spent and voting finalization (to save deactivated votes)
-typedef std::multimap<uint256, std::pair<uint256, MasternodesTxType> > CMasternodesUndo;
 
 class CMasternodesDB;
 
 class CMasternodesView
 {
+public:
+    // Block of typedefs
+    struct CMasternodeIDs
+    {
+        uint256 id;
+        CKeyID operatorAuthAddress;
+        CKeyID ownerAuthAddress;
+    };
+    struct COperatorUndoRec
+    {
+        CKeyID operatorAuthAddress;
+        CScript operatorRewardAddress;
+        CAmount operatorRewardRatio;
+
+        // for DB serialization
+        ADD_SERIALIZE_METHODS;
+
+        template <typename Stream, typename Operation>
+        inline void SerializationOp(Stream& s, Operation ser_action)
+        {
+            READWRITE(operatorAuthAddress);
+            READWRITE(*(CScriptBase*)(&operatorRewardAddress));
+            READWRITE(operatorRewardRatio);
+        }
+    };
+    // 'multi' used only in to ways: for collateral spent and voting finalization (to save deactivated votes)
+    typedef std::multimap<uint256, std::pair<uint256, MasternodesTxType> > CTxUndo;
+    typedef std::map<uint256, COperatorUndoRec> COperatorUndo;
+
+    enum class AuthIndex { ByOwner, ByOperator };
+    enum class VoteIndex { From, Against };
+
 private:
     CMasternodesDB & db;
     boost::scoped_ptr<CDBBatch> currentBatch;
@@ -214,20 +246,10 @@ private:
     CDismissVotesIndex votesFrom;
     CDismissVotesIndex votesAgainst;
 
-    CMasternodesUndo txsUndo;
-
-    CTeam team;
+    CTxUndo txsUndo;
+    COperatorUndo operatorUndo;
 
 public:
-    typedef struct {
-        uint256 id;
-        CKeyID operatorAuthAddress;
-        CKeyID ownerAuthAddress;
-    } CMasternodeIDs;
-
-    enum class AuthIndex { ByOwner, ByOperator };
-    enum class VoteIndex { From, Against };
-
     CMasternodesView(CMasternodesDB & mndb) : db(mndb) {}
     ~CMasternodesView() {}
 
@@ -275,13 +297,14 @@ public:
     bool OnDismissVote(uint256 const & txid, CDismissVote const & vote, CKeyID const & operatorId);
     bool OnDismissVoteRecall(uint256 const & txid, uint256 const & against, CKeyID const & operatorId, int height);
     bool OnFinalizeDismissVoting(uint256 const & txid, uint256 const & nodeId, int height);
+    bool OnSetOperatorReward(uint256 const & txid, CKeyID const & ownerId, CKeyID
+                             const & newOperatorId, CScript const & newOperatorRewardAddress, CAmount newOperatorRewardRatio, int height);
 
 //    bool HasUndo(uint256 const & txid) const;
     bool OnUndo(uint256 const & txid);
 
-    void CalcNextDposTeam(uint256 const & blockHash, int height);
-    void RevertDposTeam(int height);
-    bool ReadDposTeam(int height, CTeam & team);
+    CTeam CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height);
+    bool ReadDposTeam(int height, CTeam & team) const;
 
     uint32_t GetMinDismissingQuorum();
 

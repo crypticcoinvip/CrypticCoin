@@ -66,6 +66,8 @@ void CMasternode::FromTx(CTransaction const & tx, int heightIn, std::vector<unsi
     ss >> ownerAuthAddress;
     ss >> operatorAuthAddress;
     ss >> *(CScriptBase*)(&ownerRewardAddress);
+    ss >> *(CScriptBase*)(&operatorRewardAddress);
+    ss >> operatorRewardRatio;
 
     height = heightIn;
     // minActivationHeight should be set outside cause depends from current active count
@@ -106,6 +108,8 @@ bool operator==(CMasternode const & a, CMasternode const & b)
             a.ownerAuthAddress == b.ownerAuthAddress &&
             a.operatorAuthAddress == b.operatorAuthAddress &&
             a.ownerRewardAddress == b.ownerRewardAddress &&
+            a.operatorRewardAddress == b.operatorRewardAddress &&
+            a.operatorRewardRatio == b.operatorRewardRatio &&
             a.height == b.height &&
             a.minActivationHeight == b.minActivationHeight &&
             a.activationHeight == b.activationHeight &&
@@ -221,6 +225,14 @@ void CMasternodesView::Load()
     db.LoadUndo([this] (uint256 & txid, uint256 & affectedItem, char undoType)
     {
         txsUndo.insert(std::make_pair(txid, std::make_pair(affectedItem, static_cast<MasternodesTxType>(undoType))));
+
+        // There is the second way: load all 'operator undo' in different loop, but i think here is more "consistent"
+        if (undoType == static_cast<char>(MasternodesTxType::SetOperatorReward))
+        {
+            COperatorUndoRec rec;
+            db.ReadOperatorUndo(txid, rec);
+            operatorUndo.insert(std::make_pair(txid, rec));
+        }
     });
 
     /// @todo @mn Where is the correct point of Team loading?
@@ -530,6 +542,45 @@ bool CMasternodesView::OnFinalizeDismissVoting(uint256 const & txid, uint256 con
     return true;
 }
 
+bool CMasternodesView::OnSetOperatorReward(uint256 const & txid, CKeyID const & ownerId,
+                                           CKeyID const & newOperatorAuthAddress, CScript const & newOperatorRewardAddress, CAmount newOperatorRewardRatio, int height)
+{
+    // Check, that MN was announced
+    auto it = nodesByOwner.find(ownerId);
+    if (it == nodesByOwner.end())
+    {
+        return false;
+    }
+    // Assumed now, that node exists and consistent with 'nodesByOperator' index
+    uint256 const & nodeId = it->second;
+    CMasternode & node = allNodes.at(nodeId);
+
+    if (nodesByOwner.find(newOperatorAuthAddress) != nodesByOwner.end() ||
+       (nodesByOperator.find(newOperatorAuthAddress) != nodesByOperator.end() && node.operatorAuthAddress != newOperatorAuthAddress))
+    {
+        return false;
+    }
+
+    PrepareBatch();
+
+    nodesByOperator.erase(node.operatorAuthAddress);
+    nodesByOperator.insert(std::make_pair(newOperatorAuthAddress, nodeId));
+
+    COperatorUndoRec operatorUndoRec{ node.operatorAuthAddress, node.operatorRewardAddress, node.operatorRewardRatio };
+    node.operatorAuthAddress = newOperatorAuthAddress;
+    node.operatorRewardAddress = newOperatorRewardAddress;
+    node.operatorRewardRatio = newOperatorRewardRatio;
+
+    txsUndo.insert(std::make_pair(txid, std::make_pair(nodeId, MasternodesTxType::SetOperatorReward)));
+    operatorUndo.insert(std::make_pair(txid, operatorUndoRec));
+
+    db.WriteUndo(txid, nodeId, static_cast<char>(MasternodesTxType::SetOperatorReward), *currentBatch);
+    db.WriteOperatorUndo(txid, operatorUndoRec, *currentBatch);
+
+    db.WriteMasternode(nodeId, node, *currentBatch);
+    return true;
+}
+
 //bool CMasternodesView::HasUndo(uint256 const & txid) const
 //{
 //    return txsUndo.find(txid) != txsUndo.end();
@@ -590,8 +641,24 @@ bool CMasternodesView::OnUndo(uint256 const & txid)
             }
             break;
             case MasternodesTxType::SetOperatorReward:
-                /// @todo @mn implement
-                break;
+            {
+                CMasternode & node = allNodes.at(id);
+
+                nodesByOperator.erase(node.operatorAuthAddress);
+
+                auto const & rec = operatorUndo.at(txid);
+                node.operatorAuthAddress = rec.operatorAuthAddress;
+                node.operatorRewardAddress = rec.operatorRewardAddress;
+                node.operatorRewardRatio = rec.operatorRewardRatio;
+
+                nodesByOperator.insert(std::make_pair(node.operatorAuthAddress, id));
+
+                operatorUndo.erase(txid);
+                db.EraseOperatorUndo(txid, *currentBatch);
+
+                db.WriteMasternode(id, node, *currentBatch);
+            }
+            break;
             case MasternodesTxType::DismissVote:
             {
                 CDismissVote & vote = votes.at(id);
@@ -670,8 +737,11 @@ struct KeyLess
     }
 };
 
-void CMasternodesView::CalcNextDposTeam(uint256 const & blockHash, int height)
+CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height)
 {
+    CTeam team;
+    assert(ReadDposTeam(height, team));
+
     assert(team.size() <= DPOS_TEAM_SIZE);
     // erase oldest member
     if (team.size() == DPOS_TEAM_SIZE)
@@ -692,7 +762,7 @@ void CMasternodesView::CalcNextDposTeam(uint256 const & blockHash, int height)
     // erase dismissed/resigned members
     for(auto it = team.begin(); it != team.end();)
     {
-        if(!allNodes.at(it->first).IsActive())
+        if(activeNodes.find(it->first) == activeNodes.end())
         {
             it = team.erase(it);
         }
@@ -726,19 +796,11 @@ void CMasternodesView::CalcNextDposTeam(uint256 const & blockHash, int height)
         team.insert(std::make_pair(mayJoin[i], height));
     }
 
-    db.WriteTeam(height, team);
+    db.WriteTeam(height+1, team);
+    return team;
 }
 
-void CMasternodesView::RevertDposTeam(int height)
-{
-    CTeam newTeam;
-    if (db.ReadTeam(height, newTeam))
-    {
-        team.swap(newTeam);
-    }
-}
-
-bool CMasternodesView::ReadDposTeam(int height, CTeam & team)
+bool CMasternodesView::ReadDposTeam(int height, CTeam & team) const
 {
     return db.ReadTeam(height, team);
 }
@@ -840,8 +902,6 @@ void CMasternodesView::Clear()
     votesAgainst.clear();
 
     txsUndo.clear();
-
-    team.clear();
 }
 
 

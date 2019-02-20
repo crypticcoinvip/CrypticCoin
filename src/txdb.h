@@ -100,6 +100,10 @@ public:
     void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType, CDBBatch & batch);
     void EraseUndo(uint256 const & txid, uint256 const & affectedItem, CDBBatch & batch);
 
+    void ReadOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec & value);
+    void WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value, CDBBatch & batch);
+    void EraseOperatorUndo(uint256 const & txid, CDBBatch & batch);
+
     bool ReadTeam(int blockHeight, CTeam & team);
     void WriteTeam(int blockHeight, CTeam const & team);
     void EraseTeam(int blockHeight);

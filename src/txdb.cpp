@@ -41,6 +41,7 @@ static const char DB_LAST_BLOCK = 'l';
 // Prefixes to the masternodes database (masternodes/)
 static const char DB_MASTERNODES = 'M';
 static const char DB_MASTERNODESUNDO = 'U';
+static const char DB_SETOPERATORUNDO = 'u';
 static const char DB_DISMISSVOTES = 'V';
 static const char DB_TEAM = 'T';
 
@@ -399,6 +400,21 @@ void CMasternodesDB::WriteUndo(uint256 const & txid, uint256 const & affectedIte
 void CMasternodesDB::EraseUndo(uint256 const & txid, uint256 const & affectedItem, CDBBatch & batch)
 {
     batch.Erase(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem));
+}
+
+void CMasternodesDB::ReadOperatorUndo(const uint256 & txid, CMasternodesView::COperatorUndoRec & value)
+{
+    Read(make_pair(DB_SETOPERATORUNDO, txid), value);
+}
+
+void CMasternodesDB::WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value, CDBBatch & batch)
+{
+    batch.Write(make_pair(DB_SETOPERATORUNDO, txid), value);
+}
+
+void CMasternodesDB::EraseOperatorUndo(uint256 const & txid, CDBBatch & batch)
+{
+    batch.Erase(make_pair(DB_SETOPERATORUNDO, txid));
 }
 
 bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team)
