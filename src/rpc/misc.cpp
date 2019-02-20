@@ -505,6 +505,57 @@ UniValue setmocktime(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
+UniValue p2p_get_tx_votes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1) {
+        throw runtime_error(
+                    "p2p_get_tx_votes ([ \"txid\",... ])\n"
+                    "\nSends p2p message get_tx_votes to all connected nodes\n"
+                    "\nArguments:\n"
+                    "1. [\"intersected_txid\", ...] (array, optional) Array of txids of interested transactions."
+                    "If empty, all the votes are interested\n"
+                    "\nExamples:\n"
+                    + HelpExampleCli("p2p_get_tx_votes", "")
+                    + HelpExampleRpc("p2p_get_tx_votes", ""));
+    }
+
+    std::vector<uint256> intersectedTxs{};
+    if (!params.empty()) {
+        UniValue txids{params[0].get_array()};
+        for (size_t idx{0}; idx < txids.size(); idx++) {
+            const UniValue& txid{txids[idx]};
+            if (txid.get_str().length() != 64 || !IsHex(txid.get_str())) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid txid ")+txid.get_str());
+            }
+            intersectedTxs.push_back(uint256S(txid.get_str()));
+        }
+    }
+    LOCK(cs_vNodes);
+    for(const auto& node : vNodes) {
+        node->PushMessage("get_tx_votes", intersectedTxs);
+    }
+    return NullUniValue;
+}
+
+UniValue p2p_get_round_votes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+                    "p2p_get_round_votes\n"
+                    "\nSends p2p message get_round_votes to all connected nodes\n"
+                    "\nExamples:\n"
+                    + HelpExampleCli("p2p_get_round_votes", "")
+                    + HelpExampleRpc("p2p_get_round_votes", ""));
+    }
+    LOCK(cs_vNodes);
+    for(const auto& node : vNodes) {
+        node->PushMessage("get_tx_votes");
+    }
+    return NullUniValue;
+}
+
+
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -516,6 +567,8 @@ static const CRPCCommand commands[] =
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            true  },
+    { "hidden",             "p2p_get_tx_votes",       &p2p_get_tx_votes,       true  },
+    { "hidden",             "p2p_get_round_votes",    &p2p_get_round_votes,    true  },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &tableRPC)

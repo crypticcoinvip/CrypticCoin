@@ -6037,8 +6037,37 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             }
         }
     }
+    else if (strCommand == "get_tx_votes") {
+        std::vector<CInv> reply{};
+        std::vector<uint256> interestedTxs{};
+        uint256 tipHash{};
+        vRecv >> interestedTxs >> tipHash;
+        std::set<uint256> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
+        LOCK(cs_main);
 
-    else if (strCommand == CInv{MSG_HEARTBEAT, uint256{}}.GetCommand()) {
+        if (chainActive.Tip()->GetBlockHash() == tipHash) {
+            for (const auto& vote : CTransactionVoteTracker::getInstance().listReceivedVotes()) {
+                for (const auto& choice : vote.choices) {
+                    if (setOfInterestedTxs.empty() || setOfInterestedTxs.count(choice.hash)) {
+                        reply.push_back(CInv{MSG_TRANSACTION_VOTE, vote.GetHash()});
+                    }
+                }
+            }
+        }
+        pfrom->PushMessage("inv", reply);
+    } else if (strCommand == "get_round_votes") {
+        std::vector<CInv> reply{};
+        uint256 tipHash{};
+        vRecv >> tipHash;
+        LOCK(cs_main);
+
+        if (chainActive.Tip()->GetBlockHash() == tipHash) {
+            for (const auto& vote : CProgenitorVoteTracker::getInstance().listReceivedVotes()) {
+                reply.push_back(CInv{MSG_PROGENITOR_VOTE, vote.GetHash()});
+            }
+        }
+        pfrom->PushMessage("inv", reply);
+    } else if (strCommand == CInv{MSG_HEARTBEAT, uint256{}}.GetCommand()) {
         CHeartBeatMessage message{};
         vRecv >> message;
         ProcessInventoryCommand<CHeartBeatMessage>(message, pfrom, MSG_HEARTBEAT, [](const CHeartBeatMessage& message) {
@@ -6711,7 +6740,7 @@ void ProcessInventoryCommand(const T& data,
                              std::function<bool(const T&, CValidationState&)> validationFunc)
 {
     const CInv inv{msgType, data.GetHash()};
-    LogPrint("net", "received %d command %s peer=%d\n", msgType, inv.hash.ToString(), pfrom->id);
+    LogPrint("ProcessInventoryCommand", "received %d command %s peer=%d\n", msgType, inv.hash.ToString(), pfrom->id);
 
     assert(pfrom != nullptr);
     LOCK(cs_main);
@@ -6729,10 +6758,10 @@ void ProcessInventoryCommand(const T& data,
             relayFunc(data);
         } else if (pfrom->fWhitelisted) {
             if (!state.IsInvalid(nDoS) || nDoS == 0) {
-                LogPrintf("Force relaying heartbeat %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
+                LogPrint("ProcessInventoryCommand", "Force relaying inv %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
                 relayFunc(data);
             } else {
-                LogPrintf("Not relaying invalid heartbeat %s from whitelisted peer=%d (%s (code %d))\n",
+                LogPrint("ProcessInventoryCommand", "Not relaying invalid inv %s from whitelisted peer=%d (%s (code %d))\n",
                           inv.hash.ToString(),
                           pfrom->id,
                           state.GetRejectReason(),
@@ -6741,7 +6770,7 @@ void ProcessInventoryCommand(const T& data,
         }
         nDoS = 0;
         if (state.IsInvalid(nDoS)) {
-            LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n",
+            LogPrint("ProcessInventoryCommand", "%s from peer=%d %s was not accepted: %s\n",
                      inv.hash.ToString(),
                      pfrom->id,
                      pfrom->cleanSubVer,

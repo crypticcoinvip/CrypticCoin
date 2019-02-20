@@ -1,10 +1,9 @@
 #!/usr/bin/env python2
-# Copyright (c) 2014 The Bitcoin Core developers
+# Copyright (c) 2019 The Crypticcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #
-# Test dPoS consensus work
+# Base class for dPoS integration tests
 #
 
 import os
@@ -14,6 +13,7 @@ import shutil
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import \
     assert_equal, \
+    assert_greater_than, \
     gather_inputs, \
     connect_nodes_bi, \
     sync_blocks, \
@@ -93,6 +93,8 @@ class dPoS_BaseTest(BitcoinTestFramework):
         for node in self.nodes:
             assert_equal(len(node.listprogenitorblocks()), 0)
         assert_equal(len(predpos_hashes), self.predpos_block_count)
+        assert_equal(len(self.nodes), self.num_nodes)
+        assert_greater_than(self.num_nodes, 0)
 
     def start_nodes(self, args = []):
         if len(args) == 0:
@@ -100,10 +102,7 @@ class dPoS_BaseTest(BitcoinTestFramework):
 
         for i in range(len(args)):
             args[i] = args[i][:]
-            args[i] += [
-                '-nuparams=5ba81b19:' + str(self.predpos_block_count), # Overwinter
-                '-nuparams=76b809bb:' + str(self.predpos_block_count)  # Suppling
-            ]
+            args[i] += self.get_nuparams_args()
             args[i] += ['-masternode-operator=' + _WALLET_KEYS[i][1]]
 
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
@@ -114,6 +113,12 @@ class dPoS_BaseTest(BitcoinTestFramework):
     def stop_nodes(self):
         stop_nodes(self.nodes)
         wait_bitcoinds()
+
+    def get_nuparams_args(self):
+        return [
+            '-nuparams=5ba81b19:' + str(self.predpos_block_count), # Overwinter
+            '-nuparams=76b809bb:' + str(self.predpos_block_count)  # Suppling
+        ]
 
     def mine_blocks(self, predpos, count):
         hashes = []

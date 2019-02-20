@@ -144,7 +144,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "createraw_mn_dismissvoterecall", 0},
     { "createraw_mn_dismissvoterecall", 1},
     { "createraw_mn_finalizedismissvoting", 0},
-    { "createraw_mn_finalizedismissvoting", 1}
+    { "createraw_mn_finalizedismissvoting", 1},
+    { "p2p_get_tx_votes", 0}
 //    { "resign_mn", 0},
 //    { "resign_mn", 1}
 };

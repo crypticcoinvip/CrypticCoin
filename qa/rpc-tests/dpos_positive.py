@@ -1,8 +1,7 @@
 #!/usr/bin/env python2
-# Copyright (c) 2014 The Bitcoin Core developers
+# Copyright (c) 2019 The Crypticcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #
 # Test dPoS consensus work
 #
@@ -18,8 +17,7 @@ from test_framework.util import \
 class dPoS_PositiveTest(dPoS_BaseTest):
     def run_test(self):
         super(dPoS_PositiveTest, self).run_test()
-        assert_greater_than(self.num_nodes, 0)
-        assert_equal(len(self.nodes), self.num_nodes)
+
         to_address = self.nodes[3].getnewaddress()
         for i in range(2):
             is_dPoS = i == 1
