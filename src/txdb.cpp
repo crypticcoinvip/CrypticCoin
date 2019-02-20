@@ -42,6 +42,7 @@ static const char DB_LAST_BLOCK = 'l';
 static const char DB_MASTERNODES = 'M';
 static const char DB_MASTERNODESUNDO = 'U';
 static const char DB_DISMISSVOTES = 'V';
+static const char DB_TEAM = 'T';
 
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
 }
@@ -400,6 +401,79 @@ void CMasternodesDB::EraseUndo(uint256 const & txid, uint256 const & affectedIte
     batch.Erase(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem));
 }
 
+bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team)
+{
+    team.clear();
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    pcursor->Seek(make_pair(DB_TEAM, blockHeight));
+
+    while (pcursor->Valid())
+    {
+        boost::this_thread::interruption_point();
+        std::pair<std::pair<char, int>, uint256> key;
+        if (pcursor->GetKey(key) && key.first.first == DB_TEAM && key.first.second == blockHeight)
+        {
+            int32_t joinedAtBlock;
+            if (pcursor->GetValue(joinedAtBlock))
+            {
+                team.insert(make_pair(key.second, joinedAtBlock));
+            }
+            else
+            {
+                return error("CMasternodesDB::ReadTeam() : unable to read value");
+            }
+        }
+        else
+        {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+void CMasternodesDB::WriteTeam(int blockHeight, CTeam const & team)
+{
+    // To enshure that we have no any mismatches in particular records
+    /// @attention EraseTeam() and WriteTeam() uses their own batches
+    /// cause i'm not sure that 'erasing' and then 'writing' will lead to the expected result
+    EraseTeam(blockHeight);
+
+    CDBBatch batch(*this);
+    for (CTeam::const_iterator it = team.begin(); it != team.end(); ++it)
+    {
+        batch.Write(make_pair(make_pair(DB_TEAM, blockHeight), it->first), it->second);
+    }
+    WriteBatch(batch);
+}
+
+void CMasternodesDB::EraseTeam(int blockHeight)
+{
+    /// @attention EraseTeam() and WriteTeam() uses their own batches
+    /// cause i'm not sure that 'erasing' and then 'writing' will lead to the expected result
+    CDBBatch batch(*this);
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    pcursor->Seek(make_pair(DB_TEAM, blockHeight));
+
+    while (pcursor->Valid())
+    {
+        boost::this_thread::interruption_point();
+        std::pair<std::pair<char, int>, uint256> key;
+        if (pcursor->GetKey(key) && key.first.first == DB_TEAM && key.first.second == blockHeight)
+        {
+            /// @todo @mn Is it VALID to erase using iterator?
+            batch.Erase(make_pair(make_pair(DB_TEAM, blockHeight), key.second));
+        }
+        else
+        {
+            break;
+        }
+        pcursor->Next();
+    }
+    WriteBatch(batch);
+}
+
+
 bool CMasternodesDB::LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode)
 {
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
@@ -433,7 +507,6 @@ bool CMasternodesDB::LoadMasternodes(std::function<void(uint256 &, CMasternode &
 bool CMasternodesDB::LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote)
 {
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
-//    char dbPrefix(indexType == VotesFrom ? DB_DISMISSVOTESFROM : DB_DISMISSVOTESAGAINST);
     pcursor->Seek(DB_DISMISSVOTES);
 
     while (pcursor->Valid())
@@ -464,7 +537,6 @@ bool CMasternodesDB::LoadVotes(std::function<void(uint256 &, CDismissVote &)> on
 bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo)
 {
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
-//    char dbPrefix(indexType == VotesFrom ? DB_DISMISSVOTESFROM : DB_DISMISSVOTESAGAINST);
     pcursor->Seek(DB_MASTERNODESUNDO);
 
     while (pcursor->Valid())
@@ -481,7 +553,7 @@ bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> on
             }
             else
             {
-                return error("CMasternodesDB::LoadVotes() : unable to read value");
+                return error("CMasternodesDB::LoadUndo() : unable to read value");
             }
         }
         else
@@ -491,5 +563,4 @@ bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> on
         pcursor->Next();
     }
     return true;
-
 }

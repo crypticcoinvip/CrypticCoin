@@ -4,6 +4,7 @@
 
 #include "masternodes.h"
 
+#include "arith_uint256.h"
 #include "key_io.h"
 #include "primitives/block.h"
 #include "script/standard.h"
@@ -12,6 +13,7 @@
 
 #include <algorithm>
 #include <functional>
+
 
 static const std::map<char, MasternodesTxType> MasternodesTxTypeToCode =
 {
@@ -220,6 +222,9 @@ void CMasternodesView::Load()
     {
         txsUndo.insert(std::make_pair(txid, std::make_pair(affectedItem, static_cast<MasternodesTxType>(undoType))));
     });
+
+    /// @todo @mn Where is the correct point of Team loading?
+//    db.ReadTeam(chainActive.Height());
 }
 
 
@@ -644,6 +649,101 @@ bool CMasternodesView::OnUndo(uint256 const & txid)
     return true;
 }
 
+struct KeyLess
+{
+    template<typename KeyType>
+    static KeyType getKey(KeyType const & k)
+    {
+        return k;
+    }
+
+    template<typename KeyType, typename ValueType>
+    static KeyType getKey(std::pair<KeyType const, ValueType> const & p)
+    {
+        return p.first;
+    }
+
+    template<typename L, typename R>
+    bool operator()(L const & l, R const & r) const
+    {
+        return getKey(l) < getKey(r);
+    }
+};
+
+void CMasternodesView::CalcNextDposTeam(uint256 const & blockHash, int height)
+{
+    assert(team.size() <= DPOS_TEAM_SIZE);
+    // erase oldest member
+    if (team.size() == DPOS_TEAM_SIZE)
+    {
+        auto oldest_it = std::max_element(team.begin(), team.end(), [this](CTeam::value_type const & lhs, CTeam::value_type const & rhs)
+        {
+            if (lhs.second == rhs.second)
+            {
+                return UintToArith256(lhs.first) < UintToArith256(rhs.first);
+            }
+            return lhs.second < rhs.second;
+        });
+        if (oldest_it != team.end())
+        {
+            team.erase(oldest_it);
+        }
+    }
+    // erase dismissed/resigned members
+    for(auto it = team.begin(); it != team.end();)
+    {
+        if(!allNodes.at(it->first).IsActive())
+        {
+            it = team.erase(it);
+        }
+        else ++it;
+    }
+
+    // get active masternodes which are not included in the current team vector;
+    std::vector<uint256> mayJoin;
+    std::set_difference(activeNodes.begin(), activeNodes.end(), team.begin(), team.end(), std::inserter(mayJoin, mayJoin.begin()), KeyLess());
+
+    // sort by selectors
+    std::sort(mayJoin.begin(), mayJoin.end(), [ &blockHash ](uint256 const & lhs, uint256 const & rhs)
+    {
+        CDataStream lhs_ss(SER_GETHASH, 0);
+        lhs_ss << lhs << blockHash;
+        arith_uint256 lhs_selector = UintToArith256(Hash(lhs_ss.begin(), lhs_ss.end())); // '<' operators of uint256 and uint256_arith are different
+
+        CDataStream rhs_ss(SER_GETHASH, 0);
+        rhs_ss << rhs << blockHash;
+        arith_uint256 rhs_selector = UintToArith256(Hash(rhs_ss.begin(), rhs_ss.end())); // '<' operators of uint256 and uint256_arith are different
+
+        return ArithToUint256(lhs_selector) < ArithToUint256(rhs_selector);
+    });
+
+    // calc new members
+    const size_t freeSlots = DPOS_TEAM_SIZE - team.size();
+    const size_t toJoin = std::min(mayJoin.size(), freeSlots);
+
+    for (size_t i = 0; i < toJoin; ++i)
+    {
+        team.insert(std::make_pair(mayJoin[i], height));
+    }
+
+    db.WriteTeam(height, team);
+}
+
+void CMasternodesView::RevertDposTeam(int height)
+{
+    CTeam newTeam;
+    if (db.ReadTeam(height, newTeam))
+    {
+        team.swap(newTeam);
+    }
+}
+
+bool CMasternodesView::ReadDposTeam(int height, CTeam & team)
+{
+    return db.ReadTeam(height, team);
+}
+
+
 uint32_t CMasternodesView::GetMinDismissingQuorum()
 {
     return 1 + (activeNodes.size() * 2) / 3; // 66% + 1
@@ -740,6 +840,8 @@ void CMasternodesView::Clear()
     votesAgainst.clear();
 
     txsUndo.clear();
+
+    team.clear();
 }
 
 

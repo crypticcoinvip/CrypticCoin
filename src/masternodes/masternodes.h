@@ -13,6 +13,7 @@
 #include "uint256.h"
 
 #include <map>
+#include <set>
 #include <stdint.h>
 
 #include <boost/scoped_ptr.hpp>
@@ -25,6 +26,8 @@ static const CAmount MN_DISMISSVOTERECALL_FEE = MN_COMMON_FEE;
 static const CAmount MN_FINALIZEDISMISSVOTING_FEE = MN_COMMON_FEE;
 
 static const int MAX_DISMISS_VOTES_PER_MN = 20;
+
+static const int DPOS_TEAM_SIZE = 3;
 
 static const std::vector<unsigned char> MnTxMarker = {'M', 'n', 'T', 'x'};  // 4d6e5478
 
@@ -186,6 +189,8 @@ typedef std::map<uint256, CMasternode> CMasternodes;  // nodeId -> masternode ob
 typedef std::set<uint256> CActiveMasternodes;         // just nodeId's,
 typedef std::map<CKeyID, uint256> CMasternodesByAuth; // for two indexes, owner->nodeId, operator->nodeId
 
+typedef std::map<uint256, int32_t> CTeam;             // nodeId -> joinHeight - masternodes' team
+
 typedef std::map<uint256, CDismissVote> CDismissVotes;
 typedef std::multimap<uint256, uint256> CDismissVotesIndex; // just index, from->against or against->from
 
@@ -210,6 +215,8 @@ private:
     CDismissVotesIndex votesAgainst;
 
     CMasternodesUndo txsUndo;
+
+    CTeam team;
 
 public:
     typedef struct {
@@ -271,6 +278,10 @@ public:
 
 //    bool HasUndo(uint256 const & txid) const;
     bool OnUndo(uint256 const & txid);
+
+    void CalcNextDposTeam(uint256 const & blockHash, int height);
+    void RevertDposTeam(int height);
+    bool ReadDposTeam(int height, CTeam & team);
 
     uint32_t GetMinDismissingQuorum();
 

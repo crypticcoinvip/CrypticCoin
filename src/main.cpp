@@ -6470,14 +6470,16 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
         }
 
     }
+    pmasternodesview->CalcNextDposTeam(block.GetHash(), height);
 
     pmasternodesview->WriteBatch();
 }
 
 void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height)
 {
+    pmasternodesview->RevertDposTeam(height);
     // undo transactions in reverse order
-    for (int i = block.vtx.size() - 1; i >= 0; i--)
+    for (int i = block.vtx.size() - 1; i >= 0; --i)
     {
         pmasternodesview->OnUndo(block.vtx[i].GetHash());
     }

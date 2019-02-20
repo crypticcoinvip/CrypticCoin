@@ -1578,7 +1578,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pmasternodesdb = new CMasternodesDB(nMinDbCache << 20, false, fReindex);
                 pmasternodesview = new CMasternodesView(*pmasternodesdb);
 
-                pmasternodesview->Load();
+                /// @todo @mn I'm totally not sure where to load the Team. Where and when will be the correct Height?
+                pmasternodesview->Load(/*chainActive.Height()*/);
 
                 if (fReindex) {
                     pblocktree->WriteReindexing(true);

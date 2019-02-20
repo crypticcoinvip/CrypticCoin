@@ -100,6 +100,10 @@ public:
     void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType, CDBBatch & batch);
     void EraseUndo(uint256 const & txid, uint256 const & affectedItem, CDBBatch & batch);
 
+    bool ReadTeam(int blockHeight, CTeam & team);
+    void WriteTeam(int blockHeight, CTeam const & team);
+    void EraseTeam(int blockHeight);
+
     bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode);
     bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote);
     bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo);
