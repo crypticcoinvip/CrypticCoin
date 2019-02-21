@@ -19,8 +19,8 @@ static const char* ppszTypeName[] =
     "block",
     "filtered block",
     "heartbeat",
-    "prgntr_block",
-    "prgntr_vote",
+    "vice_block",
+    "round_vote",
     "tx_vote"
 };
 

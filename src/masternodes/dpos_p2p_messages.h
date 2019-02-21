@@ -11,28 +11,26 @@
 namespace dpos
 {
 
-using CVoteSignature = std::vector<unsigned char>;
-
 class CVoteChoice
 {
 public:
+    using Signature = std::vector<unsigned char>;
+
     enum Decision
     {
         YES = 1, PASS = 2, NO = 3
     };
 
     uint256 subject;
-    Decision decision;
+    int8_t decision;
 
     ADD_SERIALIZE_METHODS;
 
     template<typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        const uint8_t decision8 = static_cast<uint8_t>(decision);
         READWRITE(subject);
-        READWRITE(decision8);
-        decision = static_cast<Decision>(decision8);
+        READWRITE(decision);
     }
 };
 
@@ -42,7 +40,7 @@ public:
     uint256 tip;
     uint16_t round;
     std::vector<CVoteChoice> choices;
-    CVoteSignature signature;
+    CVoteChoice::Signature signature;
 
     CTxVote_p2p()
     {
@@ -75,7 +73,7 @@ public:
     uint256 tip;
     uint16_t round;
     CVoteChoice choice;
-    CVoteSignature signature;
+    CVoteChoice::Signature signature;
 
     CRoundVote_p2p()
     {

@@ -31,7 +31,7 @@
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
 #include "masternodes/heartbeat.h"
-#include "masternodes/dpos.h"
+#include "masternodes/dpos_controller.h"
 
 #include <algorithm>
 #include <atomic>
@@ -4954,12 +4954,12 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         return mapBlockIndex.count(inv.hash);
     case MSG_HEARTBEAT:
         return CHeartBeatTracker::getInstance().findReceivedMessage(inv.hash);
-    case MSG_PROGENITOR_BLOCK:
-        return CProgenitorBlockTracker::getInstance().findReceivedBlock(inv.hash);
-    case MSG_PROGENITOR_VOTE:
-        return CProgenitorVoteTracker::getInstance().findReceivedVote(inv.hash);
-    case MSG_TRANSACTION_VOTE:
-        return CTransactionVoteTracker::getInstance().findReceivedVote(inv.hash);
+    case MSG_VICE_BLOCK:
+        return dpos::getController()->findViceBlock(inv.hash);
+    case MSG_ROUND_VOTE:
+        return dpos::getController()->findRoundVote(inv.hash);
+    case MSG_TX_VOTE:
+        return dpos::getController()->findTxVote(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -5051,9 +5051,9 @@ void static ProcessGetData(CNode* pfrom)
             ss.reserve(1000);
 
             if (inv.type == MSG_HEARTBEAT ||
-                inv.type == MSG_PROGENITOR_BLOCK ||
-                inv.type == MSG_PROGENITOR_VOTE ||
-                inv.type == MSG_TRANSACTION_VOTE)
+                inv.type == MSG_VICE_BLOCK ||
+                inv.type == MSG_ROUND_VOTE ||
+                inv.type == MSG_TX_VOTE)
             {
                if (!pushed) {
                    LOCK(cs_mapRelay);
@@ -5070,21 +5070,21 @@ void static ProcessGetData(CNode* pfrom)
                            ss << message;
                            pushed = true;
                        }
-                   } else if (inv.type == MSG_PROGENITOR_BLOCK) {
+                   } else if (inv.type == MSG_VICE_BLOCK) {
                        CBlock block{};
-                       if (CProgenitorBlockTracker::getInstance().findReceivedBlock(inv.hash, &block)) {
+                       if (dpos::getController()->findViceBlock(inv.hash, &block)) {
                            ss << block;
                            pushed = true;
                        }
-                   } else if (inv.type == MSG_PROGENITOR_VOTE) {
-                       CProgenitorVote vote{};
-                       if (CProgenitorVoteTracker::getInstance().findReceivedVote(inv.hash, &vote)) {
+                   } else if (inv.type == MSG_ROUND_VOTE) {
+                       dpos::CRoundVote_p2p vote{};
+                       if (dpos::getController()->findRoundVote(inv.hash, &vote)) {
                            ss << vote;
                            pushed = true;
                        }
-                   } else if (inv.type == MSG_TRANSACTION_VOTE) {
-                       CTransactionVote vote{};
-                       if (CTransactionVoteTracker::getInstance().findReceivedVote(inv.hash, &vote)) {
+                   } else if (inv.type == MSG_TX_VOTE) {
+                       dpos::CTxVote_p2p vote{};
+                       if (dpos::getController()->findTxVote(inv.hash, &vote)) {
                            ss << vote;
                            pushed = true;
                        }
@@ -6046,10 +6046,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         LOCK(cs_main);
 
         if (chainActive.Tip()->GetBlockHash() == tipHash) {
-            for (const auto& vote : CTransactionVoteTracker::getInstance().listReceivedVotes()) {
+            for (const auto& vote : dpos::getController()->listTxVotes()) {
                 for (const auto& choice : vote.choices) {
-                    if (setOfInterestedTxs.empty() || setOfInterestedTxs.count(choice.hash)) {
-                        reply.push_back(CInv{MSG_TRANSACTION_VOTE, vote.GetHash()});
+                    if (setOfInterestedTxs.empty() || setOfInterestedTxs.count(choice.subject)) {
+                        reply.emplace_back(MSG_TX_VOTE, vote.GetHash());
                     }
                 }
             }
@@ -6062,8 +6062,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         LOCK(cs_main);
 
         if (chainActive.Tip()->GetBlockHash() == tipHash) {
-            for (const auto& vote : CProgenitorVoteTracker::getInstance().listReceivedVotes()) {
-                reply.push_back(CInv{MSG_PROGENITOR_VOTE, vote.GetHash()});
+            for (const auto& vote : dpos::getController()->listRoundVotes()) {
+                reply.emplace_back(MSG_ROUND_VOTE, vote.GetHash());
             }
         }
         pfrom->PushMessage("inv", reply);
@@ -6073,30 +6073,25 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         ProcessInventoryCommand<CHeartBeatMessage>(message, pfrom, MSG_HEARTBEAT, [](const CHeartBeatMessage& message) {
             CHeartBeatTracker::getInstance().relayMessage(message);
         });
-    } else if (strCommand == CInv{MSG_PROGENITOR_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex && dpos::isActive()) {
-        CProgenitorVote vote{};
+    } else if (strCommand == CInv{MSG_ROUND_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
+        dpos::CRoundVote_p2p vote{};
         vRecv >> vote;
-        ProcessInventoryCommand<CProgenitorVote>(vote, pfrom, MSG_PROGENITOR_VOTE, [](const CProgenitorVote& vote) {
-            CProgenitorVoteTracker::getInstance().relayVote(vote);
+        ProcessInventoryCommand<dpos::CRoundVote_p2p>(vote, pfrom, MSG_ROUND_VOTE, [](const dpos::CRoundVote_p2p& vote) {
+            dpos::getController()->relayRoundVote(vote);
         });
-    } else if (strCommand == CInv{MSG_TRANSACTION_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex && dpos::isActive()) {
-        CTransactionVote vote{};
+    } else if (strCommand == CInv{MSG_TX_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
+        dpos::CTxVote_p2p vote{};
         vRecv >> vote;
-        ProcessInventoryCommand<CTransactionVote>(vote, pfrom, MSG_TRANSACTION_VOTE, [](const CTransactionVote& vote) {
-            CTransactionVoteTracker::getInstance().relayVote(vote);
+        ProcessInventoryCommand<dpos::CTxVote_p2p>(vote, pfrom, MSG_TX_VOTE, [](const dpos::CTxVote_p2p& vote) {
+            dpos::getController()->relayTxVote(vote);
         });
-    } else if (strCommand == CInv{MSG_PROGENITOR_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex && dpos::isActive()) {
+    } else if (strCommand == CInv{MSG_VICE_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         CBlock block{};
         vRecv >> block;
-        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_PROGENITOR_BLOCK, [](const CBlock& block) {
-            CProgenitorBlockTracker::getInstance().relayBlock(block);
+        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_VICE_BLOCK, [](const CBlock& block) {
+            dpos::getController()->relayViceBlock(block);
         }, [](const CBlock& block, CValidationState& state) {
             bool mutated{};
-
-//            if (block.hashMerkleRoot != block.hashMerkleRoot_PoW || block.hashMerkleRoot_PoW != block.BuildMerkleTree(&mutated)) {
-//                return state.DoS(100, error("CheckBlock(): merkle root mismatch"),
-//                                 REJECT_INVALID, "bad-pro-mrklroot", true);
-//            }
             if (block.hashMerkleRoot != block.BuildMerkleTree(&mutated)) {
                 return state.DoS(100, error("CheckBlock(): merkle root mismatch"),
                                  REJECT_INVALID, "bad-pro-mrklroot", true);

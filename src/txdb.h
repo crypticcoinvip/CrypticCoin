@@ -21,8 +21,10 @@ struct CDiskTxPos;
 class uint256;
 class CMasternode;
 class CDismissVote;
-class CTransactionVote;
-class CProgenitorVote;
+
+namespace dpos{ class CRoundVote_p2p; }
+namespace dpos{ class CTxVote_p2p; }
+
 
 //! -dbcache default (MiB)
 static const int64_t nDefaultDbCache = 450;
@@ -118,18 +120,18 @@ public:
     CDposDB& operator=(const CDposDB&) = delete;
 
 public:
-    void WriteTransactionVote(const uint256& tip, const CTransactionVote& vote);
-    void EraseTransactionVote(const uint256& tip);
+    void WriteViceBlock(const uint256& tip, const CBlock& block);
+    void EraseViceBlock(const uint256& tip);
 
-    void WriteProgenitorVote(const uint256& tip, const CProgenitorVote& vote);
-    void EraseProgenitorVote(const uint256& tip);
+    void WriteRoundVote(const uint256& tip, const dpos::CRoundVote_p2p& vote);
+    void EraseRoundVote(const uint256& tip);
 
-    void WriteProgenitorBlock(const uint256& tip, const CBlock& block);
-    void EraseProgenitorBlock(const uint256& tip);
+    void WriteTxVote(const uint256& tip, const dpos::CTxVote_p2p& vote);
+    void EraseTxVote(const uint256& tip);
 
-    bool LoadTransactionVotes(std::function<void(const uint256&, const CTransactionVote&)> onTransactionVote);
-    bool LoadProgenitorVotes(std::function<void(const uint256&, const CProgenitorVote&)> onProgenitorVote);
-    bool LoadProgenitorBlocks(std::function<void(const uint256&, const CBlock&)> onProgenitorBlock);
+    bool LoadViceBlocks(std::function<void(const uint256&, const CBlock&)> onViceBlock);
+    bool LoadRoundVotes(std::function<void(const uint256&, const dpos::CRoundVote_p2p&)> onRoundVote);
+    bool LoadTxVotes(std::function<void(const uint256&, const dpos::CTxVote_p2p&)> onTxVote);
 };
 
 #endif // BITCOIN_TXDB_H

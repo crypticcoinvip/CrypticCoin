@@ -95,6 +95,9 @@ struct CDposVoterOutput
 CDposVoterOutput operator+(const CDposVoterOutput& l, const CDposVoterOutput& r)
 {
     CDposVoterOutput res = l;
+    res.vTxVotes.reserve(res.vTxVotes.size() + r.vTxVotes.size());
+    res.vRoundVotes.reserve(res.vRoundVotes.size() + r.vRoundVotes.size());
+
     std::copy(r.vTxVotes.begin(), r.vTxVotes.end(), res.vTxVotes.end());
     std::copy(r.vRoundVotes.begin(), r.vRoundVotes.end(), res.vRoundVotes.end());
     if (r.blockToSubmit)
@@ -115,15 +118,34 @@ public:
     using ValidateBlockF = std::function<bool(const CBlock&, const std::map<TxIdSorted, CTransaction>&, bool)>;
     using Output = CDposVoterOutput;
 
+    struct VotingState
+    {
+        std::map<Round, std::map<TxId, std::map<CMasternode::ID, CDposVote> > > txVotes;
+        std::map<Round, std::map<CMasternode::ID, CDposVote> > roundVotes;
+
+        std::map<TxId, CTransaction> txs;
+        std::map<BlockHash, CBlock> viceBlocks;
+    };
+    struct Callbacks
+    {
+        ValidateTxsF validateTxs;
+        ValidateBlockF validateBlock;
+    };
+
+    CDposVoter(std::map<BlockHash, VotingState>* state, size_t minQuorum, size_t numOfVoters)
+        : v(*state)
+    {
+        this->minQuorum = minQuorum;
+        this->numOfVoters = numOfVoters;
+    }
+
     void setVoting(BlockHash tip,
-                   ValidateTxsF validateTxs,
-                   ValidateBlockF validateBlock,
+                   Callbacks world,
                    bool amIvoter,
                    CMasternode::ID me)
     {
         this->tip = tip;
-        this->world.validateTxs = std::move(validateTxs);
-        this->world.validateBlock = std::move(validateBlock);
+        this->world = std::move(world);
         this->amIvoter = amIvoter;
         this->me = me;
     }
@@ -334,6 +356,9 @@ public:
 
     Output doTxsVoting()
     {
+        if (!amIvoter) {
+            return {};
+        }
         Output out{};
         LogPrintf("%s \n", __func__);
         for (const auto& tx_p : v[tip].txs) {
@@ -344,6 +369,9 @@ public:
 
     Output onRoundTooLong()
     {
+        if (!amIvoter) {
+            return {};
+        }
         const Round nRound = getCurrentRound();
         Output out{};
         LogPrintf("%s \n", __func__);
@@ -396,6 +424,9 @@ private:
 
     Output voteForTx(const CTransaction& tx)
     {
+        if (!amIvoter) {
+            return {};
+        }
         TxId txid = tx.GetHash();
         Output out{};
 
@@ -403,7 +434,7 @@ private:
         if (!wasVotedByMe_tx(txid, nRound)) {
             CVoteChoice::Decision decision{CVoteChoice::Decision::YES};
 
-            auto myTxs = listApprovedByMeTxs();
+            auto myTxs = listApprovedByMe_txs();
             myTxs.emplace(UintToArith256(txid), tx);
             if (!world.validateTxs(myTxs)) { // check against my list
                 decision = CVoteChoice::Decision::NO;
@@ -468,10 +499,10 @@ private:
 
     bool wasVotedByMe_round(Round nRound) const
     {
-        return v[tip].txVotes[nRound].count(me) > 0;
+        return v[tip].roundVotes[nRound].count(me) > 0;
     }
 
-    std::map<TxIdSorted, CTransaction> listApprovedByMeTxs() const
+    std::map<TxIdSorted, CTransaction> listApprovedByMe_txs() const
     {
         std::map<TxIdSorted, CTransaction> res{};
 
@@ -612,25 +643,15 @@ private:
         return (stats.pro + notKnown) < 66;
     }
 
-    struct VotingState
-    {
-        std::map<Round, std::map<TxId, std::map<CMasternode::ID, CDposVote> > > txVotes;
-        std::map<Round, std::map<CMasternode::ID, CDposVote> > roundVotes;
-
-        std::map<TxId, CTransaction> txs;
-        std::map<BlockHash, CBlock> viceBlocks;
-    };
     std::map<BlockHash, VotingState>& v;
 
     CMasternode::ID me;
     BlockHash tip;
 
-    struct Callbacks
-    {
-        ValidateTxsF validateTxs;
-        ValidateBlockF validateBlock;
-    };
     Callbacks world;
+
+    size_t minQuorum;
+    size_t numOfVoters;
 
     bool amIvoter = false;
 };

@@ -22,7 +22,7 @@
 #include "crypticcoin/Note.hpp"
 #include "crypter.h"
 #include "crypticcoin/zip32.h"
-#include "../masternodes/dpos.h"
+#include "../masternodes/dpos_controller.h"
 
 #include <assert.h>
 
@@ -2833,7 +2833,7 @@ CAmount CWallet::GetInstantBalance() const
 {
     CAmount rv{0};
 
-    for (const auto& tx : dpos::listCommitedTransactions()) {
+    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
         if (!CheckFinalTx(tx) || tx.vin.empty()) {
             continue;
         }

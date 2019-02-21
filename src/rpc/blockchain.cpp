@@ -14,7 +14,7 @@
 #include "streams.h"
 #include "sync.h"
 #include "util.h"
-#include "masternodes/dpos.h"
+#include "../masternodes/dpos_controller.h"
 
 #include <stdint.h>
 
@@ -1028,11 +1028,11 @@ UniValue reconsiderblock(const UniValue& params, bool fHelp)
 }
 
 
-UniValue listprogenitorblocks(const UniValue& params, bool fHelp)
+UniValue listdposviceblocks(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "listprogenitorblocks\n"
+            "listdposviceblocks\n"
             "\nReturns an array of json object containing progenitor block values."
             "\nResult:\n"
             "[\n"
@@ -1051,13 +1051,13 @@ UniValue listprogenitorblocks(const UniValue& params, bool fHelp)
             "  ...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("listprogenitorblocks", "")
-            + HelpExampleRpc("listprogenitorblocks", "")
+            + HelpExampleCli("listdposviceblocks", "")
+            + HelpExampleRpc("listdposviceblocks", "")
         );
     }
 
     UniValue rv(UniValue::VARR);
-    for (const auto& block : CProgenitorBlockTracker::getInstance().listReceivedBlocks()) {
+    for (const auto& block : dpos::getController()->listViceBlocks()) {
         UniValue jsonBlock{UniValue::VOBJ};
         jsonBlock.push_back(Pair("version", block.nVersion));
         jsonBlock.push_back(Pair("hash", block.GetHash().GetHex()));
@@ -1075,11 +1075,11 @@ UniValue listprogenitorblocks(const UniValue& params, bool fHelp)
 }
 
 
-UniValue listprogenitorvotes(const UniValue& params, bool fHelp)
+UniValue listdposroundvotes(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "listprogenitorvotes\n"
+            "listdposroundvotes\n"
             "\nReturns an array of json object containing progenitor vote values."
             "\nResult:\n"
             "[\n"
@@ -1094,20 +1094,20 @@ UniValue listprogenitorvotes(const UniValue& params, bool fHelp)
             "  ...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("listprogenitorvotes", "")
-            + HelpExampleRpc("listprogenitorvotes", "")
+            + HelpExampleCli("listdposroundvotes", "")
+            + HelpExampleRpc("listdposroundvotes", "")
         );
     }
 
     UniValue rv(UniValue::VARR);
-    for (const auto& vote : CProgenitorVoteTracker::getInstance().listReceivedVotes()) {
+    for (const auto& vote : dpos::getController()->listRoundVotes()) {
         UniValue jsonVote{UniValue::VOBJ};
         jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
         jsonVote.push_back(Pair("tipBlock", vote.tip.GetHex()));
         jsonVote.push_back(Pair("roundNumber", vote.round));
-        jsonVote.push_back(Pair("choice_block", vote.choice.hash.GetHex()));
+        jsonVote.push_back(Pair("choice_block", vote.choice.subject.GetHex()));
         jsonVote.push_back(Pair("choice_decision", vote.choice.decision));
-        jsonVote.push_back(Pair("signature", vote.signature.ToHex()));
+        jsonVote.push_back(Pair("signature", HexStr(vote.signature)));
         rv.push_back(jsonVote);
     }
 
@@ -1115,11 +1115,11 @@ UniValue listprogenitorvotes(const UniValue& params, bool fHelp)
 }
 
 
-UniValue listtransactionvotes(const UniValue& params, bool fHelp)
+UniValue listdpostxvotes(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "listtransactionvotes\n"
+            "listdpostxvotes\n"
             "\nReturns an array of json object containing dpos-transaction vote values."
             "\nResult:\n"
             "[\n"
@@ -1134,23 +1134,23 @@ UniValue listtransactionvotes(const UniValue& params, bool fHelp)
             "  ...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("listtransactionvotes", "")
-            + HelpExampleRpc("listtransactionvotes", "")
+            + HelpExampleCli("listdpostxvotes", "")
+            + HelpExampleRpc("listdpostxvotes", "")
         );
     }
 
     UniValue rv(UniValue::VARR);
-    for (const auto& vote : CTransactionVoteTracker::getInstance().listReceivedVotes()) {
+    for (const auto& vote : dpos::getController()->listTxVotes()) {
         UniValue jsonVote{UniValue::VOBJ};
         jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
         jsonVote.push_back(Pair("tipBlock", vote.tip.GetHex()));
         jsonVote.push_back(Pair("roundNumber", vote.round));
         for (std::size_t i{0}; i < vote.choices.size(); i++) {
             std::string postfix{std::to_string(i)};
-            jsonVote.push_back(Pair("choice_txid#" + postfix, vote.choices[i].hash.GetHex()));
+            jsonVote.push_back(Pair("choice_txid#" + postfix, vote.choices[i].subject.GetHex()));
             jsonVote.push_back(Pair("choice_decision#" + postfix, vote.choices[i].decision));
         }
-        jsonVote.push_back(Pair("signature", vote.signature.ToHex()));
+        jsonVote.push_back(Pair("signature", HexStr(vote.signature)));
         rv.push_back(jsonVote);
     }
 
@@ -1173,9 +1173,9 @@ static const CRPCCommand commands[] =
     { "blockchain",         "gettxout",               &gettxout,               true  },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        true  },
     { "blockchain",         "verifychain",            &verifychain,            true  },
-    { "blockchain",         "listprogenitorblocks",   &listprogenitorblocks,   true  },
-    { "blockchain",         "listprogenitorvotes",    &listprogenitorvotes,    true  },
-    { "blockchain",         "listtransactionvotes",   &listtransactionvotes,   true  },
+    { "blockchain",         "listdposviceblocks",     &listdposviceblocks,     true  },
+    { "blockchain",         "listdposroundvotes",     &listdposroundvotes,     true  },
+    { "blockchain",         "listdpostxvotes",        &listdpostxvotes,        true  },
 
     /* Not shown in help */
     { "hidden",             "invalidateblock",        &invalidateblock,        true  },

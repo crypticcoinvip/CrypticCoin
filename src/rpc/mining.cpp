@@ -25,7 +25,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "validationinterface.h"
-#include "masternodes/dpos.h"
+#include "../masternodes/dpos_controller.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif
@@ -275,8 +275,8 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
-        if (dpos::isActive()) {
-            CProgenitorBlockTracker::getInstance().postBlock(*pblock);
+        if (dpos::getController()->isEnabled()) {
+            dpos::getController()->postViceBlock(*pblock);
         } else {
             CValidationState state;
             if (!ProcessNewBlock(state, NULL, pblock, true, NULL))

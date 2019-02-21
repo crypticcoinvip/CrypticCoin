@@ -30,7 +30,7 @@
 #endif
 
 #include "sodium.h"
-#include "masternodes/dpos.h"
+#include "masternodes/dpos_controller.h"
 
 #include <boost/thread.hpp>
 #include <boost/tuple/tuple.hpp>
@@ -496,8 +496,8 @@ static bool ProcessBlockFound(CBlock* pblock)
 //        wallet.mapRequestCount[pblock->GetHash()] = 0;
 //    }
 #endif
-    if (dpos::isActive()) {
-        CProgenitorBlockTracker::getInstance().postBlock(*pblock);
+    if (dpos::getController()->isEnabled()) {
+        dpos::getController()->postViceBlock(*pblock);
     } else {
         // Process this block the same as if we had received it from another node
         CValidationState state;

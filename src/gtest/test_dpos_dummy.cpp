@@ -5,7 +5,7 @@
 #include "../random.h"
 #include "../main.h"
 #include "../consensus/validation.h"
-#include "../masternodes/dpos.h"
+#include "../masternodes/dpos_controller.h"
 
 namespace
 {
@@ -22,10 +22,10 @@ TEST(dPoS, NoTransactionsMeansEmptyBlock)
     SelectParams(CBaseChainParams::REGTEST);
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_OVERWINTER, Consensus::NetworkUpgrade::ALWAYS_ACTIVE);
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_SAPLING, Consensus::NetworkUpgrade::ALWAYS_ACTIVE);
-    auto consensusParams = Params().GetConsensus();
+//    auto consensusParams = Params().GetConsensus();
 
     EXPECT_EQ(getChainTip(), nullptr);
-    ASSERT_DEATH(dpos::isActive(), "nHeight >= 0");
+    ASSERT_DEATH(dpos::getController()->isEnabled(), "nHeight >= 0");
     EXPECT_TRUE(ActivateBestChain(state));
     EXPECT_EQ(getChainTip(), nullptr);
 }
