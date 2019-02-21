@@ -15,7 +15,7 @@ namespace {
 using LockGuard = std::lock_guard<std::mutex>;
 std::mutex mutex_{};
 dpos::CDposController* dposControllerInstance_{nullptr};
-std::map<dpos::BlockHash, dpos::CDposVoter::VotingState> votingStates_;
+std::map<BlockHash, dpos::CDposVoter::VotingState> votingStates_;
 
 uint256 getTipBlockHash()
 {

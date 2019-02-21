@@ -19,6 +19,8 @@ struct CDposVote
     BlockHash tip;
     CVoteChoice choice;
 };
+bool operator==(const CDposVote& l, const CDposVote& r);
+bool operator!=(const CDposVote& l, const CDposVote& r);
 
 using CTxVote = CDposVote;
 using CRoundVote = CDposVote;
@@ -43,7 +45,6 @@ struct CRoundVotingDistribution
  */
 struct CBlockToSubmit {
     CBlock block;
-    Round nRound;
     std::vector<CMasternode::ID> vApprovedBy;
 };
 
@@ -117,6 +118,10 @@ public:
      * Called when round didnt come to a consensus/stalemate for a long time.
      */
     Output doRoundVoting();
+    /**
+     * Submit if valid vice-block with enough votes
+     */
+    Output tryToSubmitBlock(BlockHash viceBlockId);
     Output doTxsVoting();
     Output onRoundTooLong();
 

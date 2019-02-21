@@ -29,7 +29,7 @@ bool operator!=(const CDposVote& l, const CDposVote& r)
     return !(l == r);
 }
 
-CDposVoterOutput&CDposVoterOutput::operator+=(const CDposVoterOutput& r)
+CDposVoterOutput& CDposVoterOutput::operator+=(const CDposVoterOutput& r)
 {
     std::copy(r.vTxVotes.begin(), r.vTxVotes.end(), std::back_inserter(this->vTxVotes));
     std::copy(r.vRoundVotes.begin(), r.vRoundVotes.end(), std::back_inserter(this->vRoundVotes));
@@ -76,6 +76,11 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
 
     if (!v[tip].viceBlocks.emplace(viceBlock.GetHash(), viceBlock).second) {
         LogPrintf("%s: Ignoring duplicating vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
+        return {};
+    }
+
+    if (viceBlock.nRoundNumber != getCurrentRound()) {
+        LogPrintf("%s: Ignoring vice-block from prev. round: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
 
@@ -184,29 +189,15 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
     }
 
     // check voting result after emplaced
-    auto stats = calcRoundVotingStats(vote.nRound);
+    const auto stats = calcRoundVotingStats(vote.nRound);
     if (checkRoundStalemate(stats)) {
         LogPrintf("%s: New round ... %d \n", __func__, getCurrentRound());
         // on new round
         out += doTxsVoting();
     }
     out += doRoundVoting();
-
-    { // try to submit block
-        stats = calcRoundVotingStats(vote.nRound);
-        const auto bestViceBlock_it = std::max_element(stats.pro.begin(), stats.pro.end());
-        if (bestViceBlock_it != stats.pro.end() && bestViceBlock_it->second >= minQuorum) {
-            const Round nCurrentRound = getCurrentRound();
-            LogPrintf("%s: Submit block ... \n", __func__);
-            CBlockToSubmit blockToSubmit;
-            blockToSubmit.block = v[tip].viceBlocks[bestViceBlock_it->first];
-            blockToSubmit.nRound = nCurrentRound;
-            const auto& approvedBy_m = v[tip].roundVotes[nCurrentRound];
-            // Retrieve all keys
-            boost::copy(approvedBy_m | boost::adaptors::map_keys, std::back_inserter(blockToSubmit.vApprovedBy));
-
-            out.blockToSubmit = {blockToSubmit};
-        }
+    if (vote.choice.decision == CVoteChoice::Decision::YES) {
+        out += tryToSubmitBlock(vote.choice.subject);
     }
 
     return out;
@@ -245,13 +236,14 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         const auto committedTxs = listCommittedTxs();
         boost::optional<BlockHash> viceBlockToVote{};
         for (const auto& viceBlock_p : sortedViceBlocks) {
-            const BlockHash viceBlock = ArithToUint256(viceBlock_p.second);
-            if (v[tip].viceBlocks.count(viceBlock) == 0) {
+            const BlockHash viceBlockId = ArithToUint256(viceBlock_p.second);
+            if (v[tip].viceBlocks.count(viceBlockId) == 0) {
                 continue; // TODO request vice-block if missed
             }
 
-            if (world.validateBlock(v[tip].viceBlocks[viceBlock], committedTxs, true)) {
-                viceBlockToVote = {viceBlock};
+            const CBlock& viceBlock = v[tip].viceBlocks[viceBlockId];
+            if (viceBlock.nRoundNumber == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
+                viceBlockToVote = {viceBlockId};
                 break;
             }
         }
@@ -278,6 +270,34 @@ CDposVoter::Output CDposVoter::doRoundVoting()
                   wasVotedByMe_round(nRound),
                   hasAnyUnfinishedTxs(nRound));
     }
+    return out;
+}
+
+CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId)
+{
+    Output out{};
+    const Round nCurrentRound = getCurrentRound();
+    auto stats = calcRoundVotingStats(nCurrentRound);
+
+    if (stats.pro[viceBlockId] >= minQuorum) {
+        const auto& viceBlock = v[tip].viceBlocks[viceBlockId];
+        if (viceBlock.nRoundNumber != nCurrentRound) {
+            return out;
+        }
+        if (!world.validateBlock(viceBlock, listCommittedTxs(), true)) {
+            return out;
+        }
+
+        LogPrintf("%s: Submit block ... \n", __func__);
+        CBlockToSubmit blockToSubmit;
+        blockToSubmit.block = viceBlock;
+        const auto& approvedBy_m = v[tip].roundVotes[nCurrentRound];
+        // Retrieve all keys
+        boost::copy(approvedBy_m | boost::adaptors::map_keys, std::back_inserter(blockToSubmit.vApprovedBy));
+
+        out.blockToSubmit = {blockToSubmit};
+    }
+
     return out;
 }
 
@@ -506,7 +526,8 @@ bool CDposVoter::atLeastOneViceBlockIsValid(Round nRound) const
     const auto committedTxs = listCommittedTxs();
 
     for (const auto& viceBlock_p : v[tip].viceBlocks) {
-        if (world.validateBlock(viceBlock_p.second, committedTxs, true)) {
+        const CBlock& viceBlock = viceBlock_p.second;
+        if (viceBlock.nRoundNumber == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
             return true;
         }
     }
