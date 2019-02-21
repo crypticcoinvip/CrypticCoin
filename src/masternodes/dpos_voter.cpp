@@ -70,7 +70,8 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
         return misbehavingErr("vice-block validation failed");
     }
 
-    if (viceBlock.hashPrevBlock != tip) {
+    if (viceBlock.hashPrevBlock != tip && !world.allowArchiving(viceBlock.hashPrevBlock)) {
+        LogPrintf("%s: Ignoring too old vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
 
@@ -116,6 +117,11 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
 
 CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
 {
+    if (vote.tip != tip && !world.allowArchiving(vote.tip)) {
+        LogPrintf("%s: Ignoring too old transaction vote from block %s \n", __func__, vote.tip.GetHex());
+        return {};
+    }
+
     LogPrintf("%s: Received transaction vote for %s, from %s \n",
               __func__,
               vote.choice.subject.GetHex(),
@@ -141,13 +147,18 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
         return {};
     }
 
-    // TODO request tx if missed
+    // TODO request tx if missed OR vote PASS on this tx
 
     return doRoundVoting();
 }
 
 CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
 {
+    if (vote.tip != tip && !world.allowArchiving(vote.tip)) {
+        LogPrintf("%s: Ignoring too old round vote from block %s \n", __func__, vote.tip.GetHex());
+        return {};
+    }
+
     LogPrintf("%s: Received round vote for %s, from %s \n",
               __func__,
               vote.choice.subject.GetHex(),

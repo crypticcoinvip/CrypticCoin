@@ -17,6 +17,9 @@ TEST(dPoS, NoTransactionsMeansEmptyBlock)
     callbacks.validateBlock = [&](const CBlock& b, const std::map<TxIdSorted, CTransaction>& txs, bool checkTxs) {
         return true;
     };
+    callbacks.allowArchiving = [&](BlockHash votingId) {
+        return true;
+    };
 
     std::array<dpos::CDposVoter, 32> voters;
     for (uint64_t i = 0; i < 32; i++) {

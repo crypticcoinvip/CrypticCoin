@@ -43,7 +43,8 @@ struct CRoundVotingDistribution
 /**
  * When voter finds that a vice-block is approved, it returns this object (as a part of CDposVoterOutput)
  */
-struct CBlockToSubmit {
+struct CBlockToSubmit
+{
     CBlock block;
     std::vector<CMasternode::ID> vApprovedBy;
 };
@@ -67,7 +68,10 @@ class CDposVoter
 {
 public:
     using ValidateTxsF = std::function<bool(const std::map<TxIdSorted, CTransaction>&)>;
+    /// block to validate, dPoS committed txs list, check dPoS txs
     using ValidateBlockF = std::function<bool(const CBlock&, const std::map<TxIdSorted, CTransaction>&, bool)>;
+    /// @return true if saving inventories from this block is allowed
+    using AllowArchivingF = std::function<bool(BlockHash)>;
     using Output = CDposVoterOutput;
 
     /**
@@ -88,6 +92,7 @@ public:
     {
         ValidateTxsF validateTxs;
         ValidateBlockF validateBlock;
+        AllowArchivingF allowArchiving;
     };
 
     mutable std::map<BlockHash, VotingState> v;
