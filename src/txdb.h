@@ -105,8 +105,8 @@ public:
     void EraseOperatorUndo(uint256 const & txid, CDBBatch & batch);
 
     bool ReadTeam(int blockHeight, CTeam & team);
-    void WriteTeam(int blockHeight, CTeam const & team);
-    void EraseTeam(int blockHeight);
+    bool WriteTeam(int blockHeight, CTeam const & team);
+    bool EraseTeam(int blockHeight);
 
     bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode);
     bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote);

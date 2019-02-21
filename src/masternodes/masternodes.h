@@ -29,6 +29,9 @@ static const int MAX_DISMISS_VOTES_PER_MN = 20;
 
 static const int DPOS_TEAM_SIZE = 3;
 
+// signed int, cause CAmount is signed too (to avoid problems when casting from CAmount in rpc)
+static const int32_t MN_BASERATIO = 1000;
+
 static const std::vector<unsigned char> MnTxMarker = {'M', 'n', 'T', 'x'};  // 4d6e5478
 
 enum class MasternodesTxType : unsigned char
@@ -47,6 +50,9 @@ enum class MasternodesTxType : unsigned char
 int GetMnActivationDelay();
 CAmount GetMnCollateralAmount();
 CAmount GetMnAnnouncementFee();
+int32_t GetDposBlockSubsidyRatio();
+
+class CMutableTransaction;
 
 class CMasternode
 {
@@ -64,8 +70,8 @@ public:
     //! Operator reward metadata section
     //! Operator reward address. Optional
     CScript operatorRewardAddress;
-    //! Amount of reward, transferred to <Operator reward address>, instead of <Owner reward address>. Optional
-    CAmount operatorRewardRatio;
+    //! Ratio of reward amount (counted as 1/MN_BASERATIO), transferred to <Operator reward address>, instead of <Owner reward address>. Optional
+    int32_t operatorRewardRatio;
 
     //! Announcement block height
     uint32_t height;
@@ -213,7 +219,7 @@ public:
     {
         CKeyID operatorAuthAddress;
         CScript operatorRewardAddress;
-        CAmount operatorRewardRatio;
+        int32_t operatorRewardRatio;
 
         // for DB serialization
         ADD_SERIALIZE_METHODS;
@@ -304,7 +310,10 @@ public:
     bool OnUndo(uint256 const & txid);
 
     CTeam CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height);
-    bool ReadDposTeam(int height, CTeam & team) const;
+    CTeam ReadDposTeam(int height) const;
+
+    //! Calculate rewards to masternodes' team to include it into coinbase
+    std::vector<CTxOut> CalcDposTeamReward(CAmount & totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const;
 
     uint32_t GetMinDismissingQuorum();
 

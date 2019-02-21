@@ -4,6 +4,7 @@
 
 #include "../rpc/server.h"
 
+#include "../consensus/upgrades.h"
 #include "../init.h"
 #include "../key_io.h"
 #include "../main.h"
@@ -31,6 +32,14 @@ extern bool DecodeHexTx(CTransaction & tx, std::string const & strHexTx); // in 
 extern std::string EncodeHexTx(CTransaction const & tx);
 
 extern void ScriptPubKeyToJSON(CScript const & scriptPubKey, UniValue & out, bool fIncludeHex); // in rawtransaction.cpp
+
+void EnsureSaplingUpgrade()
+{
+    if (!NetworkUpgradeActive(chainActive.Height() + 1, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Sapling upgrade was not activated!");
+    }
+}
 
 UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = CKeyID())
 {
@@ -224,6 +233,7 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
 //            + HelpExampleCli("createraw_mn_announce", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\" \"{\\\"address\\\":0.01}\"")
 //            + HelpExampleRpc("createraw_mn_announce", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\", \"{\\\"address\\\":0.01}\"")
         );
+    EnsureSaplingUpgrade();
 
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
@@ -250,7 +260,7 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     std::string const ownerRewardAddress =        metaObj["ownerRewardAddress"].getValStr();
 
     std::string const operatorRewardAddress =     metaObj["operatorRewardAddress"].getValStr();
-    CAmount     const operatorRewardRatio =       metaObj["operatorRewardRatio"].isNull() ? 0 : AmountFromValue(metaObj["operatorRewardRatio"]);
+    int32_t     const operatorRewardRatio =       metaObj["operatorRewardRatio"].isNull() ? 0 : AmountFromValue(metaObj["operatorRewardRatio"]) * MN_BASERATIO / COIN;
     std::string       collateralAddress =         metaObj["collateralAddress"].getValStr();
 
 
@@ -314,7 +324,7 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardAddress does not refer to a P2PKH or P2SH address");
     }
     // Optional
-    if (operatorRewardRatio < 0 || operatorRewardRatio > COIN) // COIN == 100% == 1
+    if (operatorRewardRatio < 0 || operatorRewardRatio > MN_BASERATIO)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardRatio should be >= 0 and <= 1");
     }
@@ -350,6 +360,7 @@ UniValue createraw_mn_activate(UniValue const & params, bool fHelp)
     if (fHelp || params.size() != 1)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
 
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
@@ -413,6 +424,7 @@ UniValue createraw_mn_dismissvote(UniValue const & params, bool fHelp)
     if (fHelp || params.size() != 2)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
 
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
@@ -496,6 +508,7 @@ UniValue createraw_mn_dismissvoterecall(UniValue const & params, bool fHelp)
     if (fHelp || params.size() != 2)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
 
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
@@ -563,6 +576,7 @@ UniValue createraw_mn_finalizedismissvoting(UniValue const & params, bool fHelp)
     if (fHelp || params.size() == 0)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
 
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
@@ -629,6 +643,7 @@ UniValue createraw_set_operator_reward(UniValue const & params, bool fHelp)
     if (fHelp || params.size() == 0)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
 
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
@@ -651,7 +666,7 @@ UniValue createraw_set_operator_reward(UniValue const & params, bool fHelp)
 
     std::string const operatorAuthAddressBase58 = metaObj["operatorAuthAddress"].getValStr();
     std::string const operatorRewardAddress =     metaObj["operatorRewardAddress"].getValStr();
-    CAmount     const operatorRewardRatio =       metaObj["operatorRewardRatio"].isNull() ? 0 : AmountFromValue(metaObj["operatorRewardRatio"]);
+    int32_t     const operatorRewardRatio =       metaObj["operatorRewardRatio"].isNull() ? 0 : AmountFromValue(metaObj["operatorRewardRatio"]) * MN_BASERATIO / COIN;
 
     auto ids = pmasternodesview->AmIOwner();
     if (!ids)
@@ -682,7 +697,7 @@ UniValue createraw_set_operator_reward(UniValue const & params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardAddress does not refer to a P2PKH or P2SH address");
     }
     // Optional
-    if (operatorRewardRatio < 0 || operatorRewardRatio > COIN) // COIN == 100% == 1
+    if (operatorRewardRatio < 0 || operatorRewardRatio > MN_BASERATIO)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardRatio should be >= 0 and <= 1");
     }
@@ -714,6 +729,7 @@ UniValue resign_mn(UniValue const & params, bool fHelp)
     if (fHelp || params.size() != 2)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
 
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
@@ -790,6 +806,7 @@ UniValue listmns(UniValue const & params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
 
     UniValue ret(UniValue(UniValue::VARR));
 
@@ -806,6 +823,7 @@ UniValue listactivemns(UniValue const & params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
 
     UniValue ret(UniValue(UniValue::VARR));
 
@@ -858,6 +876,8 @@ UniValue dumpmns(UniValue const & params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
+
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
 
     UniValue inputs(UniValue(UniValue::VARR));
@@ -938,6 +958,8 @@ UniValue getdismissvotes(UniValue const & params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw std::runtime_error("@todo: Help"
     );
+    EnsureSaplingUpgrade();
+
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
 
     UniValue inputs(UniValue(UniValue::VARR));

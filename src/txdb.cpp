@@ -448,25 +448,25 @@ bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team)
     return true;
 }
 
-void CMasternodesDB::WriteTeam(int blockHeight, CTeam const & team)
+bool CMasternodesDB::WriteTeam(int blockHeight, CTeam const & team)
 {
     // To enshure that we have no any mismatches in particular records
     /// @attention EraseTeam() and WriteTeam() uses their own batches
-    /// cause i'm not sure that 'erasing' and then 'writing' will lead to the expected result
-    EraseTeam(blockHeight);
+    /// cause i'm not sure that 'erasing' and then 'writing' in one batch will lead to the expected result
+    bool erased = EraseTeam(blockHeight);
 
     CDBBatch batch(*this);
     for (CTeam::const_iterator it = team.begin(); it != team.end(); ++it)
     {
         batch.Write(make_pair(make_pair(DB_TEAM, blockHeight), it->first), it->second);
     }
-    WriteBatch(batch);
+    return erased && WriteBatch(batch);
 }
 
-void CMasternodesDB::EraseTeam(int blockHeight)
+bool CMasternodesDB::EraseTeam(int blockHeight)
 {
     /// @attention EraseTeam() and WriteTeam() uses their own batches
-    /// cause i'm not sure that 'erasing' and then 'writing' will lead to the expected result
+    /// cause i'm not sure that 'erasing' and then 'writing' in one batch will lead to the expected result
     CDBBatch batch(*this);
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
     pcursor->Seek(make_pair(DB_TEAM, blockHeight));
@@ -477,7 +477,6 @@ void CMasternodesDB::EraseTeam(int blockHeight)
         std::pair<std::pair<char, int>, uint256> key;
         if (pcursor->GetKey(key) && key.first.first == DB_TEAM && key.first.second == blockHeight)
         {
-            /// @todo @mn Is it VALID to erase using iterator?
             batch.Erase(make_pair(make_pair(DB_TEAM, blockHeight), key.second));
         }
         else
@@ -486,7 +485,7 @@ void CMasternodesDB::EraseTeam(int blockHeight)
         }
         pcursor->Next();
     }
-    WriteBatch(batch);
+    return WriteBatch(batch);
 }
 
 

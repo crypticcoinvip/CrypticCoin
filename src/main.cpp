@@ -2629,6 +2629,21 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
     LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
 
+    // Checks dPos rewards
+    if (NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING))
+    {
+        /// @todo @mn replace dPosTransactionsFee with actual value
+        CAmount dPosTransactionsFee = 0;
+        CAmount ignoreReturnValue = GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
+        std::vector<CTxOut> rewards = pmasternodesview->CalcDposTeamReward(ignoreReturnValue, dPosTransactionsFee, pindex->nHeight);
+        if (!std::equal(rewards.rbegin(), rewards.rend(), block.vtx[0].vout.rbegin()))
+        {
+            return state.DoS(100,
+                             error("ConnectBlock(): coinbase pays incorrect dPos reward"),
+                                   REJECT_INVALID, "bad-cb-amount");
+        }
+    }
+
     CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
     if (block.vtx[0].GetValueOut() > blockReward)
         return state.DoS(100,
@@ -6426,6 +6441,11 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
 
 void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
 {
+    if (!NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
+    {
+        return;
+    }
+
     for (unsigned int i = 0; i < block.vtx.size(); ++i)
     {
         CTransaction const & tx = block.vtx[i];
@@ -6470,14 +6490,16 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
         }
 
     }
-    pmasternodesview->CalcNextDposTeam(pmasternodesview->GetActiveMasternodes(), block.GetHash(), height); /// @todo @mn 'height' or 'height-1' ???
+    pmasternodesview->CalcNextDposTeam(pmasternodesview->GetActiveMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
     pmasternodesview->WriteBatch();
 }
 
 void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height)
 {
-    // We don't need to revert team cause it always gets by request in place
-//    pmasternodesview->ReadDposTeam(height - 1);
+    if (!NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
+    {
+        return;
+    }
 
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; --i)
@@ -6543,7 +6565,7 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
     }
     CMasternode node(tx, height, metadata);
     if (node.ownerRewardAddress.empty() || node.ownerRewardAddress.size() > 127 ||
-        node.operatorRewardAddress.size() > 127 || node.operatorRewardRatio < 0 || node.operatorRewardRatio > COIN ||
+        node.operatorRewardAddress.size() > 127 || node.operatorRewardRatio < 0 || node.operatorRewardRatio > MN_BASERATIO ||
         node.ownerAuthAddress.IsNull() || node.operatorAuthAddress.IsNull() || node.ownerAuthAddress == node.operatorAuthAddress ||
         !(node.name.size() >= 3 && node.name.size() <= 255))
     {
@@ -6577,13 +6599,13 @@ bool CheckSetOperatorRewardTx(CTransaction const & tx, int height, std::vector<u
 
     CKeyID newOperatorAuthAddress;
     CScript newOperatorRewardAddress;
-    CAmount newOperatorRewardRatio;
+    int32_t newOperatorRewardRatio;
     CDataStream ss(metadata, SER_NETWORK, PROTOCOL_VERSION);
     ss >> newOperatorAuthAddress;
     ss >> *(CScriptBase*)(&newOperatorRewardAddress);
     ss >> newOperatorRewardRatio;
 
-    if (newOperatorAuthAddress.IsNull() || newOperatorRewardAddress.size() > 127 || newOperatorRewardRatio < 0 || newOperatorRewardRatio > COIN)
+    if (newOperatorAuthAddress.IsNull() || newOperatorRewardAddress.size() > 127 || newOperatorRewardRatio < 0 || newOperatorRewardRatio > MN_BASERATIO)
     {
         return false;
     }

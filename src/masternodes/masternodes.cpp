@@ -58,6 +58,10 @@ CAmount GetMnAnnouncementFee()
     return MN_ANNOUNCEMENT_FEE;
 }
 
+int32_t GetDposBlockSubsidyRatio()
+{
+    return MN_BASERATIO / 2;
+}
 
 void CMasternode::FromTx(CTransaction const & tx, int heightIn, std::vector<unsigned char> const & metadata)
 {
@@ -739,8 +743,7 @@ struct KeyLess
 
 CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height)
 {
-    CTeam team;
-    assert(ReadDposTeam(height, team));
+    CTeam team = ReadDposTeam(height);
 
     assert(team.size() <= DPOS_TEAM_SIZE);
     // erase oldest member
@@ -796,15 +799,81 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
         team.insert(std::make_pair(mayJoin[i], height));
     }
 
-    db.WriteTeam(height+1, team);
+    if (!db.WriteTeam(height+1, team))
+    {
+        throw std::runtime_error("Masternodes database is corrupted! Please restart with -reindex to recover.");
+    }
     return team;
 }
 
-bool CMasternodesView::ReadDposTeam(int height, CTeam & team) const
+CTeam CMasternodesView::ReadDposTeam(int height) const
 {
-    return db.ReadTeam(height, team);
+    CTeam team;
+    if (!db.ReadTeam(height, team))
+    {
+        throw std::runtime_error("Masternodes database is corrupted! Please restart with -reindex to recover.");
+    }
+    return team;
 }
 
+/*
+ *
+*/
+extern CFeeRate minRelayTxFee;
+std::vector<CTxOut> CMasternodesView::CalcDposTeamReward(CAmount & totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const
+{
+    std::vector<CTxOut> result;
+    CTeam team = ReadDposTeam(height-1);
+    if (team.size() < DPOS_TEAM_SIZE)
+    {
+        return result;
+    }
+
+    CAmount totalDposReward = totalBlockSubsidy * GetDposBlockSubsidyRatio() / MN_BASERATIO;
+    totalBlockSubsidy -= totalDposReward;
+
+    for (auto it = team.begin(); it != team.end(); ++it)
+    {
+        // it->first == nodeId, it->second == joinHeight
+        uint256 const & nodeId = it->first;
+        CMasternode const & node = allNodes.at(nodeId);
+
+        CAmount ownerReward = totalDposReward / team.size();
+        CAmount operatorReward = ownerReward * node.operatorRewardRatio / MN_BASERATIO;
+        ownerReward -= operatorReward;
+        operatorReward += dPosTransactionsFee / team.size();
+
+        // Merge outputs this way. Checking equality of scriptPubKeys BEFORE creating couts to avoid situation
+        // when scripts are equal but particular amounts are dust!
+        if (node.ownerRewardAddress == node.operatorRewardAddress)
+        {
+            CTxOut out(ownerReward+operatorReward, node.ownerRewardAddress);
+            if (!out.IsDust(::minRelayTxFee))
+            {
+                result.push_back(out);
+            }
+        }
+        else
+        {
+            CTxOut outOwner(ownerReward, node.ownerRewardAddress);
+            if (!outOwner.IsDust(::minRelayTxFee))
+            {
+                result.push_back(outOwner);
+            }
+            CTxOut outOperator(operatorReward, node.operatorRewardAddress);
+            if (!outOperator.IsDust(::minRelayTxFee))
+            {
+                result.push_back(outOperator);
+            }
+        }
+    }
+    // sorting result by hashes
+    std::sort(result.begin(), result.end(), [&](CTxOut const & lhs, CTxOut const & rhs)
+    {
+        return lhs.GetHash() < rhs.GetHash();
+    });
+    return result;
+}
 
 uint32_t CMasternodesView::GetMinDismissingQuorum()
 {
