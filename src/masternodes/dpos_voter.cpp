@@ -243,7 +243,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
     const Round nRound = getCurrentRound();
     auto stats = calcRoundVotingStats(nRound);
 
-    if (!wasVotedByMe_round(nRound) && !hasAnyUnfinishedTxs(nRound)) {
+    if (!wasVotedByMe_round(nRound) && !haveAnyUnfinishedTxs(nRound)) {
         using BlockVotes = std::pair<size_t, arith_uint256>;
 
         std::vector<BlockVotes> sortedViceBlocks{};
@@ -297,7 +297,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         LogPrintf("%s: Can't for vote vice block %d %d \n",
                   __func__,
                   wasVotedByMe_round(nRound),
-                  hasAnyUnfinishedTxs(nRound));
+                  haveAnyUnfinishedTxs(nRound));
     }
     return out;
 }
@@ -610,9 +610,20 @@ bool CDposVoter::checkTxNotCommittable(const CTxVotingDistribution& stats) const
     return (stats.pro + notKnown) < minQuorum;
 }
 
-bool CDposVoter::hasAnyUnfinishedTxs(Round nRound) const
+bool CDposVoter::haveAnyUnfinishedTxs(Round nRound) const
 {
-    // TODO
+    for (const auto& tx_p : v[tip].txs) {
+        const auto stats = calcTxVotingStats(tx_p.first, nRound);
+
+        const bool notCommittable = checkTxNotCommittable(stats);
+        const bool notVoted = stats.totus() == 0;
+        const bool committed = stats.pro >= minQuorum;
+
+        const bool finished = notVoted || notCommittable || committed;
+        if (!finished) {
+            return true;
+        }
+    }
     return false;
 }
 

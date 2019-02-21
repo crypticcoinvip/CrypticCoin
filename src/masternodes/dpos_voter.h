@@ -165,7 +165,10 @@ private:
      */
     bool checkTxNotCommittable(const CTxVotingDistribution& stats) const;
 
-    bool hasAnyUnfinishedTxs(Round nRound) const;
+    /**
+     * @return false if all txs are either committed, not committable, or without votes
+     */
+    bool haveAnyUnfinishedTxs(Round nRound) const;
 
 private:
     CMasternode::ID me;
