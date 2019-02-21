@@ -1,8 +1,8 @@
 // Copyright (c) 2019 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-#ifndef BITCOIN_MASTERNODES_DPOS_CONTROLLER_H
-#define BITCOIN_MASTERNODES_DPOS_CONTROLLER_H
+#ifndef MASTERNODES_DPOS_CONTROLLER_H
+#define MASTERNODES_DPOS_CONTROLLER_H
 
 //#include "../uint256.h"
 //#include "../serialize.h"
@@ -191,7 +191,6 @@ class CValidationInterface;
 
 namespace dpos
 {
-
 class CDposVoter;
 
 class CDposController
@@ -245,5 +244,5 @@ static CDposController * getController()
 
 }
 
-#endif // BITCOIN_MASTERNODES_DPOS_CONTROLLER_H
+#endif // MASTERNODES_DPOS_CONTROLLER_H
 

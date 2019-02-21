@@ -161,6 +161,7 @@ BITCOIN_CORE_H = \
   main.h \
   masternodes/dpos_controller.h \
   masternodes/dpos_voter.h \
+  masternodes/dpos_types.h \
   masternodes/dpos_p2p_messages.h \
   masternodes/heartbeat.h \
   masternodes/masternodes.h \

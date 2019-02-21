@@ -1,8 +1,8 @@
 // Copyright (c) 2019 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-#ifndef DPOS_P2P_MESSAGES_H
-#define DPOS_P2P_MESSAGES_H
+#ifndef MASTERNODES_DPOS_P2P_MESSAGES_H
+#define MASTERNODES_DPOS_P2P_MESSAGES_H
 
 #include "../uint256.h"
 #include "../serialize.h"
@@ -100,4 +100,4 @@ public:
 
 }
 
-#endif //DPOS_P2P_MESSAGES_H
+#endif //MASTERNODES_DPOS_P2P_MESSAGES_H
