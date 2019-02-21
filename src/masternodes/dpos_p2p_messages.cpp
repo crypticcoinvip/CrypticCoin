@@ -53,32 +53,32 @@ bool CTxVote_p2p::containsTx(const CTransaction& transaction) const
 {
     return std::find_if(choices.begin(), choices.end(), [&](const CVoteChoice& vote)
     {
-        return vote.hash == transaction.GetHash();
+        return vote.subject == transaction.GetHash();
     }) != choices.end();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// \brief CRoundVote::CRoundVote
+/// \brief CRoundVote_p2p::CRoundVote_p2p
 
-bool CRoundVote::IsNull() const
+bool CRoundVote_p2p::IsNull() const
 {
     return round == 0;
 }
 
-void CRoundVote::SetNull()
+void CRoundVote_p2p::SetNull()
 {
     tip.SetNull();
     round = 0;
-    choice.hash.SetNull();
+    choice.subject.SetNull();
     signature.clear();
 }
 
-uint256 CRoundVote::GetHash() const
+uint256 CRoundVote_p2p::GetHash() const
 {
     return SerializeHash(*this);
 }
 
-uint256 CRoundVote::GetSignatureHash() const
+uint256 CRoundVote_p2p::GetSignatureHash() const
 {
     CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
     ss << tip

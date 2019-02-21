@@ -160,6 +160,8 @@ BITCOIN_CORE_H = \
   limitedmap.h \
   main.h \
   masternodes/dpos.h \
+  masternodes/dpos_voter.h \
+  masternodes/dpos_p2p_messages.h \
   masternodes/heartbeat.h \
   masternodes/masternodes.h \
   memusage.h \
@@ -381,6 +383,9 @@ libbitcoin_common_a_SOURCES = \
   key_io.cpp \
   keystore.cpp \
   masternodes/dpos.cpp \
+  masternodes/dpos.cpp \
+  masternodes/dpos_voter.cpp \
+  masternodes/dpos_p2p_messages.cpp \
   masternodes/heartbeat.cpp \
   masternodes/masternodes.cpp \
   netbase.cpp \
