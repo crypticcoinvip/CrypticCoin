@@ -91,7 +91,7 @@ class dPoS_BaseTest(BitcoinTestFramework):
 
         predpos_hashes = self.mine_blocks(True, self.predpos_block_count)
         for node in self.nodes:
-            assert_equal(len(node.listprogenitorblocks()), 0)
+            assert_equal(len(node.listdposviceblocks()), 0)
         assert_equal(len(predpos_hashes), self.predpos_block_count)
         assert_equal(len(self.nodes), self.num_nodes)
         assert_greater_than(self.num_nodes, 0)

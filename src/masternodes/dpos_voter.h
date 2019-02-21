@@ -129,6 +129,8 @@ public:
     Output applyTxVote(const CTxVote& vote);
     Output applyRoundVote(const CRoundVote& vote);
 
+    void pruneTxVote(const CTxVote& vote);
+
     /**
      * Force to vote PASS during this round, if round wasn't voted before.
      * Called when round didnt come to a consensus/stalemate for a long time.

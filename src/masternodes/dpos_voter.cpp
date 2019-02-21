@@ -232,6 +232,16 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
     return out;
 }
 
+void CDposVoter::pruneTxVote(const CTxVote& vote)
+{
+    for (auto&& pair : v[vote.tip].txVotes[vote.nRound]) {
+        const auto vote_it = pair.second.find(vote.voter);
+        if (vote_it != pair.second.end() && vote_it->second == vote) {
+            pair.second.erase(vote_it);
+        }
+    }
+}
+
 CDposVoter::Output CDposVoter::doRoundVoting()
 {
     if (!amIvoter) {

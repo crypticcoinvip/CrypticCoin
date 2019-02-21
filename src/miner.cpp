@@ -497,7 +497,7 @@ static bool ProcessBlockFound(CBlock* pblock)
 //    }
 #endif
     if (dpos::getController()->isEnabled()) {
-        dpos::getController()->postViceBlock(*pblock);
+        dpos::getController()->proceedViceBlock(*pblock);
     } else {
         // Process this block the same as if we had received it from another node
         CValidationState state;

@@ -6077,19 +6077,19 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         dpos::CRoundVote_p2p vote{};
         vRecv >> vote;
         ProcessInventoryCommand<dpos::CRoundVote_p2p>(vote, pfrom, MSG_ROUND_VOTE, [](const dpos::CRoundVote_p2p& vote) {
-            dpos::getController()->relayRoundVote(vote);
+            dpos::getController()->proceedRoundVote(vote);
         });
     } else if (strCommand == CInv{MSG_TX_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         dpos::CTxVote_p2p vote{};
         vRecv >> vote;
         ProcessInventoryCommand<dpos::CTxVote_p2p>(vote, pfrom, MSG_TX_VOTE, [](const dpos::CTxVote_p2p& vote) {
-            dpos::getController()->relayTxVote(vote);
+            dpos::getController()->proceedTxVote(vote);
         });
     } else if (strCommand == CInv{MSG_VICE_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         CBlock block{};
         vRecv >> block;
         ProcessInventoryCommand<CBlock>(block, pfrom, MSG_VICE_BLOCK, [](const CBlock& block) {
-            dpos::getController()->relayViceBlock(block);
+            dpos::getController()->proceedViceBlock(block);
         }, [](const CBlock& block, CValidationState& state) {
             bool mutated{};
             if (block.hashMerkleRoot != block.BuildMerkleTree(&mutated)) {

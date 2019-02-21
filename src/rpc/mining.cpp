@@ -276,7 +276,7 @@ UniValue generate(const UniValue& params, bool fHelp)
         }
 endloop:
         if (dpos::getController()->isEnabled()) {
-            dpos::getController()->postViceBlock(*pblock);
+            dpos::getController()->proceedViceBlock(*pblock);
         } else {
             CValidationState state;
             if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
