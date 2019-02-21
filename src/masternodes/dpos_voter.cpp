@@ -34,8 +34,9 @@ CDposVoterOutput& CDposVoterOutput::operator+=(const CDposVoterOutput& r)
     std::copy(r.vTxVotes.begin(), r.vTxVotes.end(), std::back_inserter(this->vTxVotes));
     std::copy(r.vRoundVotes.begin(), r.vRoundVotes.end(), std::back_inserter(this->vRoundVotes));
     std::copy(r.vErrors.begin(), r.vErrors.end(), std::back_inserter(this->vErrors));
-    if (r.blockToSubmit)
+    if (r.blockToSubmit) {
         this->blockToSubmit = r.blockToSubmit;
+    }
     return *this;
 }
 
@@ -44,6 +45,19 @@ CDposVoterOutput CDposVoterOutput::operator+(const CDposVoterOutput& r)
     CDposVoterOutput res = *this;
     res += r;
     return res;
+}
+
+bool CDposVoterOutput::empty() const
+{
+    if (!vTxVotes.empty())
+        return false;
+    if (!vRoundVotes.empty())
+        return false;
+    if (!vErrors.empty())
+        return false;
+    if (blockToSubmit)
+        return false;
+    return true;
 }
 
 size_t CRoundVotingDistribution::totus() const
@@ -62,6 +76,10 @@ void CDposVoter::setVoting(BlockHash tip, Callbacks world, bool amIvoter, CMaste
     this->world = std::move(world);
     this->amIvoter = amIvoter;
     this->me = me;
+}
+
+void CDposVoter::updateTip(BlockHash tip) {
+    this->tip = tip;
 }
 
 CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
@@ -262,7 +280,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         if (viceBlockToVote) {
             LogPrintf("%s: Vote for vice block %s at round %d \n", __func__, viceBlockToVote->GetHex(), nRound);
 
-            CDposVote newVote{};
+            CRoundVote newVote{};
             newVote.voter = me;
             newVote.choice = {*viceBlockToVote, CVoteChoice::Decision::YES};
             newVote.nRound = nRound;
@@ -334,7 +352,7 @@ CDposVoter::Output CDposVoter::onRoundTooLong()
     Output out{};
     LogPrintf("%s \n", __func__);
     if (!wasVotedByMe_round(nRound)) {
-        CDposVote newVote{};
+        CRoundVote newVote{};
         newVote.voter = me;
         newVote.choice = {uint256{}, CVoteChoice::Decision::PASS};
         newVote.nRound = nRound;
@@ -410,7 +428,7 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
             decision = CVoteChoice::Decision::PASS;
         }
 
-        CDposVote newVote{};
+        CTxVote newVote{};
         newVote.voter = me;
         newVote.nRound = nRound;
         newVote.tip = tip;
@@ -481,6 +499,8 @@ std::map<TxIdSorted, CTransaction> CDposVoter::listApprovedByMe_txs() const
             }
         }
     }
+
+    return res;
 }
 
 CTxVotingDistribution CDposVoter::calcTxVotingStats(TxId txid, Round nRound) const

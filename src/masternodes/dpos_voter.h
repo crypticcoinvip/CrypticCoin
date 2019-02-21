@@ -55,14 +55,18 @@ struct CBlockToSubmit
  */
 struct CDposVoterOutput
 {
-    std::vector<CDposVote> vTxVotes;
-    std::vector<CDposVote> vRoundVotes;
+    std::vector<CTxVote> vTxVotes;
+    std::vector<CRoundVote> vRoundVotes;
     boost::optional<CBlockToSubmit> blockToSubmit;
     std::vector<std::string> vErrors;
+
+    bool empty() const;
 
     CDposVoterOutput& operator+=(const CDposVoterOutput& r);
     CDposVoterOutput operator+(const CDposVoterOutput& r);
 };
+bool operator==(const CDposVoterOutput& l, const CDposVoterOutput& r);
+bool operator!=(const CDposVoterOutput& l, const CDposVoterOutput& r);
 
 class CDposVoter
 {
@@ -112,6 +116,8 @@ public:
                    Callbacks world,
                    bool amIvoter,
                    CMasternode::ID me);
+
+    void updateTip(BlockHash tip);
 
     Output applyViceBlock(const CBlock& viceBlock);
     Output applyTx(const CTransaction& tx);
