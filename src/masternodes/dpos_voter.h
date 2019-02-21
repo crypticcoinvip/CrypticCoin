@@ -68,6 +68,11 @@ struct CDposVoterOutput
 bool operator==(const CDposVoterOutput& l, const CDposVoterOutput& r);
 bool operator!=(const CDposVoterOutput& l, const CDposVoterOutput& r);
 
+/**
+ * @brief implements dPoS voting mechanism as a black box
+ * NOT THREAD-SAVE! External sync is expected.
+ * It's essential that this component has minimal dependencies on other systems, like blockchain or p2p messaging. It's needed to implement an efficient unit testing.
+ */
 class CDposVoter
 {
 public:
