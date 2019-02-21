@@ -65,6 +65,7 @@ TEST(dPoS, DummyEmptyBlock)
 
         res += voters[i].applyViceBlock(viceBlock);
 
+        ASSERT_EQ(voters[i].v.size(), 1);
         ASSERT_TRUE(res.vTxVotes.empty());
         ASSERT_TRUE(!res.blockToSubmit);
         ASSERT_TRUE(res.vErrors.empty());
@@ -135,6 +136,7 @@ TEST(dPoS, DummyCommitTx)
     for (uint64_t i = 0; i < 23; i++) {
         res += voters[i].applyTx(tx);
 
+        ASSERT_EQ(voters[i].v.size(), 1);
         ASSERT_TRUE(res.vRoundVotes.empty());
         ASSERT_TRUE(!res.blockToSubmit);
         ASSERT_TRUE(res.vErrors.empty());
@@ -166,5 +168,47 @@ TEST(dPoS, DummyCommitTx)
             const auto empty = voters[i].doTxsVoting();
             ASSERT_TRUE(empty.empty());
         }
+    }
+}
+
+TEST(dPoS, DummyRejectTx)
+{
+    // Init voters
+    std::array<CMasternode::ID, 32> masternodeIds;
+    std::array<dpos::CDposVoter, 32> voters;
+    BlockHash tip;
+    initVoters_dummy(masternodeIds, voters, tip);
+
+    dpos::CDposVoter::Callbacks callbacks{};
+    callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
+    {
+        return false;
+    };
+    callbacks.validateBlock = [](const CBlock& b, const std::map<TxIdSorted, CTransaction>& txs, bool checkTxs)
+    {
+        return true;
+    };
+    callbacks.allowArchiving = [](BlockHash votingId)
+    {
+        return true;
+    };
+    voters[0].setVoting(tip, callbacks, true, masternodeIds[0]);
+
+    // create dummy tx
+    CMutableTransaction mtx;
+    mtx.fInstant = true;
+    mtx.fOverwintered = true;
+    mtx.nVersion = 4;
+    mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
+    mtx.nExpiryHeight = 0;
+    CTransaction tx{mtx};
+
+    dpos::CDposVoter::Output res;
+    for (uint64_t i = 0; i < 1; i++) {
+        res += voters[i].applyTx(tx);
+
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.empty());
+        ASSERT_TRUE(voters[i].v[tip].txs.empty());
     }
 }
