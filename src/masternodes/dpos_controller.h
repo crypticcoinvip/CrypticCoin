@@ -19,14 +19,15 @@ struct CDposVoterOutput;
 
 class CDposController
 {
-    class ChainListener;
+    class Validator;
 
 public:
     static CDposController& getInstance();
 
     bool isEnabled() const;
-    CValidationInterface* getValidationListener();
+    CValidationInterface* getValidator();
     void initFromDB();
+    void updateChainTip();
 
     void proceedViceBlock(const CBlock& viceBlock);
     void proceedTransaction(const CTransaction& tx);
@@ -54,9 +55,11 @@ private:
     bool acceptRoundVote(const CRoundVote_p2p& vote);
     bool acceptTxVote(const CTxVote_p2p& vote);
 
+    void runInBackground();
+
 private:
     std::shared_ptr<CDposVoter> voter;
-    std::shared_ptr<ChainListener> chainListener;
+    std::shared_ptr<Validator> validator;
     std::map<uint256, CTxVote_p2p> recievedTxVotes;
     std::map<uint256, CRoundVote_p2p> recievedRoundVotes;
 };
@@ -67,7 +70,7 @@ static CDposController * getController()
     return &CDposController::getInstance();
 }
 
-}
+} // namespace dpos
 
 #endif // MASTERNODES_DPOS_CONTROLLER_H
 

@@ -223,7 +223,7 @@ void Shutdown()
     StopNode();
     tor::StopTorControl();
     UnregisterNodeSignals(GetNodeSignals());
-    UnregisterValidationInterface(dpos::getController()->getValidationListener());
+    UnregisterValidationInterface(dpos::getController()->getValidator());
 
     if (fFeeEstimatesInitialized)
     {
@@ -1862,7 +1862,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
 #endif // ENABLE_MINING
 
-    RegisterValidationInterface(dpos::getController()->getValidationListener());
+    RegisterValidationInterface(dpos::getController()->getValidator());
 
     // ********************************************************* Step 9: data directory maintenance
 

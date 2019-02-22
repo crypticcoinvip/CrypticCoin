@@ -3,17 +3,17 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include "dpos_controller.h"
 #include "dpos_voter.h"
+#include "dpos_validator.h"
 #include "../chainparams.h"
 #include "../init.h"
 #include "../key.h"
 #include "../main.h"
 #include "../net.h"
 #include "../txdb.h"
-#include "../validationinterface.h"
-#include "../consensus/validation.h"
 #include "../wallet/wallet.h"
 #include "../snark/libsnark/common/utils.hpp"
 #include <mutex>
+#include <thread>
 
 namespace dpos
 {
@@ -90,22 +90,6 @@ void storeEntity(const T& entity, StoreMethod storeMethod)
     (pdposdb->*storeMethod)(getTipBlockHash(), entity);
 }
 
-class CDposController::ChainListener : public CValidationInterface
-{
-public:
-    std::map<BlockHash, CDposVoter::VotingState>* pv;
-
-protected:
-    void SyncTransaction(const CTransaction& tx, const CBlock* pblock) override
-    {
-        libsnark::UNUSED(pblock);
-        LOCK(cs_main);
-        if (mempool.exists(tx.GetHash()) && tx.fInstant) {
-            getController()->proceedTransaction(tx);
-        }
-    }
-};
-
 CDposController& CDposController::getInstance()
 {
     if (dposControllerInstance_ == nullptr) {
@@ -114,8 +98,7 @@ CDposController& CDposController::getInstance()
         if (dposControllerInstance_ == nullptr) {
             dposControllerInstance_ = new CDposController{};
             std::make_shared<CDposVoter>().swap(dposControllerInstance_->voter);
-            std::make_shared<ChainListener>().swap(dposControllerInstance_->chainListener);
-            dposControllerInstance_->chainListener->pv = &dposControllerInstance_->voter->v;
+            std::make_shared<Validator>().swap(dposControllerInstance_->validator);
         }
     }
     assert(dposControllerInstance_ != nullptr);
@@ -130,9 +113,9 @@ bool CDposController::isEnabled() const
             getActiveMasternodeCount() >= params.GetMinimalMasternodeCount();
 }
 
-CValidationInterface* CDposController::getValidationListener()
+CValidationInterface* CDposController::getValidator()
 {
-    return this->chainListener.get();
+    return this->validator.get();
 }
 
 void CDposController::initFromDB()
@@ -178,6 +161,13 @@ void CDposController::initFromDB()
             }
         }
     });
+
+    std::thread(std::bind(&CDposController::runInBackground, this));
+}
+
+void CDposController::updateChainTip()
+{
+    this->voter->updateTip(getTipBlockHash());
 }
 
 void CDposController::proceedViceBlock(const CBlock& viceBlock)
@@ -425,6 +415,31 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
         }
     }
     return rv;
+}
+
+void CDposController::runInBackground()
+{
+    using std::placeholders::_1;
+    using std::placeholders::_2;
+    using std::placeholders::_3;
+
+    while (!IsInitialBlockDownload()) {
+        boost::this_thread::interruption_point();
+        MilliSleep(500);
+    }
+
+    while (true) {
+        const auto mnId{findMasternodeId(getMasternodeKey().GetPubKey().GetID())};
+        boost::this_thread::interruption_point();
+
+        if (!this->voter->checkAmIVoter() && IsInitialBlockDownload() && mnId != boost::none) {
+            CDposVoter::Callbacks callbacks{};
+            callbacks.validateTxs = std::bind(&Validator::validateTx, this->validator.get(), _1);
+            callbacks.validateBlock = std::bind(&Validator::validateBlock, this->validator.get(), _1, _2, _3);
+            callbacks.allowArchiving = std::bind(&Validator::allowArchiving, this->validator.get(), _1);
+            this->voter->setVoting(getTipBlockHash(), callbacks, true, mnId.get());
+        }
+    }
 }
 
 } //namespace dpos

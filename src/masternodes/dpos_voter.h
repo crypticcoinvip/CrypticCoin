@@ -143,6 +143,7 @@ public:
     Output doTxsVoting();
     Output onRoundTooLong();
 
+    bool checkAmIVoter() const;
     Round getCurrentRound() const;
     std::map<TxIdSorted, CTransaction> listCommittedTxs() const;
 

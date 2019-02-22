@@ -374,6 +374,11 @@ CDposVoter::Output CDposVoter::onRoundTooLong()
     return out;
 }
 
+bool CDposVoter::checkAmIVoter() const
+{
+    return this->amIvoter;
+}
+
 Round CDposVoter::getCurrentRound() const
 {
     for (Round i = 1;; i++) {
