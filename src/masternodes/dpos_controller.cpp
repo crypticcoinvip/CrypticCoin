@@ -29,6 +29,13 @@ uint256 getTipBlockHash()
     return chainActive.Tip()->GetBlockHash();
 }
 
+int getTipBlockHeight()
+{
+    LOCK(cs_main);
+    assert(chainActive.Tip()->nHeight == chainActive.Height());
+    return chainActive.Height();
+}
+
 std::size_t getActiveMasternodeCount()
 {
     LOCK(cs_main);
@@ -194,9 +201,8 @@ void CDposController::runEventLoop()
 bool CDposController::isEnabled() const
 {
     const CChainParams& params{Params()};
-    LOCK(cs_main);
-    return NetworkUpgradeActive(chainActive.Height(), params.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
-            getActiveMasternodeCount() >= params.GetMinimalMasternodeCount();
+    return NetworkUpgradeActive(getTipBlockHeight(), params.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
+           getActiveMasternodeCount() >= params.GetMinimalMasternodeCount();
 }
 
 CValidationInterface* CDposController::getValidator()
