@@ -17,6 +17,7 @@
 #include "consensus/consensus.h"
 #include "consensus/upgrades.h"
 #include "masternodes/masternodes.h"
+#include "masternodes/dpos_types.h"
 #include "net.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
@@ -38,6 +39,7 @@
 #include <vector>
 
 #include <boost/unordered_map.hpp>
+#include <boost/optional.hpp>
 
 class CBlockIndex;
 class CBlockTreeDB;
@@ -456,8 +458,18 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex);
  *  of problems. Note that in any case, coins may be modified. */
 bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, bool* pfClean = NULL);
 
+struct DposValidationRules {
+    size_t nMaxInstsSize = MAX_INST_SECTION_SIZE;
+    size_t nMaxInstsSigops = MAX_INST_SECTION_SIGOPS;
+
+    boost::optional< std::map<TxIdSorted, CTransaction> > instantTxs;
+
+    bool fCheckDposSigs = true;
+    bool fCheckInstSection = true;
+};
+
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins */
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, bool fJustCheck = false, bool calledByVerifyDB = false);
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, bool fJustCheck = false, bool calledByVerifyDB = false, const DposValidationRules& dvr = DposValidationRules{});
 
 /** Context-independent validity checks */
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool fCheckPOW = true);
@@ -470,7 +482,7 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
 bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIndex *pindexPrev);
 
 /** Check a block is completely valid from start to finish (only works on top of our current best block, with cs_main held) */
-bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex *pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
+bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex *pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true, const DposValidationRules& dvr = DposValidationRules{});
 
 /**
  * Store block on disk.

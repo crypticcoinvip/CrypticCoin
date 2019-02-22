@@ -9,7 +9,7 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
-#include "masternodes/masternodes.h"
+#include "masternodes/masternodes.h" // TODO refactor, use forward declaration
 
 #include <map>
 #include <string>
