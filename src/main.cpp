@@ -6691,7 +6691,7 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
 {
     // Check quick conditions first
     if (tx.vout.size() < 2 ||
-        tx.vout[0].nValue != GetMnAnnouncementFee() ||
+        tx.vout[0].nValue < GetMnAnnouncementFee(GetBlockSubsidy(height, Params().GetConsensus()), height, pmasternodesview->GetActiveMasternodes().size()) ||
         tx.vout[1].nValue != GetMnCollateralAmount() ||
         tx.vout[1].scriptPubKey.size() > 127) // collateralAddress
     {

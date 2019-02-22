@@ -53,8 +53,6 @@ public:
         ZCSPENDING_KEY,
         ZCVIEWING_KEY,
 
-        MNTX_MARKER,
-
         MAX_BASE58_TYPES
     };
 
