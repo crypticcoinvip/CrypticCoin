@@ -120,6 +120,13 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000006d9629934e7");
 
+        // dPoS
+        consensus.dpos.nTeamSize = 32;
+        consensus.dpos.nMinQuorum = 23;
+        consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
+        consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
+        consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
+
         /**
          * The message start string should be awesome! Ⓒ
          */
@@ -164,8 +171,6 @@ public:
         base58Prefixes[ZCVIEWING_KEY]      = {0x0D,0x14,0x51,0x40};
         // guarantees the first 4 characters, when base58 encoded, are "CCSK"
         base58Prefixes[ZCSPENDING_KEY]     = {0x03,0xE2,0xA8,0x58};
-
-        base58Prefixes[MNTX_MARKER]        = MnTxMarker;
 
         bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "cs";
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "cviews";
@@ -236,7 +241,14 @@ public:
         consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 1000000;
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000001d0c4d9cd");
+        consensus.nMinimumChainWork = uint256S("0x00");
+
+        // dPoS
+        consensus.dpos.nTeamSize = 32;
+        consensus.dpos.nMinQuorum = 23;
+        consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
+        consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
+        consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0x1a;
@@ -279,8 +291,6 @@ public:
         base58Prefixes[ZCVIEWING_KEY]      = {0x1E,0x9A,0x10,0xC6};
         // guarantees the first 4 characters, when base58 encoded, are "TCSK"
         base58Prefixes[ZCSPENDING_KEY]     = {0x09,0x17,0x1F,0xBA};
-
-        base58Prefixes[MNTX_MARKER]        = MnTxMarker;
 
         bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "ctestsapling";
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "cviewtestsapling";
@@ -348,6 +358,13 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
+        // dPoS
+        consensus.dpos.nTeamSize = 4;
+        consensus.dpos.nMinQuorum = 3;
+        consensus.nDposMinPeriodOfIncome = (1 * 60 * 60);
+        consensus.nDposMaxPeriodOfIncome = (24 * 60 * 60);
+        consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
+
         pchMessageStart[0] = 0xaa;
         pchMessageStart[1] = 0xe8;
         pchMessageStart[2] = 0x3f;
@@ -396,7 +413,6 @@ public:
         base58Prefixes[ZCPAYMENT_ADDRRESS] = {0x16,0xB6};
         base58Prefixes[ZCVIEWING_KEY]      = {0xA8,0xAC,0x0C};
         base58Prefixes[ZCSPENDING_KEY]     = {0xAC,0x08};
-        base58Prefixes[MNTX_MARKER]        = MnTxMarker;
 
         bech32HRPs[SAPLING_PAYMENT_ADDRESS]      = "zregtestsapling";
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviewregtestsapling";

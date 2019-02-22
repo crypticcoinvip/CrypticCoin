@@ -110,6 +110,16 @@ struct Params {
     int64_t MinActualTimespan() const { return (AveragingWindowTimespan() * (100 - nPowMaxAdjustUp  )) / 100; }
     int64_t MaxActualTimespan() const { return (AveragingWindowTimespan() * (100 + nPowMaxAdjustDown)) / 100; }
     uint256 nMinimumChainWork;
+
+    struct dPoS {
+        size_t nTeamSize;
+        size_t nMinQuorum;
+    };
+    dPoS dpos;
+    /** dPOS announcement fee */
+    int nDposMinPeriodOfIncome;
+    int nDposMaxPeriodOfIncome;
+    int nDposGrowingPeriod;
 };
 } // namespace Consensus
 
