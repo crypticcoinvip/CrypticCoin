@@ -450,11 +450,16 @@ void CDposController::runInBackground()
     using std::placeholders::_1;
     using std::placeholders::_2;
     using std::placeholders::_3;
+    using std::chrono::duration_cast;
+    using std::chrono::seconds;
+    using std::chrono::steady_clock;
 
     while (!IsInitialBlockDownload()) {
         boost::this_thread::interruption_point();
         MilliSleep(500);
     }
+
+    auto lastTime{steady_clock::now()};
 
     while (true) {
         const auto mnId{findMasternodeId(getMasternodeKey().GetPubKey().GetID())};
@@ -467,6 +472,17 @@ void CDposController::runInBackground()
             callbacks.allowArchiving = std::bind(&Validator::allowArchiving, this->validator.get(), _1);
             this->voter->setVoting(getTipBlockHash(), callbacks, true, mnId.get());
         }
+
+        if (duration_cast<seconds>(steady_clock::now() - lastTime).count() > 30) {
+            lastTime = steady_clock::now();
+            LOCK(cs_vNodes);
+            for (auto&& node : vNodes) {
+                node->PushMessage("get_round_votes");
+                node->PushMessage("get_tx_votes", listTxVotes());
+            }
+        }
+
+        MilliSleep(500);
     }
 }
 
