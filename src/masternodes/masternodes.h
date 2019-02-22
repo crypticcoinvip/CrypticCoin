@@ -18,13 +18,6 @@
 
 #include <boost/scoped_ptr.hpp>
 
-static const CAmount MN_COMMON_FEE = COIN/1000; /// @todo change me
-static const CAmount MN_ACTIVATION_FEE = MN_COMMON_FEE;
-static const CAmount MN_SETOPERATOR_FEE = MN_COMMON_FEE;
-static const CAmount MN_DISMISSVOTE_FEE = MN_COMMON_FEE;
-static const CAmount MN_DISMISSVOTERECALL_FEE = MN_COMMON_FEE;
-static const CAmount MN_FINALIZEDISMISSVOTING_FEE = MN_COMMON_FEE;
-
 static const int MAX_DISMISS_VOTES_PER_MN = 20;
 
 static const int DPOS_TEAM_SIZE = 3;
@@ -49,7 +42,7 @@ enum class MasternodesTxType : unsigned char
 // Works instead of constants cause 'regtest' differs (don't want to overcharge chainparams)
 int GetMnActivationDelay();
 CAmount GetMnCollateralAmount();
-CAmount GetMnAnnouncementFee();
+CAmount GetMnAnnouncementFee(CAmount const & blockSubsidy, int height, int activeMasternodesNum);
 int32_t GetDposBlockSubsidyRatio();
 
 class CMutableTransaction;
