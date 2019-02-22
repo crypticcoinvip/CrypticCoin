@@ -13,7 +13,7 @@
 #include "../wallet/wallet.h"
 #include "../snark/libsnark/common/utils.hpp"
 #include <mutex>
-#include <thread>
+#include <future>
 
 namespace dpos
 {
@@ -163,7 +163,7 @@ void CDposController::initFromDB()
         }
     });
 
-    std::thread(std::bind(&CDposController::runInBackground, this));
+    std::async(std::launch::async, std::bind(&CDposController::runInBackground, this));
 }
 
 void CDposController::updateChainTip()
