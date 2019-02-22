@@ -845,12 +845,17 @@ UniValue mnToJSON(CMasternode const & node)
 {
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("name", node.name));
-    ret.push_back(Pair("ownerAuthAddress", node.ownerAuthAddress.GetHex()));
-    ret.push_back(Pair("operatorAuthAddress", node.operatorAuthAddress.GetHex()));
+    ret.push_back(Pair("ownerAuthAddress", EncodeDestination(node.ownerAuthAddress)));
+    ret.push_back(Pair("operatorAuthAddress", EncodeDestination(node.operatorAuthAddress)));
 
     UniValue ownerRewardAddressJSON(UniValue::VOBJ);
     ScriptPubKeyToJSON(node.ownerRewardAddress, ownerRewardAddressJSON, true);
     ret.push_back(Pair("ownerRewardAddress", ownerRewardAddressJSON));
+
+    UniValue operatorRewardAddressJSON(UniValue::VOBJ);
+    ScriptPubKeyToJSON(node.operatorRewardAddress, operatorRewardAddressJSON, true);
+    ret.push_back(Pair("operatorRewardAddress", operatorRewardAddressJSON));
+    ret.push_back(Pair("operatorRewardRatio", ValueFromAmount(node.operatorRewardRatio * COIN / MN_BASERATIO)));
 
     ret.push_back(Pair("height", static_cast<uint64_t>(node.height)));
     ret.push_back(Pair("minActivationHeight", static_cast<uint64_t>(node.minActivationHeight)));
