@@ -59,9 +59,21 @@ CKey getMasternodeKey()
 
 bool checkIsTeamMember(const BlockHash& tipHash, const CKeyID& operatorKey)
 {
+    int height{-100};
     LOCK(cs_main);
-//    return pmasternodesview->IsTeamMemebr(tipHash, operatorKey);
-    return true;
+
+    for (CBlockIndex* index{chainActive.Tip()}; index != nullptr && height < 0; index = index->pprev, height++) {
+        if (index->GetBlockHash() == tipHash) {
+            height = index->nHeight;
+            break;
+        }
+    }
+
+    if (height > 0) {
+        return pmasternodesview->IsTeamMember(height, operatorKey);
+    }
+
+    return false;
 }
 
 boost::optional<CMasternode::ID> findMasternodeId(const CKeyID& operatorKeyId = CKeyID{})
