@@ -20,8 +20,6 @@
 
 static const int MAX_DISMISS_VOTES_PER_MN = 20;
 
-static const int DPOS_TEAM_SIZE = 3;
-
 // signed int, cause CAmount is signed too (to avoid problems when casting from CAmount in rpc)
 static const int32_t MN_BASERATIO = 1000;
 
@@ -42,7 +40,7 @@ enum class MasternodesTxType : unsigned char
 // Works instead of constants cause 'regtest' differs (don't want to overcharge chainparams)
 int GetMnActivationDelay();
 CAmount GetMnCollateralAmount();
-CAmount GetMnAnnouncementFee(CAmount const & blockSubsidy, int height, int activeMasternodesNum);
+CAmount GetMnAnnouncementFee(CAmount const & blockSubsidy, int height, size_t activeMasternodesNum);
 int32_t GetDposBlockSubsidyRatio();
 
 class CMutableTransaction;
