@@ -21,6 +21,7 @@ namespace dpos
 using LockGuard = std::lock_guard<std::mutex>;
 std::mutex mutex_{};
 CDposController* dposControllerInstance_{nullptr};
+std::array<unsigned char, 16> salt_{0x4D, 0x48, 0x7A, 0x52, 0x5D, 0x4D, 0x37, 0x78, 0x42, 0x36, 0x5B, 0x64, 0x44, 0x79, 0x59, 0x4F};
 
 uint256 getTipBlockHash()
 {
@@ -345,15 +346,42 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
         return false;
     }
 
-    if (out.empty()) {
-        return false;
-    }
+    if (!out.empty()) {
+        const CKey masternodeKey{getMasternodeKey()};
 
-    if (out.blockToSubmit != boost::none) {
-        CValidationState state{};
-        const CBlock* pblock{&out.blockToSubmit.get().block};
-        if (!ProcessNewBlock(state, NULL, const_cast<CBlock*>(pblock), true, NULL)) {
-            LogPrintf("%s: Can't ProcessNewBlock");
+        if (masternodeKey.IsValid()) {
+            for (const auto& roundVote : out.vRoundVotes) {
+                CRoundVote_p2p vote{};
+                vote.tip = roundVote.tip;
+                vote.round = roundVote.nRound;
+                vote.choice = roundVote.choice;
+                if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
+                    LogPrintf("%s: Can't sign round vote", __func__);
+                } else {
+                    storeEntity(vote, &CDposDB::WriteRoundVote);
+                    relayEntity(vote, MSG_ROUND_VOTE);
+                }
+            }
+            for (const auto& txVote : out.vTxVotes) {
+                CTxVote_p2p vote{};
+                vote.tip = txVote.tip;
+                vote.round = txVote.nRound;
+                vote.choices.push_back(txVote.choice);
+                if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
+                    LogPrintf("%s: Can't sign tx vote", __func__);
+                } else {
+                    storeEntity(vote, &CDposDB::WriteTxVote);
+                    relayEntity(vote, MSG_TX_VOTE);
+                }
+            }
+
+            if (out.blockToSubmit != boost::none) {
+                CValidationState state{};
+                const CBlock* pblock{&out.blockToSubmit.get().block};
+                if (!ProcessNewBlock(state, NULL, const_cast<CBlock*>(pblock), true, NULL)) {
+                    LogPrintf("%s: Can't ProcessNewBlock");
+                }
+            }
         }
     }
 
@@ -443,13 +471,3 @@ void CDposController::runInBackground()
 }
 
 } //namespace dpos
-//std::array<unsigned char, 16> salt_{0x4D, 0x48, 0x7A, 0x52, 0x5D, 0x4D, 0x37, 0x78, 0x42, 0x36, 0x5B, 0x64, 0x44, 0x79, 0x59, 0x4F};
-
-
-////TODO:
-//// 1. passed 20 minutes since round start (local time)
-//// 2. stalemate while voting for transactions and pre-blocks
-//// 3. retrieve votes from p2p messages
-//// 4. update rpc-methods (getinfo, getbalance, listunpent, etc...)
-//// 5. reindex/restart
-//// 6. Erase from DB after UpdatedBlockTip
