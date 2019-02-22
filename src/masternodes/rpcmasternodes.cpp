@@ -340,8 +340,13 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     scriptMeta << OP_RETURN << ToByteVector(metadata);
     CScript scriptCollateral = GetScriptForDestination(collateralDest);
 
+    // Current height + (1 day blocks) to avoid rejection;
+    CAmount const blockSubsidy = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
+    int targetHeight = chainActive.Height() + 1 + (60 * 60 / Params().GetConsensus().nPowTargetSpacing);
+    int targetMnCount = pmasternodesview->GetActiveMasternodes().size() - 4; // <0 is ok
+
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptMeta)), ValueFromAmount(GetMnAnnouncementFee())));
+    vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptMeta)), ValueFromAmount(GetMnAnnouncementFee(blockSubsidy, targetHeight, targetMnCount))));
     vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptCollateral)), ValueFromAmount(GetMnCollateralAmount())));
 
     UniValue newparams(UniValue::VARR);
@@ -406,7 +411,7 @@ UniValue createraw_mn_activate(UniValue const & params, bool fHelp)
     scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_ACTIVATION_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(0)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);
@@ -490,7 +495,7 @@ UniValue createraw_mn_dismissvote(UniValue const & params, bool fHelp)
     scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_DISMISSVOTE_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(0)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);
@@ -558,7 +563,7 @@ UniValue createraw_mn_dismissvoterecall(UniValue const & params, bool fHelp)
     scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_DISMISSVOTERECALL_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(0)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);
@@ -624,7 +629,7 @@ UniValue createraw_mn_finalizedismissvoting(UniValue const & params, bool fHelp)
     scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_FINALIZEDISMISSVOTING_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(0)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);
@@ -714,7 +719,7 @@ UniValue createraw_set_operator_reward(UniValue const & params, bool fHelp)
     scriptMeta << OP_RETURN << ToByteVector(metadata);
 
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(MN_SETOPERATOR_FEE)));
+    vouts.push_back(Pair(EncodeDestination(scriptMeta), ValueFromAmount(0)));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(inputs);

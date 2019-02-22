@@ -5,6 +5,7 @@
 #include "masternodes.h"
 
 #include "arith_uint256.h"
+#include "chainparams.h"
 #include "key_io.h"
 #include "primitives/block.h"
 #include "script/standard.h"
@@ -25,6 +26,8 @@ static const std::map<char, MasternodesTxType> MasternodesTxTypeToCode =
     {'F', MasternodesTxType::FinalizeDismissVoting }
     // Without CollateralSpent
 };
+
+extern CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams); // in main.cpp
 
 int GetMnActivationDelay()
 {
@@ -47,15 +50,32 @@ CAmount GetMnCollateralAmount()
     return MN_COLLATERAL_AMOUNT;
 }
 
-CAmount GetMnAnnouncementFee()
+CAmount GetMnAnnouncementFee(CAmount const & blockSubsidy, int height, int activeMasternodesNum)
 {
-    static const CAmount MN_ANNOUNCEMENT_FEE = COIN; /// @todo change me
+    Consensus::Params const & consensus = Params().GetConsensus();
 
-    if (Params().NetworkIDString() == "regtest")
+    const int nMinBlocksOfIncome = consensus.nDposMinPeriodOfIncome / consensus.nPowTargetSpacing;
+    const int nMaxBlocksOfIncome = consensus.nDposMaxPeriodOfIncome / consensus.nPowTargetSpacing;
+    const int nGrowingPeriodBlocks = consensus.nDposGrowingPeriod / consensus.nPowTargetSpacing;
+
+    activeMasternodesNum = activeMasternodesNum < DPOS_TEAM_SIZE ? DPOS_TEAM_SIZE : std::max(DPOS_TEAM_SIZE, activeMasternodesNum);
+
+    const CAmount masternodesBlockReward = blockSubsidy * GetDposBlockSubsidyRatio() / MN_BASERATIO;
+    const CAmount masternodeIncome = masternodesBlockReward / activeMasternodesNum;
+
+    const CAmount minAnnouncementFee = masternodeIncome * nMinBlocksOfIncome;
+    const CAmount maxAnnouncementFee = masternodeIncome * nMaxBlocksOfIncome;
+
+    const CAmount feePerBlock = (maxAnnouncementFee - minAnnouncementFee) / nGrowingPeriodBlocks;
+    const int sapling_activation_block_number = consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight;
+    const int blocksSinceSapling = height - sapling_activation_block_number;
+
+    /// @todo @Egor Why? This is totally confusing! As we are blocking all actions with MN before sapling!
+    if (height < sapling_activation_block_number)
     {
-        return 1 * COIN;
+        return minAnnouncementFee;
     }
-    return MN_ANNOUNCEMENT_FEE;
+    return std::min(maxAnnouncementFee, minAnnouncementFee + feePerBlock * blocksSinceSapling);
 }
 
 int32_t GetDposBlockSubsidyRatio()
