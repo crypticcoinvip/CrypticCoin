@@ -740,6 +740,14 @@ bool CMasternodesView::OnUndo(uint256 const & txid)
     return true;
 }
 
+bool CMasternodesView::IsTeamMember(int height, const CKeyID & operatorAuth) const
+{
+    CTeam team = ReadDposTeam(height);
+    auto const & it = ExistMasternode(AuthIndex::ByOperator, operatorAuth);
+    assert(it ? ExistMasternode((*it)->second)->IsActive() : true);
+    return it && team.find((*it)->second) != team.end();
+}
+
 struct KeyLess
 {
     template<typename KeyType>
@@ -769,7 +777,7 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
     // erase oldest member
     if (team.size() == DPOS_TEAM_SIZE)
     {
-        auto oldest_it = std::max_element(team.begin(), team.end(), [this](CTeam::value_type const & lhs, CTeam::value_type const & rhs)
+        auto oldest_it = std::max_element(team.begin(), team.end(), [](CTeam::value_type const & lhs, CTeam::value_type const & rhs)
         {
             if (lhs.second == rhs.second)
             {

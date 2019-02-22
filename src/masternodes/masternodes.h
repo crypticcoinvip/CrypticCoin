@@ -312,6 +312,7 @@ public:
 //    bool HasUndo(uint256 const & txid) const;
     bool OnUndo(uint256 const & txid);
 
+    bool IsTeamMember(int height, CKeyID const & operatorAuth) const;
     CTeam CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height);
     CTeam ReadDposTeam(int height) const;
 
