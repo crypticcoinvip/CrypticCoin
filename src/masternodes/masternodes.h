@@ -269,6 +269,16 @@ public:
         return activeNodes;
     }
 
+    CMasternodesByAuth const & GetMasternodesByOperator() const
+    {
+        return nodesByOperator;
+    }
+
+    CMasternodesByAuth const & GetMasternodesByOwner() const
+    {
+        return nodesByOwner;
+    }
+
     boost::optional<CMasternodesByAuth::const_iterator>
     ExistMasternode(AuthIndex where, CKeyID const & auth) const;
 
