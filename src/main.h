@@ -602,7 +602,7 @@ void CheckInputsForCollateralSpent(CTransaction const & tx, int nHeight);
 //! Deep check (and write)
 bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
-//bool CheckOperatorRewardTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckSetOperatorRewardTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 bool CheckDismissVoteRecallTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 bool CheckFinalizeDismissVotingTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);

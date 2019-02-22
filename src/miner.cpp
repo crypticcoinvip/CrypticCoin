@@ -359,6 +359,15 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         // Set to 0 so expiry height does not apply to coinbase txs
         txNew.nExpiryHeight = 0;
 
+        // Share reward with masternodes' team
+        if (NetworkUpgradeActive(nHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
+        {
+            /// @todo @mn replace dPosTransactionsFee with actual value!
+            CAmount dPosTransactionsFee = 0;
+            std::vector<CTxOut> rewards = pmasternodesview->CalcDposTeamReward(txNew.vout[0].nValue, dPosTransactionsFee, nHeight);
+            txNew.vout.insert(txNew.vout.end(), rewards.begin(), rewards.end());
+        }
+
         // Now, it's ONLY for regtest:
         if ((nHeight > 0) && (nHeight <= chainparams.GetConsensus().GetLastFoundersRewardBlockHeight(Params().NetworkIDString() == "regtest"))) {
             // Founders reward is 20% of the block subsidy
