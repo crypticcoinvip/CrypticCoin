@@ -11,7 +11,6 @@
 
 class CValidationInterface;
 
-
 namespace dpos
 {
 class CDposVoter;
@@ -23,10 +22,11 @@ class CDposController
 
 public:
     static CDposController& getInstance();
+    static void runEventLoop();
 
     bool isEnabled() const;
     CValidationInterface* getValidator();
-    void initFromDB();
+    void initialize();
     void updateChainTip();
 
     void proceedViceBlock(const CBlock& viceBlock);
@@ -54,8 +54,6 @@ private:
     bool handleVoterOutput(const CDposVoterOutput& out);
     bool acceptRoundVote(const CRoundVote_p2p& vote);
     bool acceptTxVote(const CTxVote_p2p& vote);
-
-    void runInBackground();
 
 private:
     std::shared_ptr<CDposVoter> voter;

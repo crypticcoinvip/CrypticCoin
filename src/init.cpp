@@ -1646,7 +1646,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 break;
             }
 
-            dpos::getController()->initFromDB();
+            dpos::getController()->initialize();
 
             fLoaded = true;
         } while(false);
@@ -1957,8 +1957,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // MN-Heartbeat
     if (pwalletMain != nullptr) {
-        const auto runTickerLoop{&CHeartBeatTracker::runTickerLoop};
-        threadGroup.create_thread(boost::bind(&TraceThread<decltype(runTickerLoop)>, "heartbeat", runTickerLoop));
+        const auto hbThreadProc{&CHeartBeatTracker::runTickerLoop};
+        threadGroup.create_thread(boost::bind(&TraceThread<decltype(hbThreadProc)>, "heartbeat", hbThreadProc));
+
+        const auto dposThreadProc{&dpos::CDposController::runEventLoop};
+        threadGroup.create_thread(boost::bind(&TraceThread<decltype(dposThreadProc)>, "dpos", dposThreadProc));
     }
 
     return !fRequestShutdown;
