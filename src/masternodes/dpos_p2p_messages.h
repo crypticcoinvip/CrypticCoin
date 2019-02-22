@@ -7,6 +7,7 @@
 #include "../uint256.h"
 #include "../serialize.h"
 #include "../primitives/transaction.h"
+#include "dpos_types.h"
 
 namespace dpos
 {
@@ -38,7 +39,7 @@ class CTxVote_p2p
 {
 public:
     uint256 tip;
-    uint16_t round;
+    Round round; // TODO refactor nRound
     std::vector<CVoteChoice> choices;
     CVoteChoice::Signature signature;
 
@@ -71,7 +72,7 @@ class CRoundVote_p2p
 {
 public:
     uint256 tip;
-    uint16_t round;
+    Round round; // TODO refactor nRound
     CVoteChoice choice;
     CVoteChoice::Signature signature;
 

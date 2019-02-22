@@ -120,6 +120,9 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000006d9629934e7");
 
+        // dPoS
+        consensus.dpos.nTeamSize = 32;
+        consensus.dpos.nMinQuorum = 23;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -238,8 +241,11 @@ public:
         consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 1000000;
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000001d0c4d9cd");
+        consensus.nMinimumChainWork = uint256S("0x00");
 
+        // dPoS
+        consensus.dpos.nTeamSize = 32;
+        consensus.dpos.nMinQuorum = 23;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -352,6 +358,9 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
+        // dPoS
+        consensus.dpos.nTeamSize = 4;
+        consensus.dpos.nMinQuorum = 3;
         consensus.nDposMinPeriodOfIncome = (1 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
