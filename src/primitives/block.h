@@ -58,7 +58,7 @@ public:
             READWRITE(hashReserved1);
             READWRITE(hashReserved2);
             READWRITE(nRoundNumber);
-        }
+        } // TODO SetNull if ser action is reading
     }
 
     void SetNull()
@@ -117,7 +117,9 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
-        READWRITE(vSig);
+        if (nVersion >= SAPLING_BLOCK_VERSION) {
+            READWRITE(vSig);
+        } // TODO SetNull if ser action is reading
     }
 
     void SetNull()

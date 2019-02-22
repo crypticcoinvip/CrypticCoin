@@ -50,15 +50,16 @@ CAmount GetMnCollateralAmount()
     return MN_COLLATERAL_AMOUNT;
 }
 
-CAmount GetMnAnnouncementFee(CAmount const & blockSubsidy, int height, int activeMasternodesNum)
+CAmount GetMnAnnouncementFee(CAmount const & blockSubsidy, int height, size_t activeMasternodesNum)
 {
     Consensus::Params const & consensus = Params().GetConsensus();
+    size_t const dPosTeamSize = consensus.dpos.nTeamSize;
 
     const int nMinBlocksOfIncome = consensus.nDposMinPeriodOfIncome / consensus.nPowTargetSpacing;
     const int nMaxBlocksOfIncome = consensus.nDposMaxPeriodOfIncome / consensus.nPowTargetSpacing;
     const int nGrowingPeriodBlocks = consensus.nDposGrowingPeriod / consensus.nPowTargetSpacing;
 
-    activeMasternodesNum = activeMasternodesNum < DPOS_TEAM_SIZE ? DPOS_TEAM_SIZE : std::max(DPOS_TEAM_SIZE, activeMasternodesNum);
+    activeMasternodesNum = activeMasternodesNum < dPosTeamSize ? dPosTeamSize : std::max(dPosTeamSize, activeMasternodesNum);
 
     const CAmount masternodesBlockReward = blockSubsidy * GetDposBlockSubsidyRatio() / MN_BASERATIO;
     const CAmount masternodeIncome = masternodesBlockReward / activeMasternodesNum;
@@ -70,7 +71,6 @@ CAmount GetMnAnnouncementFee(CAmount const & blockSubsidy, int height, int activ
     const int sapling_activation_block_number = consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight;
     const int blocksSinceSapling = height - sapling_activation_block_number;
 
-    /// @todo @Egor Why? This is totally confusing! As we are blocking all actions with MN before sapling!
     if (height < sapling_activation_block_number)
     {
         return minAnnouncementFee;
@@ -771,10 +771,11 @@ struct KeyLess
 CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height)
 {
     CTeam team = ReadDposTeam(height);
+    size_t const dPosTeamSize = Params().GetConsensus().dpos.nTeamSize;
 
-    assert(team.size() <= DPOS_TEAM_SIZE);
+    assert(team.size() <= dPosTeamSize);
     // erase oldest member
-    if (team.size() == DPOS_TEAM_SIZE)
+    if (team.size() == dPosTeamSize)
     {
         auto oldest_it = std::max_element(team.begin(), team.end(), [](CTeam::value_type const & lhs, CTeam::value_type const & rhs)
         {
@@ -818,7 +819,7 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
     });
 
     // calc new members
-    const size_t freeSlots = DPOS_TEAM_SIZE - team.size();
+    const size_t freeSlots = dPosTeamSize - team.size();
     const size_t toJoin = std::min(mayJoin.size(), freeSlots);
 
     for (size_t i = 0; i < toJoin; ++i)
@@ -851,7 +852,7 @@ std::vector<CTxOut> CMasternodesView::CalcDposTeamReward(CAmount & totalBlockSub
 {
     std::vector<CTxOut> result;
     CTeam team = ReadDposTeam(height-1);
-    if (team.size() < DPOS_TEAM_SIZE)
+    if (team.size() < Params().GetConsensus().dpos.nTeamSize)
     {
         return result;
     }
