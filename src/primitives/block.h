@@ -34,7 +34,7 @@ public:
     std::vector<unsigned char> nSolution;
     uint256 hashReserved1;
     uint256 hashReserved2;
-    uint16_t nRoundNumber;
+    uint16_t nRoundNumber; // TODO refactor nRound
 
     CBlockHeader()
     {
@@ -94,8 +94,8 @@ class CBlock : public CBlockHeader
 {
 public:
     // network and disk
-    std::vector<CTransaction> vtx;
-    std::vector<std::array<unsigned char, 65>> vSig; // CPubKey::COMPACT_SIGNATURE_SIZE
+    std::vector<CTransaction> vtx; // txs order: coinbase | instant txs section | not instant txs section
+    std::vector<unsigned char> vSig; // CPubKey::COMPACT_SIGNATURE_SIZE
 
     // memory only
     mutable std::vector<uint256> vMerkleTree;

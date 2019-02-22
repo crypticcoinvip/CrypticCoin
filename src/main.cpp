@@ -964,11 +964,20 @@ bool ContextualCheckTransaction(
             return state.DoS(100, error("CheckTransaction(): overwinter version too high"),
                 REJECT_INVALID, "bad-tx-overwinter-version-too-high");
         }
-        // Reject transactions with dPoS flag is set
-        if (tx.fInstant) {
-            return state.DoS(100, error("ContextualCheckTransaction(): dPoS transaction not allowed"),
-                REJECT_INVALID, "tx-instant-supported-in-sapling");
-        }
+    }
+
+
+    // Reject transactions with instant flag
+    if (!saplingActive && tx.fInstant)
+    {
+        return state.DoS(100, error("ContextualCheckTransaction(): dPoS transaction not allowed"),
+                         REJECT_INVALID, "tx-instant-supported-in-sapling");
+    }
+    // Instant tx size
+    if (tx.fInstant && ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION) > MAX_INST_TX_SIZE_AFTER_SAPLING)
+    {
+        return state.DoS(100, error("ContextualCheckTransaction(): size limits failed for instant tx"),
+                         REJECT_INVALID, "bad-txns-oversize");
     }
 
     // Rules that apply to Overwinter or later:
@@ -2469,16 +2478,52 @@ void PartitionCheck(bool (*initialDownloadCheck)(), CCriticalSection& cs, const 
     }
 }
 
+static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const BlockHash& prevBlockHash, const BlockHash& blockHash, dpos::Round nRound, size_t minQuorum, size_t teamSize) {
+    const size_t ecdsaSigSize = 65;
+    if ((sigs.size() % ecdsaSigSize) != 0) {
+        LogPrintf("CheckDposSigs(): malformed signatures \n");
+        return false;
+    }
+    const size_t sigsSize = sigs.size() / ecdsaSigSize;
+    if (sigsSize < minQuorum) {
+        LogPrintf("CheckDposSigs(): not enough signatures \n");
+        return false;
+    }
+    if (sigsSize > teamSize) {
+        LogPrintf("CheckDposSigs(): TOO MUCH SIGNATURES! DOUBLESIGN IS POSSIBLE! \n");
+        return false;
+    }
+
+    dpos::CRoundVote_p2p roundVote;
+    roundVote.tip = prevBlockHash;
+    roundVote.round = nRound;
+    roundVote.choice.subject = blockHash;
+    roundVote.choice.decision = dpos::CVoteChoice::Decision::YES;
+
+    const uint256 hashToSign = roundVote.GetSignatureHash();
+    std::set<CKeyID> knownSigs;
+
+    for (int i = 0; i < sigsSize; i++) {
+        // TODO check sigs
+    }
+
+    return true;
+}
+
 static int64_t nTimeVerify = 0;
 static int64_t nTimeConnect = 0;
 static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck, bool calledByVerifyDB)
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck, bool calledByVerifyDB, const DposValidationRules& dvr)
 {
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
+
+    // checks only after sapling update
+    const bool fCheckInstSection = dvr.fCheckInstSection && NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING);
+    const bool fCheckDposSigs = dvr.fCheckDposSigs && NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING);
 
     bool fExpensiveChecks = true;
     if (fCheckpointsEnabled) {
@@ -2523,6 +2568,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                              REJECT_INVALID, "bad-txns-BIP30");
     }
 
+    if (fCheckDposSigs && !CheckDposSigs(block.vSig, hashPrevBlock, block.GetHash(), block.nRoundNumber,
+                                         chainparams.GetConsensus().dpos.nMinQuorum, chainparams.GetConsensus().dpos.nTeamSize))
+        return state.DoS(100, error("ConnectBlock(): wrong dPoS signatures"),
+                         REJECT_INVALID, "bad-blk-dpos-sigs"); // TODO dont mark block as invalid
+
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
 
     // DERSIG (BIP66) is also always enforced, but does not have a flag.
@@ -2535,6 +2585,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     CAmount nFees = 0;
     int nInputs = 0;
     unsigned int nSigOps = 0;
+    unsigned int nSigOps_inst = 0;
+    unsigned int nSize_inst = 0;
     CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
     vPos.reserve(block.vtx.size());
@@ -2563,6 +2615,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // Grab the consensus branch ID for the block's height
     auto consensusBranchId = CurrentEpochBranchId(pindex->nHeight, Params().GetConsensus());
+
+    const size_t instSectionStart = 1;
+    size_t instSectionEnd = 0;
 
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
@@ -2594,6 +2649,39 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (nSigOps > MAX_BLOCK_SIGOPS)
                 return state.DoS(100, error("ConnectBlock(): too many sigops"),
                                  REJECT_INVALID, "bad-blk-sigops");
+        }
+
+        if (fCheckInstSection)
+        {
+            // check txs order
+            if (tx.IsCoinBase())
+            {
+                if (tx.fInstant)
+                    return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                     REJECT_INVALID, "bad-blk-order");
+            }
+            if (i >= instSectionStart && !tx.fInstant)
+            {
+                if (instSectionEnd != 0)
+                    return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                     REJECT_INVALID, "bad-blk-order");
+                instSectionEnd = i;
+            }
+
+            // check instant txs size, sigops
+            if (tx.fInstant)
+            {
+                nSigOps_inst += GetLegacySigOpCount(tx);
+                nSigOps_inst += GetP2SHSigOpCount(tx, view);
+                if (nSigOps > dvr.nMaxInstsSigops)
+                    return state.DoS(100, error("ConnectBlock(): too many sigops in instant section"),
+                                     REJECT_INVALID, "bad-blk-sigops");
+                const size_t txSize = ::GetSerializeSize(tx, SER_NETWORK, tx.nVersion);
+                nSize_inst += txSize;
+                if (nSize_inst > dvr.nMaxInstsSize)
+                    return state.DoS(100, error("ConnectBlock(): too big instant section"),
+                                     REJECT_INVALID, "bad-blk-inst-size");
+            }
         }
 
         txdata.emplace_back(tx);
@@ -3893,7 +3981,7 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
     return true;
 }
 
-bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex * const pindexPrev, bool fCheckPOW, bool fCheckMerkleRoot)
+bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex * const pindexPrev, bool fCheckPOW, bool fCheckMerkleRoot, const DposValidationRules& dvr)
 {
     AssertLockHeld(cs_main);
     assert(pindexPrev == chainActive.Tip());
@@ -3912,7 +4000,7 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
         return false;
     if (!ContextualCheckBlock(block, state, pindexPrev))
         return false;
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, true))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, true, false, dvr))
         return false;
     assert(state.IsValid());
 
@@ -6691,7 +6779,7 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
 {
     // Check quick conditions first
     if (tx.vout.size() < 2 ||
-        tx.vout[0].nValue != GetMnAnnouncementFee() ||
+        tx.vout[0].nValue < GetMnAnnouncementFee(GetBlockSubsidy(height, Params().GetConsensus()), height, pmasternodesview->GetActiveMasternodes().size()) ||
         tx.vout[1].nValue != GetMnCollateralAmount() ||
         tx.vout[1].scriptPubKey.size() > 127) // collateralAddress
     {
