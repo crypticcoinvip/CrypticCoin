@@ -269,30 +269,29 @@ int CHeartBeatTracker::getMaxPeriod() const
 std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
     std::vector<CMasternode> rv{};
-//    const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
-    //TODO: pmasternodesview->GetMasternodesByOperator()
-//    for (const auto& mnPair : pmasternodesview->GetMasternodes()) {
-//        if (pmasternodesview->ExistMasternode(CMasternodesView::AuthIndex::ByOperator, mnPair.first))
-        //FIXME: skip my masternode
-//        if (idMe == mn) {
-//            continue;
-//        }
+    const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
+    const auto myKey{getMasternodeKey()};
+    LOCK(cs_main);
 
-//        assert(pmasternodesview->HasMasternode(mnPair.second));
+    for (const auto& mnPair : pmasternodesview->GetMasternodesByOperator()) {
+        if (mnPair.first == myKey.GetPubKey().GetID()) {
+            // skip me
+            continue;
+        }
 
-//        const auto& mn{pmasternodesview->allNodes[mnPair.second]};
-//        const auto it{keyMessageMap.find(mnPair.first)};
-//        const std::int64_t elapsed{GetTimeMicros() -
-//                                   std::max(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime,
-//                                            chainActive[mn.activationHeight]->GetBlockTime())};
+        const CMasternode& mn{pmasternodesview->GetMasternodes().at(mnPair.second)};
+        const auto it{keyMessageMap.find(mnPair.first)};
+        const std::int64_t elapsed{GetTimeMicros() -
+                                   std::max(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime,
+                                            chainActive[mn.activationHeight]->GetBlockTime())};
 
-//        if ((elapsed < period.first && ageFilter == recentlyFilter) ||
-//            (elapsed > period.second && ageFilter == outdatedFilter) ||
-//            (elapsed >= period.first && elapsed < period.second && ageFilter == staleFilter))
-//        {
-//            rv.emplace_back(mn);
-//        }
-//    }
+        if ((elapsed < period.first && ageFilter == recentlyFilter) ||
+            (elapsed > period.second && ageFilter == outdatedFilter) ||
+            (elapsed >= period.first && elapsed < period.second && ageFilter == staleFilter))
+        {
+            rv.emplace_back(mn);
+        }
+    }
 
     return rv;
 }
