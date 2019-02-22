@@ -18,6 +18,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
     def start_nodes(self, args = []):
         if len(args) == 0:
             args = [[]] * self.num_nodes
+        for i in range(self.num_nodes): args[i].append("-nuparams=76b809bb:200")
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
         connect_nodes_bi(self.nodes, 0, 1)
 

@@ -4,6 +4,7 @@
 
 #include "masternodes.h"
 
+#include "arith_uint256.h"
 #include "key_io.h"
 #include "primitives/block.h"
 #include "script/standard.h"
@@ -12,6 +13,7 @@
 
 #include <algorithm>
 #include <functional>
+
 
 static const std::map<char, MasternodesTxType> MasternodesTxTypeToCode =
 {
@@ -56,6 +58,10 @@ CAmount GetMnAnnouncementFee()
     return MN_ANNOUNCEMENT_FEE;
 }
 
+int32_t GetDposBlockSubsidyRatio()
+{
+    return MN_BASERATIO / 2;
+}
 
 void CMasternode::FromTx(CTransaction const & tx, int heightIn, std::vector<unsigned char> const & metadata)
 {
@@ -64,6 +70,8 @@ void CMasternode::FromTx(CTransaction const & tx, int heightIn, std::vector<unsi
     ss >> ownerAuthAddress;
     ss >> operatorAuthAddress;
     ss >> *(CScriptBase*)(&ownerRewardAddress);
+    ss >> *(CScriptBase*)(&operatorRewardAddress);
+    ss >> operatorRewardRatio;
 
     height = heightIn;
     // minActivationHeight should be set outside cause depends from current active count
@@ -104,6 +112,8 @@ bool operator==(CMasternode const & a, CMasternode const & b)
             a.ownerAuthAddress == b.ownerAuthAddress &&
             a.operatorAuthAddress == b.operatorAuthAddress &&
             a.ownerRewardAddress == b.ownerRewardAddress &&
+            a.operatorRewardAddress == b.operatorRewardAddress &&
+            a.operatorRewardRatio == b.operatorRewardRatio &&
             a.height == b.height &&
             a.minActivationHeight == b.minActivationHeight &&
             a.activationHeight == b.activationHeight &&
@@ -219,7 +229,18 @@ void CMasternodesView::Load()
     db.LoadUndo([this] (uint256 & txid, uint256 & affectedItem, char undoType)
     {
         txsUndo.insert(std::make_pair(txid, std::make_pair(affectedItem, static_cast<MasternodesTxType>(undoType))));
+
+        // There is the second way: load all 'operator undo' in different loop, but i think here is more "consistent"
+        if (undoType == static_cast<char>(MasternodesTxType::SetOperatorReward))
+        {
+            COperatorUndoRec rec;
+            db.ReadOperatorUndo(txid, rec);
+            operatorUndo.insert(std::make_pair(txid, rec));
+        }
     });
+
+    /// @todo @mn Where is the correct point of Team loading?
+//    db.ReadTeam(chainActive.Height());
 }
 
 /*
@@ -524,6 +545,45 @@ bool CMasternodesView::OnFinalizeDismissVoting(uint256 const & txid, uint256 con
     return true;
 }
 
+bool CMasternodesView::OnSetOperatorReward(uint256 const & txid, CKeyID const & ownerId,
+                                           CKeyID const & newOperatorAuthAddress, CScript const & newOperatorRewardAddress, CAmount newOperatorRewardRatio, int height)
+{
+    // Check, that MN was announced
+    auto it = nodesByOwner.find(ownerId);
+    if (it == nodesByOwner.end())
+    {
+        return false;
+    }
+    // Assumed now, that node exists and consistent with 'nodesByOperator' index
+    uint256 const & nodeId = it->second;
+    CMasternode & node = allNodes.at(nodeId);
+
+    if (nodesByOwner.find(newOperatorAuthAddress) != nodesByOwner.end() ||
+       (nodesByOperator.find(newOperatorAuthAddress) != nodesByOperator.end() && node.operatorAuthAddress != newOperatorAuthAddress))
+    {
+        return false;
+    }
+
+    PrepareBatch();
+
+    nodesByOperator.erase(node.operatorAuthAddress);
+    nodesByOperator.insert(std::make_pair(newOperatorAuthAddress, nodeId));
+
+    COperatorUndoRec operatorUndoRec{ node.operatorAuthAddress, node.operatorRewardAddress, node.operatorRewardRatio };
+    node.operatorAuthAddress = newOperatorAuthAddress;
+    node.operatorRewardAddress = newOperatorRewardAddress;
+    node.operatorRewardRatio = newOperatorRewardRatio;
+
+    txsUndo.insert(std::make_pair(txid, std::make_pair(nodeId, MasternodesTxType::SetOperatorReward)));
+    operatorUndo.insert(std::make_pair(txid, operatorUndoRec));
+
+    db.WriteUndo(txid, nodeId, static_cast<char>(MasternodesTxType::SetOperatorReward), *currentBatch);
+    db.WriteOperatorUndo(txid, operatorUndoRec, *currentBatch);
+
+    db.WriteMasternode(nodeId, node, *currentBatch);
+    return true;
+}
+
 //bool CMasternodesView::HasUndo(uint256 const & txid) const
 //{
 //    return txsUndo.find(txid) != txsUndo.end();
@@ -584,8 +644,24 @@ bool CMasternodesView::OnUndo(uint256 const & txid)
             }
             break;
             case MasternodesTxType::SetOperatorReward:
-                /// @todo @mn implement
-                break;
+            {
+                CMasternode & node = allNodes.at(id);
+
+                nodesByOperator.erase(node.operatorAuthAddress);
+
+                auto const & rec = operatorUndo.at(txid);
+                node.operatorAuthAddress = rec.operatorAuthAddress;
+                node.operatorRewardAddress = rec.operatorRewardAddress;
+                node.operatorRewardRatio = rec.operatorRewardRatio;
+
+                nodesByOperator.insert(std::make_pair(node.operatorAuthAddress, id));
+
+                operatorUndo.erase(txid);
+                db.EraseOperatorUndo(txid, *currentBatch);
+
+                db.WriteMasternode(id, node, *currentBatch);
+            }
+            break;
             case MasternodesTxType::DismissVote:
             {
                 CDismissVote & vote = votes.at(id);
@@ -641,6 +717,161 @@ bool CMasternodesView::OnUndo(uint256 const & txid)
         itUndo = txsUndo.erase(itUndo); // instead ++itUndo;
     }
     return true;
+}
+
+struct KeyLess
+{
+    template<typename KeyType>
+    static KeyType getKey(KeyType const & k)
+    {
+        return k;
+    }
+
+    template<typename KeyType, typename ValueType>
+    static KeyType getKey(std::pair<KeyType const, ValueType> const & p)
+    {
+        return p.first;
+    }
+
+    template<typename L, typename R>
+    bool operator()(L const & l, R const & r) const
+    {
+        return getKey(l) < getKey(r);
+    }
+};
+
+CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height)
+{
+    CTeam team = ReadDposTeam(height);
+
+    assert(team.size() <= DPOS_TEAM_SIZE);
+    // erase oldest member
+    if (team.size() == DPOS_TEAM_SIZE)
+    {
+        auto oldest_it = std::max_element(team.begin(), team.end(), [this](CTeam::value_type const & lhs, CTeam::value_type const & rhs)
+        {
+            if (lhs.second == rhs.second)
+            {
+                return UintToArith256(lhs.first) < UintToArith256(rhs.first);
+            }
+            return lhs.second < rhs.second;
+        });
+        if (oldest_it != team.end())
+        {
+            team.erase(oldest_it);
+        }
+    }
+    // erase dismissed/resigned members
+    for(auto it = team.begin(); it != team.end();)
+    {
+        if(activeNodes.find(it->first) == activeNodes.end())
+        {
+            it = team.erase(it);
+        }
+        else ++it;
+    }
+
+    // get active masternodes which are not included in the current team vector;
+    std::vector<uint256> mayJoin;
+    std::set_difference(activeNodes.begin(), activeNodes.end(), team.begin(), team.end(), std::inserter(mayJoin, mayJoin.begin()), KeyLess());
+
+    // sort by selectors
+    std::sort(mayJoin.begin(), mayJoin.end(), [ &blockHash ](uint256 const & lhs, uint256 const & rhs)
+    {
+        CDataStream lhs_ss(SER_GETHASH, 0);
+        lhs_ss << lhs << blockHash;
+        arith_uint256 lhs_selector = UintToArith256(Hash(lhs_ss.begin(), lhs_ss.end())); // '<' operators of uint256 and uint256_arith are different
+
+        CDataStream rhs_ss(SER_GETHASH, 0);
+        rhs_ss << rhs << blockHash;
+        arith_uint256 rhs_selector = UintToArith256(Hash(rhs_ss.begin(), rhs_ss.end())); // '<' operators of uint256 and uint256_arith are different
+
+        return ArithToUint256(lhs_selector) < ArithToUint256(rhs_selector);
+    });
+
+    // calc new members
+    const size_t freeSlots = DPOS_TEAM_SIZE - team.size();
+    const size_t toJoin = std::min(mayJoin.size(), freeSlots);
+
+    for (size_t i = 0; i < toJoin; ++i)
+    {
+        team.insert(std::make_pair(mayJoin[i], height));
+    }
+
+    if (!db.WriteTeam(height+1, team))
+    {
+        throw std::runtime_error("Masternodes database is corrupted! Please restart with -reindex to recover.");
+    }
+    return team;
+}
+
+CTeam CMasternodesView::ReadDposTeam(int height) const
+{
+    CTeam team;
+    if (!db.ReadTeam(height, team))
+    {
+        throw std::runtime_error("Masternodes database is corrupted! Please restart with -reindex to recover.");
+    }
+    return team;
+}
+
+/*
+ *
+*/
+extern CFeeRate minRelayTxFee;
+std::vector<CTxOut> CMasternodesView::CalcDposTeamReward(CAmount & totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const
+{
+    std::vector<CTxOut> result;
+    CTeam team = ReadDposTeam(height-1);
+    if (team.size() < DPOS_TEAM_SIZE)
+    {
+        return result;
+    }
+
+    CAmount totalDposReward = totalBlockSubsidy * GetDposBlockSubsidyRatio() / MN_BASERATIO;
+    totalBlockSubsidy -= totalDposReward;
+
+    for (auto it = team.begin(); it != team.end(); ++it)
+    {
+        // it->first == nodeId, it->second == joinHeight
+        uint256 const & nodeId = it->first;
+        CMasternode const & node = allNodes.at(nodeId);
+
+        CAmount ownerReward = totalDposReward / team.size();
+        CAmount operatorReward = ownerReward * node.operatorRewardRatio / MN_BASERATIO;
+        ownerReward -= operatorReward;
+        operatorReward += dPosTransactionsFee / team.size();
+
+        // Merge outputs this way. Checking equality of scriptPubKeys BEFORE creating couts to avoid situation
+        // when scripts are equal but particular amounts are dust!
+        if (node.ownerRewardAddress == node.operatorRewardAddress)
+        {
+            CTxOut out(ownerReward+operatorReward, node.ownerRewardAddress);
+            if (!out.IsDust(::minRelayTxFee))
+            {
+                result.push_back(out);
+            }
+        }
+        else
+        {
+            CTxOut outOwner(ownerReward, node.ownerRewardAddress);
+            if (!outOwner.IsDust(::minRelayTxFee))
+            {
+                result.push_back(outOwner);
+            }
+            CTxOut outOperator(operatorReward, node.operatorRewardAddress);
+            if (!outOperator.IsDust(::minRelayTxFee))
+            {
+                result.push_back(outOperator);
+            }
+        }
+    }
+    // sorting result by hashes
+    std::sort(result.begin(), result.end(), [&](CTxOut const & lhs, CTxOut const & rhs)
+    {
+        return lhs.GetHash() < rhs.GetHash();
+    });
+    return result;
 }
 
 uint32_t CMasternodesView::GetMinDismissingQuorum()

@@ -9,6 +9,7 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
+#include "masternodes/masternodes.h"
 
 #include <map>
 #include <string>
@@ -104,6 +105,14 @@ public:
 
     void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType, CDBBatch & batch);
     void EraseUndo(uint256 const & txid, uint256 const & affectedItem, CDBBatch & batch);
+
+    void ReadOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec & value);
+    void WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value, CDBBatch & batch);
+    void EraseOperatorUndo(uint256 const & txid, CDBBatch & batch);
+
+    bool ReadTeam(int blockHeight, CTeam & team);
+    bool WriteTeam(int blockHeight, CTeam const & team);
+    bool EraseTeam(int blockHeight);
 
     bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode);
     bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote);
