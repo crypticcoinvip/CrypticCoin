@@ -283,10 +283,23 @@ static std::string LogTimestampStr(const std::string &str, bool *fStartedNewLine
     return strStamped;
 }
 
+static std::atomic<bool> fLogDisabled{false};
+ScopedNoLogging::ScopedNoLogging()
+{
+    fLogDisabled = true;
+}
+ScopedNoLogging::~ScopedNoLogging()
+{
+    fLogDisabled = false;
+}
+
 int LogPrintStr(const std::string &str)
 {
     int ret = 0; // Returns total number of characters written
     static bool fStartedNewLine = true;
+    if (fLogDisabled) {
+        return ret;
+    }
     if (fPrintToConsole)
     {
         // print to console
