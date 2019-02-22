@@ -9,6 +9,7 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
+#include "masternodes/masternodes.h"
 
 #include <map>
 #include <string>
