@@ -58,7 +58,11 @@ public:
             READWRITE(hashReserved1);
             READWRITE(hashReserved2);
             READWRITE(nRound);
-        } // TODO SetNull if ser action is reading
+        } else if (ser_action.ForRead()) {
+            hashReserved1 = uint256{};
+            hashReserved2 = uint256{};
+            nRound = 0;
+        }
     }
 
     void SetNull()
@@ -119,7 +123,9 @@ public:
         READWRITE(vtx);
         if (nVersion >= SAPLING_BLOCK_VERSION) {
             READWRITE(vSig);
-        } // TODO SetNull if ser action is reading
+        }  else if (ser_action.ForRead()) {
+            vSig.clear();
+        }
     }
 
     void SetNull()
@@ -186,6 +192,10 @@ public:
             READWRITE(hashReserved1);
             READWRITE(hashReserved2);
             READWRITE(nRound);
+        } else if (ser_action.ForRead()) {
+            hashReserved1 = uint256{};
+            hashReserved2 = uint256{};
+            nRound = 0;
         }
     }
 };
