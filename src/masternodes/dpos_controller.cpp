@@ -51,6 +51,12 @@ std::size_t getActiveMasternodeCount()
     return pmasternodesview->GetActiveMasternodes().size();
 }
 
+std::size_t getTeamSizeCount(int height)
+{
+    LOCK(cs_main);
+    return pmasternodesview->ReadDposTeam(height).size();
+}
+
 std::vector<CNode*> getNodes()
 {
     LOCK(cs_vNodes);
@@ -233,8 +239,9 @@ bool CDposController::isEnabled() const
 {
     const CChainParams& params{Params()};
     const int tipHeight{getBlockHeight(getTipBlockHash())};
+    const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
     return NetworkUpgradeActive(tipHeight, params.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
-           getActiveMasternodeCount() >= params.GetMinimalMasternodeCount();
+           nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
 }
 
 CValidationInterface* CDposController::getValidator()
