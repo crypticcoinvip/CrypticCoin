@@ -317,7 +317,8 @@ public:
     CTeam ReadDposTeam(int height) const;
 
     //! Calculate rewards to masternodes' team to include it into coinbase
-    std::vector<CTxOut> CalcDposTeamReward(CAmount & totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const;
+    //! @return reward outputs, sum of reward outputs
+    std::pair<std::vector<CTxOut>, CAmount> CalcDposTeamReward(CAmount totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const;
 
     uint32_t GetMinDismissingQuorum();
 

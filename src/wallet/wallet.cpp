@@ -3262,6 +3262,9 @@ bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wt
     if (!NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
         max_tx_size = MAX_TX_SIZE_BEFORE_SAPLING;
     }
+    if (wtxNew.fInstant) {
+        max_tx_size = MAX_INST_TX_SIZE_AFTER_SAPLING;
+    }
 
     // Discourage fee sniping.
     //
@@ -3554,6 +3557,16 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
     {
         LOCK2(cs_main, cs_wallet);
         LogPrintf("CommitTransaction:\n%s", wtxNew.ToString());
+
+        {
+            const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindexBestHeader->nHeight).size();
+            const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+            if (wtxNew.fInstant && !fDposActive) {
+                LogPrintf("CommitTransaction(): Error: dPoS isn't active, instant tx cannot be committed \n");
+                return false;
+            }
+        }
+
         {
             // This is only to keep the database open to defeat the auto-flush for the
             // duration of this scope.  This is the only place where this optimization

@@ -848,17 +848,17 @@ CTeam CMasternodesView::ReadDposTeam(int height) const
  *
 */
 extern CFeeRate minRelayTxFee;
-std::vector<CTxOut> CMasternodesView::CalcDposTeamReward(CAmount & totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const
+std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAmount totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const
 {
     std::vector<CTxOut> result;
-    CTeam team = ReadDposTeam(height-1);
-    if (team.size() < Params().GetConsensus().dpos.nTeamSize)
+    CTeam const team = ReadDposTeam(height - 1);
+    bool const fDposActive = team.size() == Params().GetConsensus().dpos.nTeamSize;
+    if (!fDposActive)
     {
-        return result;
+        return {result, 0};
     }
 
-    CAmount totalDposReward = totalBlockSubsidy * GetDposBlockSubsidyRatio() / MN_BASERATIO;
-    totalBlockSubsidy -= totalDposReward;
+    CAmount const dposReward_one = ((totalBlockSubsidy * GetDposBlockSubsidyRatio()) / MN_BASERATIO) / team.size();
 
     for (auto it = team.begin(); it != team.end(); ++it)
     {
@@ -866,7 +866,7 @@ std::vector<CTxOut> CMasternodesView::CalcDposTeamReward(CAmount & totalBlockSub
         uint256 const & nodeId = it->first;
         CMasternode const & node = allNodes.at(nodeId);
 
-        CAmount ownerReward = totalDposReward / team.size();
+        CAmount ownerReward = dposReward_one;
         CAmount operatorReward = ownerReward * node.operatorRewardRatio / MN_BASERATIO;
         ownerReward -= operatorReward;
         operatorReward += dPosTransactionsFee / team.size();
@@ -898,9 +898,9 @@ std::vector<CTxOut> CMasternodesView::CalcDposTeamReward(CAmount & totalBlockSub
     // sorting result by hashes
     std::sort(result.begin(), result.end(), [&](CTxOut const & lhs, CTxOut const & rhs)
     {
-        return lhs.GetHash() < rhs.GetHash();
+        return UintToArith256(lhs.GetHash()) < UintToArith256(rhs.GetHash());
     });
-    return result;
+    return {result, dposReward_one * team.size()};
 }
 
 uint32_t CMasternodesView::GetMinDismissingQuorum()

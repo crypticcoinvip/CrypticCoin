@@ -142,6 +142,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
     // Collect memory pool transactions into the block
     CAmount nFees = 0;
+    CAmount nFees_inst = 0;
 
     {
         LOCK2(cs_main, mempool.cs);
@@ -160,6 +161,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         map<uint256, vector<COrphan*> > mapDependers;
         bool fPrintPriority = GetBoolArg("-printpriority", false);
 
+
         // This vector will be sorted into a priority queue:
         vector<TxPriority> vecPriority;
         vecPriority.reserve(mempool.mapTx.size());
@@ -167,6 +169,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
              mi != mempool.mapTx.end(); ++mi)
         {
             const CTransaction& tx = mi->GetTx();
+            if (tx.fInstant)
+                continue;
 
             int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
                                     ? nMedianTimePast
@@ -250,12 +254,45 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         TxPriorityCompare comparer(fSortedByFee);
         std::make_heap(vecPriority.begin(), vecPriority.end(), comparer);
 
+        // Insert instant tranasctions
+        {
+            const std::vector<CTransaction> commitedList = dpos::getController()->listCommittedTransactions();
+
+            for (auto&& tx : commitedList) {
+                assert(tx.fInstant);
+                // We don't check the committed txs here because we don't have a choice to not to include them anyway
+                // They will be checked at block connection
+                UpdateCoins(tx, view, nHeight);
+                for (const OutputDescription &outDescription : tx.vShieldedOutput) {
+                    sapling_tree.append(outDescription.cm);
+                }
+
+                ++nBlockTx;
+
+                unsigned int nTxSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
+                nBlockSize += nTxSize;
+                pblock->vtx.push_back(tx);
+                const CAmount nTxFees = view.GetValueIn(tx)-tx.GetValueOut();
+                nFees_inst += nTxFees;
+                nFees += nTxFees;
+
+                unsigned int nTxSigOps = GetLegacySigOpCount(tx);
+                nTxSigOps += GetP2SHSigOpCount(tx, view);
+                nBlockSigOps += nTxSigOps;
+
+                pblocktemplate->vTxFees.push_back(nTxFees);
+                pblocktemplate->vTxSigOps.push_back(nTxSigOps);
+            }
+        }
+
+        // Insert not instant tranasctions
         while (!vecPriority.empty())
         {
             // Take highest priority transaction off the priority queue:
             double dPriority = vecPriority.front().get<0>();
             CFeeRate feeRate = vecPriority.front().get<1>();
             const CTransaction& tx = *(vecPriority.front().get<2>());
+            assert(!tx.fInstant);
 
             std::pop_heap(vecPriority.begin(), vecPriority.end(), comparer);
             vecPriority.pop_back();
@@ -302,7 +339,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             // create only contains transactions that are valid in new blocks.
             CValidationState state;
             PrecomputedTransactionData txdata(tx);
-            /// @attention MANDATORY_SCRIPT_VERIFY_FLAGS changed to STANDARD_SCRIPT_VERIFY_FLAGS!!!
             if (!ContextualCheckInputs(tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
                 continue;
 
@@ -359,15 +395,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         // Set to 0 so expiry height does not apply to coinbase txs
         txNew.nExpiryHeight = 0;
 
-        // Share reward with masternodes' team
-        if (NetworkUpgradeActive(nHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
-        {
-            /// @todo @mn replace dPosTransactionsFee with actual value!
-            CAmount dPosTransactionsFee = 0;
-            std::vector<CTxOut> rewards = pmasternodesview->CalcDposTeamReward(txNew.vout[0].nValue, dPosTransactionsFee, nHeight);
-            txNew.vout.insert(txNew.vout.end(), rewards.begin(), rewards.end());
-        }
-
         // Now, it's ONLY for regtest:
         if ((nHeight > 0) && (nHeight <= chainparams.GetConsensus().GetLastFoundersRewardBlockHeight(Params().NetworkIDString() == "regtest"))) {
             // Founders reward is 20% of the block subsidy
@@ -385,6 +412,13 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
         pblock->vtx[0] = txNew;
         pblocktemplate->vTxFees[0] = -nFees;
+
+        // Share reward with masternodes' team
+        {
+            const auto rewards_p = pmasternodesview->CalcDposTeamReward(txNew.vout[0].nValue, nFees_inst, nHeight);
+            txNew.vout[0].nValue -= rewards_p.second;
+            txNew.vout.insert(txNew.vout.end(), rewards_p.first.begin(), rewards_p.first.end());
+        }
 
         // Randomise nonce
         arith_uint256 nonce = UintToArith256(GetRandHash());
