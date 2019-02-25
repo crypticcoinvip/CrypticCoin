@@ -2478,7 +2478,7 @@ void PartitionCheck(bool (*initialDownloadCheck)(), CCriticalSection& cs, const 
     }
 }
 
-static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const BlockHash& prevBlockHash, const BlockHash& blockHash, dpos::Round nRound, size_t minQuorum, size_t teamSize) {
+static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIndex* pindex, size_t minQuorum, size_t teamSize, const CMasternodesView& mnview) {
     const size_t ecdsaSigSize = 65;
     if ((sigs.size() % ecdsaSigSize) != 0) {
         LogPrintf("CheckDposSigs(): malformed signatures \n");
@@ -2495,16 +2495,35 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const BlockHas
     }
 
     dpos::CRoundVote_p2p roundVote;
-    roundVote.tip = prevBlockHash;
-    roundVote.round = nRound;
-    roundVote.choice.subject = blockHash;
+    roundVote.tip = pindex->pprev->GetBlockHash();
+    roundVote.round = pindex->nRoundNumber;
+    roundVote.choice.subject = pindex->GetBlockHash();
     roundVote.choice.decision = dpos::CVoteChoice::Decision::YES;
 
     const uint256 hashToSign = roundVote.GetSignatureHash();
     std::set<CKeyID> knownSigs;
 
     for (int i = 0; i < sigsSize; i++) {
-        // TODO check sigs
+        std::vector<unsigned char> sig;
+        sig.reserve(ecdsaSigSize);
+        sig.insert(sig.begin(), sigs.begin() + i * ecdsaSigSize, sigs.begin() + (i + 1) * ecdsaSigSize);
+
+        CPubKey pubKey{};
+        if (!pubKey.RecoverCompact(hashToSign, sig)) {
+            LogPrintf("CheckDposSigs(): RecoverCompact failed, malformed ECDSA signature \n");
+            return false;
+        }
+        CKeyID operatorAuth = pubKey.GetID();
+        if (!mnview.IsTeamMember(pindex->nHeight, operatorAuth)) {
+            LogPrintf("CheckDposSigs(): signed not by a team member \n");
+            return false;
+        }
+
+        if (knownSigs.count(operatorAuth) != 0) {
+            LogPrintf("CheckDposSigs(): the same signature is written twice \n");
+            return false;
+        }
+        knownSigs.insert(pubKey.GetID());
     }
 
     return true;
@@ -2573,8 +2592,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (!fDposActive && !block.vSig.empty())
             return state.DoS(100, error("ConnectBlock(): didnt expect any dPoS signatures"),
                              REJECT_INVALID, "bad-blk-dpos-sigs");
-        if (fDposActive && !CheckDposSigs(block.vSig, hashPrevBlock, block.GetHash(), block.nRoundNumber,
-                                             chainparams.GetConsensus().dpos.nMinQuorum, chainparams.GetConsensus().dpos.nTeamSize))
+        auto dpos = chainparams.GetConsensus().dpos;
+        if (fDposActive && !CheckDposSigs(block.vSig, pindex, dpos.nMinQuorum, dpos.nTeamSize, *pmasternodesview))
             return state.DoS(100, error("ConnectBlock(): wrong dPoS signatures"),
                              REJECT_INVALID, "bad-blk-dpos-sigs"); // TODO dont mark block as invalid
     }
