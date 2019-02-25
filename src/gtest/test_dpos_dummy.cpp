@@ -5,14 +5,27 @@
 namespace
 {
 
-void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds, std::array<dpos::CDposVoter, 32>& voters, BlockHash& tip)
+void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds, std::vector<dpos::CDposVoter>& voters, BlockHash& tip, dpos::CDposVoter::Callbacks callbacks)
 {
     for (uint64_t i = 0; i < 32; i++) {
         masternodeIds[i] = ArithToUint256(arith_uint256{i});
+        voters.emplace_back(callbacks);
     }
 
-    dpos::CDposVoter::Callbacks callbacks;
+    tip = uint256S("0xB101");
+    for (uint64_t i = 0; i < 32; i++) {
+        voters[i].minQuorum = 23;
+        voters[i].numOfVoters = 32;
+        voters[i].updateTip(tip);
+        voters[i].setVoting(true, masternodeIds[i]);
+    }
+}
 
+}
+
+TEST(dPoS, DummyEmptyBlock)
+{
+    dpos::CDposVoter::Callbacks callbacks;
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
         return true;
@@ -26,41 +39,28 @@ void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds, std::array
         return true;
     };
 
-    tip = uint256S("0xB101");
-    for (uint64_t i = 0; i < 32; i++) {
-        voters[i].minQuorum = 23;
-        voters[i].numOfVoters = 32;
-        voters[i].setVoting(tip, callbacks, true, masternodeIds[i]);
-    }
-}
-
-}
-
-TEST(dPoS, DummyEmptyBlock)
-{
     // Init voters
     std::array<CMasternode::ID, 32> masternodeIds;
-    std::array<dpos::CDposVoter, 32> voters;
+    std::vector<dpos::CDposVoter> voters;
     BlockHash tip;
-    initVoters_dummy(masternodeIds, voters, tip);
+    initVoters_dummy(masternodeIds, voters, tip, callbacks);
 
     // Create dummy vice-block
     CBlock viceBlock;
     viceBlock.hashPrevBlock = tip;
-    viceBlock.nRoundNumber = 1;
+    viceBlock.nRound = 1;
 
     dpos::CDposVoter::Output res;
     for (uint64_t i = 0; i < 23; i++) {
         { // wrong round check
-            viceBlock.nRoundNumber = static_cast<dpos::Round>(i * 2);
-            const size_t initSize = voters[i].v[tip].viceBlocks.size();
+            viceBlock.nRound = static_cast<dpos::Round>(i * 2);
             const auto empty = voters[i].applyViceBlock(viceBlock);
             ASSERT_TRUE(empty.vTxVotes.empty());
             ASSERT_TRUE(!empty.blockToSubmit);
             ASSERT_TRUE(empty.vRoundVotes.empty());
             ASSERT_TRUE(empty.vErrors.empty());
             ASSERT_EQ(voters[i].v[tip].viceBlocks[viceBlock.GetHash()].GetHash(), viceBlock.GetHash());
-            viceBlock.nRoundNumber = 1;
+            viceBlock.nRound = 1;
         }
 
         res += voters[i].applyViceBlock(viceBlock);
@@ -117,11 +117,25 @@ TEST(dPoS, DummyEmptyBlock)
 
 TEST(dPoS, DummyCommitTx)
 {
+    dpos::CDposVoter::Callbacks callbacks;
+    callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
+    {
+        return true;
+    };
+    callbacks.validateBlock = [](const CBlock& b, const std::map<TxIdSorted, CTransaction>& txs, bool checkTxs)
+    {
+        return true;
+    };
+    callbacks.allowArchiving = [](BlockHash votingId)
+    {
+        return true;
+    };
+
     // Init voters
     std::array<CMasternode::ID, 32> masternodeIds;
-    std::array<dpos::CDposVoter, 32> voters;
+    std::vector<dpos::CDposVoter> voters;
     BlockHash tip;
-    initVoters_dummy(masternodeIds, voters, tip);
+    initVoters_dummy(masternodeIds, voters, tip, callbacks);
 
     // create dummy tx
     CMutableTransaction mtx;
@@ -173,12 +187,6 @@ TEST(dPoS, DummyCommitTx)
 
 TEST(dPoS, DummyRejectTx)
 {
-    // Init voters
-    std::array<CMasternode::ID, 32> masternodeIds;
-    std::array<dpos::CDposVoter, 32> voters;
-    BlockHash tip;
-    initVoters_dummy(masternodeIds, voters, tip);
-
     dpos::CDposVoter::Callbacks callbacks{};
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
@@ -192,7 +200,14 @@ TEST(dPoS, DummyRejectTx)
     {
         return true;
     };
-    voters[0].setVoting(tip, callbacks, true, masternodeIds[0]);
+
+    // Init voters
+    std::array<CMasternode::ID, 32> masternodeIds;
+    std::vector<dpos::CDposVoter> voters;
+    BlockHash tip;
+    initVoters_dummy(masternodeIds, voters, tip, callbacks);
+
+    voters[0].setVoting(true, masternodeIds[0]);
 
     // create dummy tx
     CMutableTransaction mtx;

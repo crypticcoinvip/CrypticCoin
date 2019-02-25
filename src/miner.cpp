@@ -256,7 +256,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
         // Insert instant tranasctions
         {
-            const std::vector<CTransaction> commitedList = dpos::getController()->listCommittedTransactions();
+            const std::vector<CTransaction> commitedList = dpos::getController()->listCommittedTxs();
 
             for (auto&& tx : commitedList) {
                 assert(tx.fInstant);

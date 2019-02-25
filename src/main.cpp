@@ -1390,13 +1390,18 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     int nextBlockHeight = chainActive.Height() + 1;
     auto consensusBranchId = CurrentEpochBranchId(nextBlockHeight, Params().GetConsensus());
 
+    // omit input checks if it's dPoS-committed or approved by me
+    const dpos::CDposController* pDpos = dpos::getController();
+    assert(pDpos != nullptr);
+    const bool forced = tx.fInstant && pDpos->isCommittedTx(tx) && pDpos->isTxApprovedByMe(tx);
+
     // Node operator can choose to reject tx by number of transparent inputs
     static_assert(std::numeric_limits<size_t>::max() >= std::numeric_limits<int64_t>::max(), "size_t too small");
     size_t limit = (size_t) GetArg("-mempooltxinputlimit", 0);
     if (NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_OVERWINTER)) {
         limit = 0;
     }
-    if (limit > 0) {
+    if (!forced && limit > 0) {
         size_t n = tx.vin.size();
         if (n > limit) {
             LogPrint("mempool", "Dropping txid %s : too many transparent inputs %zu > limit %zu\n", tx.GetHash().ToString(), n, limit );
@@ -1417,7 +1422,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     // DoS mitigation: reject transactions expiring soon
     // Note that if a valid transaction belonging to the wallet is in the mempool and the node is shutdown,
     // upon restart, CWalletTx::AcceptToMemoryPool() will be invoked which might result in rejection.
-    if (IsExpiringSoonTx(tx, nextBlockHeight)) {
+    if (!forced && IsExpiringSoonTx(tx, nextBlockHeight)) {
         return state.DoS(0, error("AcceptToMemoryPool(): transaction is expiring soon"), REJECT_INVALID, "tx-expiring-soon");
     }
 
@@ -1428,7 +1433,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
 
     // Rather not work on nonstandard transactions (unless -testnet/-regtest)
     string reason;
-    if (Params().RequireStandard() && !IsStandardTx(tx, reason, nextBlockHeight))
+    if (!forced && Params().RequireStandard() && !IsStandardTx(tx, reason, nextBlockHeight))
         return state.DoS(0,
                          error("AcceptToMemoryPool: nonstandard transaction: %s", reason),
                          REJECT_NONSTANDARD, reason);
@@ -1445,31 +1450,33 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         return false;
 
     // Check for conflicts with in-memory transactions
+    if (!forced)
     {
-    LOCK(pool.cs); // protect pool.mapNextTx
-    for (unsigned int i = 0; i < tx.vin.size(); i++)
-    {
-        COutPoint outpoint = tx.vin[i].prevout;
-        if (pool.mapNextTx.count(outpoint))
+        LOCK(pool.cs); // protect pool.mapNextTx
+        for (unsigned int i = 0; i < tx.vin.size(); i++)
         {
-            // Disable replacement feature for now
-            return false;
+            COutPoint outpoint = tx.vin[i].prevout;
+            if (pool.mapNextTx.count(outpoint))
+            {
+                // Disable replacement feature for now
+                return false;
+            }
         }
-    }
-    BOOST_FOREACH(const JSDescription &joinsplit, tx.vjoinsplit) {
-        BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
-            if (pool.nullifierExists(nf, SPROUT)) {
+        BOOST_FOREACH(const JSDescription &joinsplit, tx.vjoinsplit) {
+            BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
+                if (pool.nullifierExists(nf, SPROUT)) {
+                    return false;
+                }
+            }
+        }
+        for (const SpendDescription &spendDescription : tx.vShieldedSpend) {
+            if (pool.nullifierExists(spendDescription.nullifier, SAPLING)) {
                 return false;
             }
         }
     }
-    for (const SpendDescription &spendDescription : tx.vShieldedSpend) {
-        if (pool.nullifierExists(spendDescription.nullifier, SAPLING)) {
-            return false;
-        }
-    }
-    }
 
+    if (!forced)
     {
         CCoinsView dummy;
         CCoinsViewCache view(&dummy);
@@ -2478,7 +2485,7 @@ void PartitionCheck(bool (*initialDownloadCheck)(), CCriticalSection& cs, const 
     }
 }
 
-static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const BlockHash& prevBlockHash, const BlockHash& blockHash, dpos::Round nRound, size_t minQuorum, size_t teamSize) {
+static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIndex* pindex, size_t minQuorum, size_t teamSize, const CMasternodesView& mnview) {
     const size_t ecdsaSigSize = 65;
     if ((sigs.size() % ecdsaSigSize) != 0) {
         LogPrintf("CheckDposSigs(): malformed signatures \n");
@@ -2494,17 +2501,37 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const BlockHas
         return false;
     }
 
+    assert(pindex->pprev != nullptr);
     dpos::CRoundVote_p2p roundVote;
-    roundVote.tip = prevBlockHash;
-    roundVote.round = nRound;
-    roundVote.choice.subject = blockHash;
+    roundVote.tip = pindex->pprev->GetBlockHash();
+    roundVote.nRound = pindex->nRound;
+    roundVote.choice.subject = pindex->GetBlockHash();
     roundVote.choice.decision = dpos::CVoteChoice::Decision::YES;
 
     const uint256 hashToSign = roundVote.GetSignatureHash();
     std::set<CKeyID> knownSigs;
 
-    for (int i = 0; i < sigsSize; i++) {
-        // TODO check sigs
+    for (size_t i = 0; i < sigsSize; i++) {
+        std::vector<unsigned char> sig;
+        sig.reserve(ecdsaSigSize);
+        sig.insert(sig.begin(), sigs.begin() + i * ecdsaSigSize, sigs.begin() + (i + 1) * ecdsaSigSize);
+
+        CPubKey pubKey{};
+        if (!pubKey.RecoverCompact(hashToSign, sig)) {
+            LogPrintf("CheckDposSigs(): RecoverCompact failed, malformed ECDSA signature \n");
+            return false;
+        }
+        CKeyID operatorAuth = pubKey.GetID();
+        if (!mnview.IsTeamMember(pindex->nHeight, operatorAuth)) {
+            LogPrintf("CheckDposSigs(): signed not by a team member \n");
+            return false;
+        }
+
+        if (knownSigs.count(operatorAuth) != 0) {
+            LogPrintf("CheckDposSigs(): the same signature is written twice \n");
+            return false;
+        }
+        knownSigs.insert(pubKey.GetID());
     }
 
     return true;
@@ -2570,13 +2597,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     if (dvr.fCheckDposSigs)
     {
+        // dont mark block as invalid because vSig isn't hashed in block. An attacker may send wrong signatures to convince us that block is invalid
         if (!fDposActive && !block.vSig.empty())
-            return state.DoS(100, error("ConnectBlock(): didnt expect any dPoS signatures"),
-                             REJECT_INVALID, "bad-blk-dpos-sigs");
-        if (fDposActive && !CheckDposSigs(block.vSig, hashPrevBlock, block.GetHash(), block.nRoundNumber,
-                                             chainparams.GetConsensus().dpos.nMinQuorum, chainparams.GetConsensus().dpos.nTeamSize))
-            return state.DoS(100, error("ConnectBlock(): wrong dPoS signatures"),
-                             REJECT_INVALID, "bad-blk-dpos-sigs"); // TODO dont mark block as invalid
+            return state.Error("bad-blk-dpos-sigs");
+        auto dpos = chainparams.GetConsensus().dpos;
+        if (fDposActive && !CheckDposSigs(block.vSig, pindex, dpos.nMinQuorum, dpos.nTeamSize, *pmasternodesview))
+            return state.Error("bad-blk-dpos-sigs");
     }
 
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;

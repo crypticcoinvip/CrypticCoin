@@ -70,15 +70,19 @@ size_t CTxVotingDistribution::totus() const
     return pro + contra + abstinendi;
 }
 
-void CDposVoter::setVoting(BlockHash tip, Callbacks world, bool amIvoter, CMasternode::ID me)
+CDposVoter::CDposVoter(Callbacks world)
 {
-    this->tip = tip;
     this->world = std::move(world);
+}
+
+void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
+{
     this->amIvoter = amIvoter;
     this->me = me;
 }
 
-void CDposVoter::updateTip(BlockHash tip) {
+void CDposVoter::updateTip(BlockHash tip)
+{
     this->tip = tip;
 }
 
@@ -98,7 +102,7 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
         return {};
     }
 
-    if (viceBlock.nRoundNumber != getCurrentRound()) {
+    if (viceBlock.nRound != getCurrentRound()) {
         LogPrintf("%s: Ignoring vice-block from prev. round: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
@@ -281,7 +285,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
             }
 
             const CBlock& viceBlock = v[tip].viceBlocks[viceBlockId];
-            if (viceBlock.nRoundNumber == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
+            if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
                 viceBlockToVote = {viceBlockId};
                 break;
             }
@@ -320,7 +324,7 @@ CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId)
 
     if (stats.pro[viceBlockId] >= minQuorum) {
         const auto& viceBlock = v[tip].viceBlocks[viceBlockId];
-        if (viceBlock.nRoundNumber != nCurrentRound) {
+        if (viceBlock.nRound != nCurrentRound) {
             return out;
         }
         if (!world.validateBlock(viceBlock, listCommittedTxs(), true)) {
@@ -402,6 +406,21 @@ std::map<TxIdSorted, CTransaction> CDposVoter::listCommittedTxs() const
     }
 
     return res;
+}
+
+bool CDposVoter::isCommittedTx(const CTransaction& tx) const
+{
+    const Round nRound = getCurrentRound();
+    const TxId txid = tx.GetHash();
+    const auto stats = calcTxVotingStats(txid, nRound);
+
+    return stats.pro >= minQuorum;
+}
+
+bool CDposVoter::isTxApprovedByMe(const CTransaction& tx) const
+{
+    auto myTxs = listApprovedByMe_txs();
+    return myTxs.count(UintToArith256(tx.GetHash())) != 0;
 }
 
 CDposVoter::Output CDposVoter::misbehavingErr(const std::string& msg) const
@@ -573,7 +592,7 @@ bool CDposVoter::atLeastOneViceBlockIsValid(Round nRound) const
 
     for (const auto& viceBlock_p : v[tip].viceBlocks) {
         const CBlock& viceBlock = viceBlock_p.second;
-        if (viceBlock.nRoundNumber == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
+        if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
             return true;
         }
     }
