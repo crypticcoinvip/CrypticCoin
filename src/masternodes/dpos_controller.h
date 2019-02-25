@@ -55,11 +55,13 @@ private:
     bool acceptRoundVote(const CRoundVote_p2p& vote);
     bool acceptTxVote(const CTxVote_p2p& vote);
 
+    void removeOldVotes();
+
 private:
     std::shared_ptr<CDposVoter> voter;
     std::shared_ptr<Validator> validator;
-    std::map<uint256, CTxVote_p2p> recievedTxVotes;
-    std::map<uint256, CRoundVote_p2p> recievedRoundVotes;
+    std::map<uint256, CTxVote_p2p> receivedTxVotes;
+    std::map<uint256, CRoundVote_p2p> receivedRoundVotes;
 };
 
 
