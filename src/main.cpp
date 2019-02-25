@@ -2589,13 +2589,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     if (dvr.fCheckDposSigs)
     {
+        // dont mark block as invalid because vSig isn't hashed in block. An attacker may send wrong signatures to convince us that block is invalid
         if (!fDposActive && !block.vSig.empty())
-            return state.DoS(100, error("ConnectBlock(): didnt expect any dPoS signatures"),
-                             REJECT_INVALID, "bad-blk-dpos-sigs");
+            return state.Error("bad-blk-dpos-sigs");
         auto dpos = chainparams.GetConsensus().dpos;
         if (fDposActive && !CheckDposSigs(block.vSig, pindex, dpos.nMinQuorum, dpos.nTeamSize, *pmasternodesview))
-            return state.DoS(100, error("ConnectBlock(): wrong dPoS signatures"),
-                             REJECT_INVALID, "bad-blk-dpos-sigs"); // TODO dont mark block as invalid
+            return state.Error("bad-blk-dpos-sigs");
     }
 
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
