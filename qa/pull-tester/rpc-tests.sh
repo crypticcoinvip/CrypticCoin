@@ -14,6 +14,7 @@ testScripts=(
     'mn_basic.py'
     'mn_voting.py'
     'mn_revert.py'
+    'mn_setoperator.py'
     'paymentdisclosure.py'
     'prioritisetransaction.py'
     'wallet_treestate.py'
