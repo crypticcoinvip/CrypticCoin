@@ -2496,7 +2496,7 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
 
     dpos::CRoundVote_p2p roundVote;
     roundVote.tip = pindex->pprev->GetBlockHash();
-    roundVote.round = pindex->nRoundNumber;
+    roundVote.nRound = pindex->nRound;
     roundVote.choice.subject = pindex->GetBlockHash();
     roundVote.choice.decision = dpos::CVoteChoice::Decision::YES;
 

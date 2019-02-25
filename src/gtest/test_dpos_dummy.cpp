@@ -47,12 +47,12 @@ TEST(dPoS, DummyEmptyBlock)
     // Create dummy vice-block
     CBlock viceBlock;
     viceBlock.hashPrevBlock = tip;
-    viceBlock.nRoundNumber = 1;
+    viceBlock.nRound = 1;
 
     dpos::CDposVoter::Output res;
     for (uint64_t i = 0; i < 23; i++) {
         { // wrong round check
-            viceBlock.nRoundNumber = static_cast<dpos::Round>(i * 2);
+            viceBlock.nRound = static_cast<dpos::Round>(i * 2);
             const size_t initSize = voters[i].v[tip].viceBlocks.size();
             const auto empty = voters[i].applyViceBlock(viceBlock);
             ASSERT_TRUE(empty.vTxVotes.empty());
@@ -60,7 +60,7 @@ TEST(dPoS, DummyEmptyBlock)
             ASSERT_TRUE(empty.vRoundVotes.empty());
             ASSERT_TRUE(empty.vErrors.empty());
             ASSERT_EQ(voters[i].v[tip].viceBlocks[viceBlock.GetHash()].GetHash(), viceBlock.GetHash());
-            viceBlock.nRoundNumber = 1;
+            viceBlock.nRound = 1;
         }
 
         res += voters[i].applyViceBlock(viceBlock);

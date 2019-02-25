@@ -186,7 +186,7 @@ public:
     std::vector<unsigned char> nSolution;
     uint256 hashReserved1;
     uint256 hashReserved2;
-    uint16_t nRoundNumber;
+    uint16_t nRound;
 
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     uint32_t nSequenceId;
@@ -221,7 +221,7 @@ public:
         nSolution.clear();
         hashReserved1  = uint256();
         hashReserved2  = uint256();
-        nRoundNumber   = 0;
+        nRound         = 0;
     }
 
     CBlockIndex()
@@ -242,7 +242,7 @@ public:
         nSolution      = block.nSolution;
         hashReserved1  = block.hashReserved1;
         hashReserved2  = block.hashReserved2;
-        nRoundNumber   = block.nRoundNumber;
+        nRound         = block.nRound;
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -277,7 +277,7 @@ public:
         block.nSolution      = nSolution;
         block.hashReserved1  = hashReserved1;
         block.hashReserved2  = hashReserved2;
-        block.nRoundNumber   = nRoundNumber;
+        block.nRound         = nRound;
         return block;
     }
 
@@ -403,7 +403,7 @@ public:
         if (nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
             READWRITE(hashReserved1);
             READWRITE(hashReserved2);
-            READWRITE(nRoundNumber);
+            READWRITE(nRound);
         }
 
         // Only read/write nSproutValue if the client version used to create
@@ -435,7 +435,7 @@ public:
         block.nSolution       = nSolution;
         block.hashReserved1   = hashReserved1;
         block.hashReserved2   = hashReserved2;
-        block.nRoundNumber    = nRoundNumber;
+        block.nRound          = nRound;
         return block.GetHash();
     }
 

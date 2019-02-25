@@ -1064,7 +1064,7 @@ UniValue listdposviceblocks(const UniValue& params, bool fHelp)
         jsonBlock.push_back(Pair("prevBlock", block.hashPrevBlock.GetHex()));
         jsonBlock.push_back(Pair("merkleRoot", block.hashMerkleRoot.GetHex()));
         jsonBlock.push_back(Pair("saplingRoot", block.hashFinalSaplingRoot.GetHex()));
-        jsonBlock.push_back(Pair("roundNumber", static_cast<int>(block.nRoundNumber)));
+        jsonBlock.push_back(Pair("nRound", static_cast<int>(block.nRound)));
         jsonBlock.push_back(Pair("time", static_cast<int>(block.nTime)));
         jsonBlock.push_back(Pair("bits", static_cast<int>(block.nBits)));
         jsonBlock.push_back(Pair("nonce", block.nNonce.GetHex()));
@@ -1087,7 +1087,7 @@ UniValue listdposroundvotes(const UniValue& params, bool fHelp)
             "    \"hash\": \"xxxx\",               (string) hash of the vote\n"
             "    \"choice_hash\": \"xxxx\",        (string) hash of the progenitor block\n"
             "    \"choice_decision\": x,           (numeric) decision of the voting choice\n"
-            "    \"roundNumber\": xxx,             (numeric) round number of the voting\n"
+            "    \"round\": xxx,                   (numeric) round number of the voting\n"
             "    \"tipBlock\": \"xxxx\",           (string) hash of the tip block\n"
             "    \"signature\": \"xxxx\",          (string) signature of the vote\n"
             "  },\n"
@@ -1104,7 +1104,7 @@ UniValue listdposroundvotes(const UniValue& params, bool fHelp)
         UniValue jsonVote{UniValue::VOBJ};
         jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
         jsonVote.push_back(Pair("tipBlock", vote.tip.GetHex()));
-        jsonVote.push_back(Pair("roundNumber", vote.round));
+        jsonVote.push_back(Pair("round", static_cast<int>(vote.nRound)));
         jsonVote.push_back(Pair("choice_block", vote.choice.subject.GetHex()));
         jsonVote.push_back(Pair("choice_decision", vote.choice.decision));
         jsonVote.push_back(Pair("signature", HexStr(vote.signature)));
@@ -1127,7 +1127,7 @@ UniValue listdpostxvotes(const UniValue& params, bool fHelp)
             "    \"hash\": \"xxxx\",               (string) hash of the vote\n"
             "    \"choice_txid_N\": \"xxxx\",      (string) N-element of array of the transaction hash\n"
             "    \"choice_decision_N\": x,         (numeric) N-element of array of the voting choice decision\n"
-            "    \"roundNumber\": xxxx,            (numeric) round number of the voting\n"
+            "    \"round\": xxxx,                  (numeric) round number of the voting\n"
             "    \"tipBlock\": \"xxxx\",           (string) hash of the tip block\n"
             "    \"signature\": \"xxxx\",          (string) signature of the vote\n"
             "  },\n"
@@ -1144,7 +1144,7 @@ UniValue listdpostxvotes(const UniValue& params, bool fHelp)
         UniValue jsonVote{UniValue::VOBJ};
         jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
         jsonVote.push_back(Pair("tipBlock", vote.tip.GetHex()));
-        jsonVote.push_back(Pair("roundNumber", vote.round));
+        jsonVote.push_back(Pair("round", static_cast<int>(vote.nRound)));
         for (std::size_t i{0}; i < vote.choices.size(); i++) {
             std::string postfix{std::to_string(i)};
             jsonVote.push_back(Pair("choice_txid#" + postfix, vote.choices[i].subject.GetHex()));
