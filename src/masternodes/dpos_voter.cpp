@@ -78,7 +78,8 @@ void CDposVoter::setVoting(BlockHash tip, Callbacks world, bool amIvoter, CMaste
     this->me = me;
 }
 
-void CDposVoter::updateTip(BlockHash tip) {
+void CDposVoter::updateTip(BlockHash tip)
+{
     this->tip = tip;
 }
 
@@ -402,6 +403,21 @@ std::map<TxIdSorted, CTransaction> CDposVoter::listCommittedTxs() const
     }
 
     return res;
+}
+
+bool CDposVoter::isCommittedTx(const CTransaction& tx) const
+{
+    const Round nRound = getCurrentRound();
+    const TxId txid = tx.GetHash();
+    const auto stats = calcTxVotingStats(txid, nRound);
+
+    return stats.pro >= minQuorum;
+}
+
+bool CDposVoter::isTxApprovedByMe(const CTransaction& tx) const
+{
+    auto myTxs = listApprovedByMe_txs();
+    return myTxs.count(UintToArith256(tx.GetHash())) != 0;
 }
 
 CDposVoter::Output CDposVoter::misbehavingErr(const std::string& msg) const

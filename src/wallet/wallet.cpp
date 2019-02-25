@@ -2833,7 +2833,7 @@ CAmount CWallet::GetInstantBalance() const
 {
     CAmount rv{0};
 
-    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
+    for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         if (!CheckFinalTx(tx) || tx.vin.empty()) {
             continue;
         }

@@ -42,7 +42,9 @@ public:
     std::vector<CRoundVote_p2p> listRoundVotes() const;
     std::vector<CTxVote_p2p> listTxVotes() const;
 
-    std::vector<CTransaction> listCommittedTransactions() const;
+    std::vector<CTransaction> listCommittedTxs() const;
+    bool isCommittedTx(const CTransaction& tx) const;
+    bool isTxApprovedByMe(const CTransaction& tx) const;
 
 private:
     CDposController() = default;
