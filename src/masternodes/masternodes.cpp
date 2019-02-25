@@ -905,7 +905,15 @@ std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAm
 
 uint32_t CMasternodesView::GetMinDismissingQuorum()
 {
-    return 1 + (activeNodes.size() * 2) / 3; // 66% + 1
+    if (Params().NetworkIDString() != "regtest")
+    {
+        const uint32_t perc66 = static_cast<uint32_t>((activeNodes.size() * 2) / 3); // 66%
+        return std::max(perc66, 32u);
+    }
+    else
+    {
+        return  static_cast<uint32_t>(1 + (activeNodes.size() * 2) / 3); // 66% + 1
+    }
 }
 
 void CMasternodesView::PrepareBatch()
