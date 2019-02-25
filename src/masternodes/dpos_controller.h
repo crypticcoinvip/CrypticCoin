@@ -29,6 +29,8 @@ public:
     void initialize();
     void updateChainTip();
 
+    int getCurrentVotingRound() const;
+
     void proceedViceBlock(const CBlock& viceBlock);
     void proceedTransaction(const CTransaction& tx);
     void proceedRoundVote(const CRoundVote_p2p& vote);

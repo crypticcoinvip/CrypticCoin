@@ -630,6 +630,7 @@ void static BitcoinMiner()
                 return;
             }
             CBlock *pblock = &pblocktemplate->block;
+            pblock->nRound = dpos::getController()->getCurrentVotingRound();
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
             LogPrintf("Running CrypticcoinMiner with %u transactions in block (%u bytes)\n", pblock->vtx.size(),

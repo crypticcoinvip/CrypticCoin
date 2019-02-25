@@ -297,11 +297,17 @@ void CDposController::updateChainTip()
     this->voter->updateTip(getTipBlockHash());
 }
 
+int CDposController::getCurrentVotingRound() const
+{
+    return isEnabled() ? voter->getCurrentRound() : 0;
+}
+
 void CDposController::proceedViceBlock(const CBlock& viceBlock)
 {
     if (!findViceBlock(viceBlock.GetHash())) {
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
+
         const CDposVoterOutput out{voter->applyViceBlock(viceBlock)};
 
         if (handleVoterOutput(out)) {
