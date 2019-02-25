@@ -17,7 +17,11 @@ static const char* ppszTypeName[] =
     "ERROR",
     "tx",
     "block",
-    "filtered block"
+    "filtered block",
+    "heartbeat",
+    "vice_block",
+    "round_vote",
+    "tx_vote"
 };
 
 CMessageHeader::CMessageHeader(const MessageStartChars& pchMessageStartIn)

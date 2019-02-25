@@ -4,6 +4,8 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "txdb.h"
+#include "masternodes/masternodes.h"
+#include "masternodes/dpos_p2p_messages.h"
 
 #include "chainparams.h"
 #include "hash.h"
@@ -44,6 +46,11 @@ static const char DB_MASTERNODESUNDO = 'U';
 static const char DB_SETOPERATORUNDO = 'u';
 static const char DB_DISMISSVOTES = 'V';
 static const char DB_TEAM = 'T';
+
+// Prefixes to the dpos database (dpos/)
+static const char DB_DPOS_TX_VOTES = 't';
+static const char DB_DPOS_ROUND_VOTES = 'p';
+static const char DB_DPOS_VICE_BLOCKS = 'b';
 
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
 }
@@ -341,6 +348,9 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->nBits          = diskindex.nBits;
                 pindexNew->nNonce         = diskindex.nNonce;
                 pindexNew->nSolution      = diskindex.nSolution;
+                pindexNew->hashReserved1  = diskindex.hashReserved1;
+                pindexNew->hashReserved2  = diskindex.hashReserved2;
+                pindexNew->nRoundNumber   = diskindex.nRoundNumber;
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nCachedBranchId = diskindex.nCachedBranchId;
                 pindexNew->nTx            = diskindex.nTx;
@@ -573,6 +583,119 @@ bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> on
         }
         else
         {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+
+
+CDposDB::CDposDB(size_t nCacheSize, bool fMemory, bool fWipe) :
+    CDBWrapper(GetDataDir() / "dpos", nCacheSize, fMemory, fWipe)
+{
+}
+
+void CDposDB::WriteViceBlock(const uint256& tip, const CBlock& block)
+{
+    CDBBatch batch{*this};
+    batch.Write(make_pair(DB_DPOS_VICE_BLOCKS, tip), block);
+}
+
+void CDposDB::EraseViceBlock(const uint256& tip)
+{
+    CDBBatch batch{*this};
+    batch.Erase(make_pair(DB_DPOS_VICE_BLOCKS, tip));
+}
+
+
+void CDposDB::WriteRoundVote(const uint256& tip, const dpos::CRoundVote_p2p& vote)
+{
+    CDBBatch batch{*this};
+    batch.Write(make_pair(DB_DPOS_ROUND_VOTES, tip), vote);
+}
+
+void CDposDB::EraseRoundVote(const uint256& tip)
+{
+    CDBBatch batch{*this};
+    batch.Erase(make_pair(DB_DPOS_ROUND_VOTES, tip));
+}
+
+void CDposDB::WriteTxVote(const uint256& tip, const dpos::CTxVote_p2p& vote)
+{
+    CDBBatch batch{*this};
+    batch.Write(make_pair(DB_DPOS_TX_VOTES, tip), vote);
+}
+
+void CDposDB::EraseTxVote(const uint256& tip)
+{
+    CDBBatch batch{*this};
+    batch.Erase(make_pair(DB_DPOS_TX_VOTES, tip));
+}
+
+bool CDposDB::LoadViceBlocks(std::function<void (const uint256&, const CBlock&)> onViceBlock)
+{
+    boost::scoped_ptr<CDBIterator> pcursor{NewIterator()};
+    pcursor->Seek(DB_DPOS_VICE_BLOCKS);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char, uint256> key{};
+        if (pcursor->GetKey(key) && key.first == DB_DPOS_VICE_BLOCKS) {
+            CBlock block{};
+            if (pcursor->GetValue(block)) {
+                onViceBlock(key.second, block);
+            } else {
+                return error("CDposDB::LoadViceBlocks() : unable to read value");
+            }
+        } else {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+bool CDposDB::LoadRoundVotes(std::function<void (const uint256&, const dpos::CRoundVote_p2p&)> onRoundVote)
+{
+    boost::scoped_ptr<CDBIterator> pcursor{NewIterator()};
+    pcursor->Seek(DB_DPOS_ROUND_VOTES);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char, uint256> key{};
+        if (pcursor->GetKey(key) && key.first == DB_DPOS_ROUND_VOTES) {
+            dpos::CRoundVote_p2p vote{};
+            if (pcursor->GetValue(vote)) {
+                onRoundVote(key.second, vote);
+            } else {
+                return error("CDposDB::LoadRoundVotes() : unable to read value");
+            }
+        } else {
+            break;
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+bool CDposDB::LoadTxVotes(std::function<void (const uint256&, const dpos::CTxVote_p2p&)> onTxVote)
+{
+    boost::scoped_ptr<CDBIterator> pcursor{NewIterator()};
+    pcursor->Seek(DB_DPOS_TX_VOTES);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char, uint256> key{};
+        if (pcursor->GetKey(key) && key.first == DB_DPOS_TX_VOTES) {
+            dpos::CTxVote_p2p vote{};
+            if (pcursor->GetValue(vote)) {
+                onTxVote(key.second, vote);
+            } else {
+                return error("CDposDB::LoadTxVotes() : unable to read value");
+            }
+        } else {
             break;
         }
         pcursor->Next();

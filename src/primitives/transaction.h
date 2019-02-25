@@ -37,6 +37,9 @@ static_assert(SAPLING_TX_VERSION >= SAPLING_MIN_TX_VERSION,
 static_assert(SAPLING_TX_VERSION <= SAPLING_MAX_TX_VERSION,
     "Sapling tx version must not be higher than maximum");
 
+static const int32_t HEADER_VERSION_MASK = 0x3FFFFFFF;
+static const size_t DPOS_SECTION_SIZE = 1024;
+
 /**
  * A shielded input to a transaction. It contains data that describes a Spend transfer.
  */
@@ -272,7 +275,7 @@ public:
         // nVersion is set by CTransaction and CMutableTransaction to
         // (tx.fOverwintered << 31) | tx.nVersion
         bool fOverwintered = s.GetVersion() >> 31;
-        int32_t txVersion = s.GetVersion() & 0x7FFFFFFF;
+        int32_t txVersion = s.GetVersion() & HEADER_VERSION_MASK;
         bool useGroth = fOverwintered && txVersion >= SAPLING_TX_VERSION;
 
         READWRITE(vpub_old);
@@ -546,6 +549,7 @@ public:
     // and bypass the constness. This is safe, as they update the entire
     // structure, including the hash.
     const bool fOverwintered;
+    const bool fInstant;
     const int32_t nVersion;
     const uint32_t nVersionGroupId;
     const std::vector<CTxIn> vin;
@@ -577,8 +581,9 @@ public:
         if (ser_action.ForRead()) {
             // When deserializing, unpack the 4 byte header to extract fOverwintered and nVersion.
             READWRITE(header);
-            *const_cast<bool*>(&fOverwintered) = header >> 31;
-            *const_cast<int32_t*>(&this->nVersion) = header & 0x7FFFFFFF;
+            *const_cast<bool*>(&fOverwintered) = (header >> 31) != 0;
+            *const_cast<bool*>(&fInstant) = ((header >> 30) & 1) != 0;
+            *const_cast<int32_t*>(&this->nVersion) = header & HEADER_VERSION_MASK;
         } else {
             header = GetHeader();
             READWRITE(header);
@@ -639,9 +644,14 @@ public:
     uint32_t GetHeader() const {
         // When serializing v1 and v2, the 4 byte header is nVersion
         uint32_t header = this->nVersion;
+        assert((header & ~HEADER_VERSION_MASK) == 0);
         // When serializing Overwintered tx, the 4 byte header is the combination of fOverwintered and nVersion
         if (fOverwintered) {
             header |= 1 << 31;
+        }
+        if (fInstant) {
+            assert(fOverwintered);
+            header |= 1 << 30;
         }
         return header;
     }
@@ -693,6 +703,7 @@ public:
 struct CMutableTransaction
 {
     bool fOverwintered;
+    bool fInstant;
     int32_t nVersion;
     uint32_t nVersionGroupId;
     std::vector<CTxIn> vin;
@@ -718,14 +729,20 @@ struct CMutableTransaction
         if (ser_action.ForRead()) {
             // When deserializing, unpack the 4 byte header to extract fOverwintered and nVersion.
             READWRITE(header);
-            fOverwintered = header >> 31;
-            this->nVersion = header & 0x7FFFFFFF;
+            fOverwintered = (header >> 31) != 0;
+            fInstant = ((header >> 30) & 1) != 0;
+            this->nVersion = header & HEADER_VERSION_MASK;
         } else {
             // When serializing v1 and v2, the 4 byte header is nVersion
             header = this->nVersion;
+            assert((header & ~HEADER_VERSION_MASK) == 0);
             // When serializing Overwintered tx, the 4 byte header is the combination of fOverwintered and nVersion
             if (fOverwintered) {
                 header |= 1 << 31;
+            }
+            if (fInstant) {
+                assert(fOverwintered);
+                header |= 1 << 30;
             }
             READWRITE(header);
         }

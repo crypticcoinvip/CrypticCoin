@@ -8,6 +8,9 @@
 #include "consensus/consensus.h"
 #include "consensus/validation.h"
 #include "core_io.h"
+#ifndef ENABLE_MINING
+#define ENABLE_MINING
+#endif
 #ifdef ENABLE_MINING
 #include "crypto/equihash.h"
 #include "pow/tromp/trompsolver.h"
@@ -22,6 +25,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "validationinterface.h"
+#include "../masternodes/dpos_controller.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif
@@ -255,6 +259,7 @@ UniValue generate(const UniValue& params, bool fHelp)
             };
 
             // TODO: factor this out into a function with the same API for each solver.
+            //FIXME: first call of solver always fail
             if (solver == "tromp") {
                 if (TrompSolve(curr_state, validBlock))
                 {
@@ -270,9 +275,13 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
-        CValidationState state;
-        if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
+        if (dpos::getController()->isEnabled()) {
+            dpos::getController()->proceedViceBlock(*pblock);
+        } else {
+            CValidationState state;
+            if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
+                throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
+        }
         ++nHeight;
         blockHashes.push_back(pblock->GetHash().GetHex());
     }
@@ -951,3 +960,4 @@ void RegisterMiningRPCCommands(CRPCTable &tableRPC)
     for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
         tableRPC.appendCommand(commands[vcidx].name, &commands[vcidx]);
 }
+

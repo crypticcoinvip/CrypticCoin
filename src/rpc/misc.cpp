@@ -89,12 +89,16 @@ UniValue getinfo(const UniValue& params, bool fHelp)
         bool fIncludeWatchonly = false;
         CAmount nBalance = pwalletMain->GetBalance();
         CAmount nCoinbase = pwalletMain->GetCoinbaseBalance();
+        CAmount nInstantBalance = pwalletMain->GetInstantBalance();
         CAmount nPrivateBalance = getBalanceZaddr("", nMinDepth, !fIncludeWatchonly);
-        CAmount nTotalBalance = nBalance + nPrivateBalance;
+        CAmount nInstantPrivateBalance = getInstantBalanceZaddr("", !fIncludeWatchonly);
+        CAmount nTotalBalance = nBalance + nInstantBalance + nPrivateBalance + nInstantPrivateBalance;
         UniValue balance(UniValue::VOBJ);
         balance.push_back(Pair("transparent", ValueFromAmount(nBalance)));
+        balance.push_back(Pair("instant_transparent", ValueFromAmount(nInstantBalance)));
         balance.push_back(Pair("coinbase", ValueFromAmount(nCoinbase)));
         balance.push_back(Pair("private", ValueFromAmount(nPrivateBalance)));
+        balance.push_back(Pair("instant_private", ValueFromAmount(nInstantPrivateBalance)));
         balance.push_back(Pair("total", ValueFromAmount(nTotalBalance)));
         obj.push_back(Pair("balance", balance));
     }
@@ -501,6 +505,57 @@ UniValue setmocktime(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
+UniValue p2p_get_tx_votes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1) {
+        throw runtime_error(
+                    "p2p_get_tx_votes ([ \"txid\",... ])\n"
+                    "\nSends p2p message get_tx_votes to all connected nodes\n"
+                    "\nArguments:\n"
+                    "1. [\"intersected_txid\", ...] (array, optional) Array of txids of interested transactions."
+                    "If empty, all the votes are interested\n"
+                    "\nExamples:\n"
+                    + HelpExampleCli("p2p_get_tx_votes", "")
+                    + HelpExampleRpc("p2p_get_tx_votes", ""));
+    }
+
+    std::vector<uint256> intersectedTxs{};
+    if (!params.empty()) {
+        UniValue txids{params[0].get_array()};
+        for (size_t idx{0}; idx < txids.size(); idx++) {
+            const UniValue& txid{txids[idx]};
+            if (txid.get_str().length() != 64 || !IsHex(txid.get_str())) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid txid ")+txid.get_str());
+            }
+            intersectedTxs.push_back(uint256S(txid.get_str()));
+        }
+    }
+    LOCK(cs_vNodes);
+    for(const auto& node : vNodes) {
+        node->PushMessage("get_tx_votes", intersectedTxs);
+    }
+    return NullUniValue;
+}
+
+UniValue p2p_get_round_votes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+                    "p2p_get_round_votes\n"
+                    "\nSends p2p message get_round_votes to all connected nodes\n"
+                    "\nExamples:\n"
+                    + HelpExampleCli("p2p_get_round_votes", "")
+                    + HelpExampleRpc("p2p_get_round_votes", ""));
+    }
+    LOCK(cs_vNodes);
+    for(const auto& node : vNodes) {
+        node->PushMessage("get_tx_votes");
+    }
+    return NullUniValue;
+}
+
+
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -512,6 +567,8 @@ static const CRPCCommand commands[] =
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            true  },
+    { "hidden",             "p2p_get_tx_votes",       &p2p_get_tx_votes,       true  },
+    { "hidden",             "p2p_get_round_votes",    &p2p_get_round_votes,    true  },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &tableRPC)

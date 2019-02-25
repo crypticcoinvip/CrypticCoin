@@ -159,6 +159,12 @@ BITCOIN_CORE_H = \
   dbwrapper.h \
   limitedmap.h \
   main.h \
+  masternodes/dpos_controller.h \
+  masternodes/dpos_voter.h \
+  masternodes/dpos_types.h \
+  masternodes/dpos_p2p_messages.h \
+  masternodes/dpos_validator.h \
+  masternodes/heartbeat.h \
   masternodes/masternodes.h \
   memusage.h \
   merkleblock.h \
@@ -378,6 +384,11 @@ libbitcoin_common_a_SOURCES = \
   key.cpp \
   key_io.cpp \
   keystore.cpp \
+  masternodes/dpos_controller.cpp \
+  masternodes/dpos_voter.cpp \
+  masternodes/dpos_p2p_messages.cpp \
+  masternodes/dpos_validator.cpp \
+  masternodes/heartbeat.cpp \
   masternodes/masternodes.cpp \
   netbase.cpp \
   primitives/block.cpp \
@@ -529,7 +540,7 @@ libzcash_a_SOURCES = \
   crypticcoin/prf.cpp \
   crypticcoin/util.cpp \
   crypticcoin/zip32.cpp \
-  crypticcoin/circuit/commitment.tcc \
+  crypticcoin/circuit/rm.tcc \
   crypticcoin/circuit/gadget.tcc \
   crypticcoin/circuit/merkle.tcc \
   crypticcoin/circuit/note.tcc \

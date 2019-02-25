@@ -14,6 +14,7 @@
 #include "streams.h"
 #include "sync.h"
 #include "util.h"
+#include "../masternodes/dpos_controller.h"
 
 #include <stdint.h>
 
@@ -1026,6 +1027,136 @@ UniValue reconsiderblock(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
+
+UniValue listdposviceblocks(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "listdposviceblocks\n"
+            "\nReturns an array of json object containing progenitor block values."
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"version\": xxxx,                (numeric) version of the block\n"
+            "    \"hash\": \"xxxx\",               (string) hash of the block\n"
+            "    \"prevBlock\": \"xxxx\",          (string) hash of the previous block\n"
+            "    \"merkleRoot\": \"xxxx\",         (string) hash of the block merkle root\n"
+            "    \"saplingRoot\": \"xxxx\",        (string) hash of the block sapling root\n"
+            "    \"merkleRoot_PoW\": \"xxxx\",     (string) hash of the PoW block merkle root\n"
+            "    \"vtxSize_dPoS\": xxxx,           (numeric) number of the dPoS transactions in block\n"
+            "    \"time\": xxxx,                   (numeric) time of the block\n"
+            "    \"bits\": xxxx,                   (numeric) bits value of the block\n"
+            "    \"nonce\": \"xxxx\",              (string) nonce value of the block\n"
+            "  },\n"
+            "  ...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("listdposviceblocks", "")
+            + HelpExampleRpc("listdposviceblocks", "")
+        );
+    }
+
+    UniValue rv(UniValue::VARR);
+    for (const auto& block : dpos::getController()->listViceBlocks()) {
+        UniValue jsonBlock{UniValue::VOBJ};
+        jsonBlock.push_back(Pair("version", block.nVersion));
+        jsonBlock.push_back(Pair("hash", block.GetHash().GetHex()));
+        jsonBlock.push_back(Pair("prevBlock", block.hashPrevBlock.GetHex()));
+        jsonBlock.push_back(Pair("merkleRoot", block.hashMerkleRoot.GetHex()));
+        jsonBlock.push_back(Pair("saplingRoot", block.hashFinalSaplingRoot.GetHex()));
+        jsonBlock.push_back(Pair("roundNumber", static_cast<int>(block.nRoundNumber)));
+        jsonBlock.push_back(Pair("time", static_cast<int>(block.nTime)));
+        jsonBlock.push_back(Pair("bits", static_cast<int>(block.nBits)));
+        jsonBlock.push_back(Pair("nonce", block.nNonce.GetHex()));
+        rv.push_back(jsonBlock);
+    }
+
+    return rv;
+}
+
+
+UniValue listdposroundvotes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "listdposroundvotes\n"
+            "\nReturns an array of json object containing progenitor vote values."
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"hash\": \"xxxx\",               (string) hash of the vote\n"
+            "    \"choice_hash\": \"xxxx\",        (string) hash of the progenitor block\n"
+            "    \"choice_decision\": x,           (numeric) decision of the voting choice\n"
+            "    \"roundNumber\": xxx,             (numeric) round number of the voting\n"
+            "    \"tipBlock\": \"xxxx\",           (string) hash of the tip block\n"
+            "    \"signature\": \"xxxx\",          (string) signature of the vote\n"
+            "  },\n"
+            "  ...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("listdposroundvotes", "")
+            + HelpExampleRpc("listdposroundvotes", "")
+        );
+    }
+
+    UniValue rv(UniValue::VARR);
+    for (const auto& vote : dpos::getController()->listRoundVotes()) {
+        UniValue jsonVote{UniValue::VOBJ};
+        jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
+        jsonVote.push_back(Pair("tipBlock", vote.tip.GetHex()));
+        jsonVote.push_back(Pair("roundNumber", vote.round));
+        jsonVote.push_back(Pair("choice_block", vote.choice.subject.GetHex()));
+        jsonVote.push_back(Pair("choice_decision", vote.choice.decision));
+        jsonVote.push_back(Pair("signature", HexStr(vote.signature)));
+        rv.push_back(jsonVote);
+    }
+
+    return rv;
+}
+
+
+UniValue listdpostxvotes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "listdpostxvotes\n"
+            "\nReturns an array of json object containing dpos-transaction vote values."
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"hash\": \"xxxx\",               (string) hash of the vote\n"
+            "    \"choice_txid_N\": \"xxxx\",      (string) N-element of array of the transaction hash\n"
+            "    \"choice_decision_N\": x,         (numeric) N-element of array of the voting choice decision\n"
+            "    \"roundNumber\": xxxx,            (numeric) round number of the voting\n"
+            "    \"tipBlock\": \"xxxx\",           (string) hash of the tip block\n"
+            "    \"signature\": \"xxxx\",          (string) signature of the vote\n"
+            "  },\n"
+            "  ...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("listdpostxvotes", "")
+            + HelpExampleRpc("listdpostxvotes", "")
+        );
+    }
+
+    UniValue rv(UniValue::VARR);
+    for (const auto& vote : dpos::getController()->listTxVotes()) {
+        UniValue jsonVote{UniValue::VOBJ};
+        jsonVote.push_back(Pair("hash", vote.GetHash().GetHex()));
+        jsonVote.push_back(Pair("tipBlock", vote.tip.GetHex()));
+        jsonVote.push_back(Pair("roundNumber", vote.round));
+        for (std::size_t i{0}; i < vote.choices.size(); i++) {
+            std::string postfix{std::to_string(i)};
+            jsonVote.push_back(Pair("choice_txid#" + postfix, vote.choices[i].subject.GetHex()));
+            jsonVote.push_back(Pair("choice_decision#" + postfix, vote.choices[i].decision));
+        }
+        jsonVote.push_back(Pair("signature", HexStr(vote.signature)));
+        rv.push_back(jsonVote);
+    }
+
+    return rv;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1042,10 +1173,13 @@ static const CRPCCommand commands[] =
     { "blockchain",         "gettxout",               &gettxout,               true  },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        true  },
     { "blockchain",         "verifychain",            &verifychain,            true  },
+    { "blockchain",         "listdposviceblocks",     &listdposviceblocks,     true  },
+    { "blockchain",         "listdposroundvotes",     &listdposroundvotes,     true  },
+    { "blockchain",         "listdpostxvotes",        &listdpostxvotes,        true  },
 
     /* Not shown in help */
     { "hidden",             "invalidateblock",        &invalidateblock,        true  },
-    { "hidden",             "reconsiderblock",        &reconsiderblock,        true  },
+    { "hidden",             "reconsiderblock",        &reconsiderblock,        true  }
 };
 
 void RegisterBlockchainRPCCommands(CRPCTable &tableRPC)

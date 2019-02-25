@@ -2224,3 +2224,16 @@ void CNode::EndMessage() UNLOCK_FUNCTION(cs_vSend)
 
     LEAVE_CRITICAL_SECTION(cs_vSend);
 }
+
+void BroadcastInventory(const CInv& inv)
+{
+    LOCK(cs_vNodes);
+    for (auto&& node : vNodes) {
+        if (node != nullptr &&
+            !node->fDisconnect &&
+            node->nVersion >= PROTOCOL_VERSION)
+        {
+            node->PushInventory(inv);
+        }
+    }
+}

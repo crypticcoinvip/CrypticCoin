@@ -184,6 +184,9 @@ public:
     unsigned int nBits;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
+    uint256 hashReserved1;
+    uint256 hashReserved2;
+    uint16_t nRoundNumber;
 
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     uint32_t nSequenceId;
@@ -209,7 +212,6 @@ public:
         nChainSproutValue = boost::none;
         nSaplingValue = 0;
         nChainSaplingValue = boost::none;
-
         nVersion       = 0;
         hashMerkleRoot = uint256();
         hashFinalSaplingRoot   = uint256();
@@ -217,6 +219,9 @@ public:
         nBits          = 0;
         nNonce         = uint256();
         nSolution.clear();
+        hashReserved1  = uint256();
+        hashReserved2  = uint256();
+        nRoundNumber   = 0;
     }
 
     CBlockIndex()
@@ -235,6 +240,9 @@ public:
         nBits          = block.nBits;
         nNonce         = block.nNonce;
         nSolution      = block.nSolution;
+        hashReserved1  = block.hashReserved1;
+        hashReserved2  = block.hashReserved2;
+        nRoundNumber   = block.nRoundNumber;
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -267,6 +275,9 @@ public:
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
+        block.hashReserved1  = hashReserved1;
+        block.hashReserved2  = hashReserved2;
+        block.nRoundNumber   = nRoundNumber;
         return block;
     }
 
@@ -389,6 +400,11 @@ public:
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nSolution);
+        if (nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
+            READWRITE(hashReserved1);
+            READWRITE(hashReserved2);
+            READWRITE(nRoundNumber);
+        }
 
         // Only read/write nSproutValue if the client version used to create
         // this index was storing them.
@@ -417,6 +433,9 @@ public:
         block.nBits           = nBits;
         block.nNonce          = nNonce;
         block.nSolution       = nSolution;
+        block.hashReserved1   = hashReserved1;
+        block.hashReserved2   = hashReserved2;
+        block.nRoundNumber    = nRoundNumber;
         return block.GetHash();
     }
 

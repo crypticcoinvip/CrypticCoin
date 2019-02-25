@@ -9,7 +9,7 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
-#include "masternodes/masternodes.h"
+#include "masternodes/masternodes.h" // TODO refactor, use forward declaration
 
 #include <map>
 #include <string>
@@ -20,6 +20,12 @@ class CBlockFileInfo;
 class CBlockIndex;
 struct CDiskTxPos;
 class uint256;
+class CMasternode;
+class CDismissVote;
+
+namespace dpos{ class CRoundVote_p2p; }
+namespace dpos{ class CTxVote_p2p; }
+
 
 //! -dbcache default (MiB)
 static const int64_t nDefaultDbCache = 450;
@@ -111,6 +117,30 @@ public:
     bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode);
     bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote);
     bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo);
+};
+
+
+/** Access to the dPoS votes and blocks database (dpos/) */
+class CDposDB : public CDBWrapper
+{
+public:
+    CDposDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    CDposDB(const CDposDB&) = delete;
+    CDposDB& operator=(const CDposDB&) = delete;
+
+public:
+    void WriteViceBlock(const uint256& tip, const CBlock& block);
+    void EraseViceBlock(const uint256& tip);
+
+    void WriteRoundVote(const uint256& tip, const dpos::CRoundVote_p2p& vote);
+    void EraseRoundVote(const uint256& tip);
+
+    void WriteTxVote(const uint256& tip, const dpos::CTxVote_p2p& vote);
+    void EraseTxVote(const uint256& tip);
+
+    bool LoadViceBlocks(std::function<void(const uint256&, const CBlock&)> onViceBlock);
+    bool LoadRoundVotes(std::function<void(const uint256&, const dpos::CRoundVote_p2p&)> onRoundVote);
+    bool LoadTxVotes(std::function<void(const uint256&, const dpos::CTxVote_p2p&)> onTxVote);
 };
 
 #endif // BITCOIN_TXDB_H

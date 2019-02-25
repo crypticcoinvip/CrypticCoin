@@ -30,6 +30,7 @@
 #endif
 
 #include "sodium.h"
+#include "masternodes/dpos_controller.h"
 
 #include <boost/thread.hpp>
 #include <boost/tuple/tuple.hpp>
@@ -498,19 +499,22 @@ static bool ProcessBlockFound(CBlock* pblock)
         reservekey.KeepKey();
     }
 
-    // Track how many getdata requests this block gets
-    {
-        LOCK(wallet.cs_wallet);
-        wallet.mapRequestCount[pblock->GetHash()] = 0;
-    }
+//    // Track how many getdata requests this block gets
+//    {
+//        LOCK(wallet.cs_wallet);
+//        wallet.mapRequestCount[pblock->GetHash()] = 0;
+//    }
 #endif
+    if (dpos::getController()->isEnabled()) {
+        dpos::getController()->proceedViceBlock(*pblock);
+    } else {
+        // Process this block the same as if we had received it from another node
+        CValidationState state;
+        if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
+            return error("CrypticcoinMiner: ProcessNewBlock, block not accepted");
 
-    // Process this block the same as if we had received it from another node
-    CValidationState state;
-    if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
-        return error("CrypticcoinMiner: ProcessNewBlock, block not accepted");
-
-    TrackMinedBlock(pblock->GetHash());
+        TrackMinedBlock(pblock->GetHash());
+    }
 
     return true;
 }
@@ -647,6 +651,7 @@ void static BitcoinMiner()
                     SetThreadPriority(THREAD_PRIORITY_NORMAL);
                     LogPrintf("CrypticcoinMiner:\n");
                     LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
+
 #ifdef ENABLE_WALLET
                     if (ProcessBlockFound(pblock, *pwallet, reservekey)) {
 #else
@@ -707,6 +712,7 @@ void static BitcoinMiner()
                     break;
 
                 // Update nNonce and nTime
+                //FIXME: first call of solver always fail
                 pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
                 UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);
                 if (chainparams.GetConsensus().nPowAllowMinDifficultyBlocksAfterHeight != boost::none)

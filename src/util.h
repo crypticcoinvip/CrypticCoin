@@ -70,6 +70,14 @@ bool SetupNetworking();
 
 /** Return true if log accepts specified category */
 bool LogAcceptCategory(const char* category);
+
+/** Make logging silent, RAII */
+struct ScopedNoLogging
+{
+    ScopedNoLogging();
+    ~ScopedNoLogging();
+};
+
 /** Send a string to the log output */
 int LogPrintStr(const std::string &str);
 

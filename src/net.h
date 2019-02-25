@@ -659,4 +659,6 @@ public:
     bool Read(CAddrMan& addr);
 };
 
+void BroadcastInventory(const CInv& inv);
+
 #endif // BITCOIN_NET_H

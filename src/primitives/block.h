@@ -21,8 +21,9 @@ class CBlockHeader
 {
 public:
     // header
-    static const size_t HEADER_SIZE=4+32+32+32+4+4+32; // excluding Equihash solution
-    static const int32_t CURRENT_VERSION=4;
+    static const size_t HEADER_SIZE=4+32+32+32+4+4+32+32+32+2; // excluding Equihash solution
+    static const int32_t CURRENT_VERSION=5;
+    static const int32_t SAPLING_BLOCK_VERSION=CURRENT_VERSION;
     int32_t nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
@@ -31,6 +32,9 @@ public:
     uint32_t nBits;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
+    uint256 hashReserved1;
+    uint256 hashReserved2;
+    uint16_t nRoundNumber; // TODO refactor nRound
 
     CBlockHeader()
     {
@@ -41,7 +45,7 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(this->nVersion);
+        READWRITE(nVersion);
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
@@ -49,6 +53,12 @@ public:
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nSolution);
+
+        if (nVersion >= SAPLING_BLOCK_VERSION) {
+            READWRITE(hashReserved1);
+            READWRITE(hashReserved2);
+            READWRITE(nRoundNumber);
+        } // TODO SetNull if ser action is reading
     }
 
     void SetNull()
@@ -59,8 +69,11 @@ public:
         hashFinalSaplingRoot.SetNull();
         nTime = 0;
         nBits = 0;
-        nNonce = uint256();
+        nNonce.SetNull();
         nSolution.clear();
+        hashReserved1.SetNull();
+        hashReserved2.SetNull();
+        nRoundNumber = 0;
     }
 
     bool IsNull() const
@@ -81,7 +94,8 @@ class CBlock : public CBlockHeader
 {
 public:
     // network and disk
-    std::vector<CTransaction> vtx;
+    std::vector<CTransaction> vtx; // txs order: coinbase | instant txs section | not instant txs section
+    std::vector<unsigned char> vSig; // CPubKey::COMPACT_SIGNATURE_SIZE
 
     // memory only
     mutable std::vector<uint256> vMerkleTree;
@@ -103,6 +117,9 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
+        if (nVersion >= SAPLING_BLOCK_VERSION) {
+            READWRITE(vSig);
+        } // TODO SetNull if ser action is reading
     }
 
     void SetNull()
@@ -110,6 +127,7 @@ public:
         CBlockHeader::SetNull();
         vtx.clear();
         vMerkleTree.clear();
+        vSig.clear();
     }
 
     CBlockHeader GetBlockHeader() const
@@ -118,11 +136,14 @@ public:
         block.nVersion       = nVersion;
         block.hashPrevBlock  = hashPrevBlock;
         block.hashMerkleRoot = hashMerkleRoot;
-        block.hashFinalSaplingRoot   = hashFinalSaplingRoot;
+        block.hashFinalSaplingRoot = hashFinalSaplingRoot;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
+        block.hashReserved1  = hashReserved1;
+        block.hashReserved2  = hashReserved2;
+        block.nRoundNumber   = nRoundNumber;
         return block;
     }
 
@@ -155,12 +176,17 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(this->nVersion);
+        READWRITE(nVersion);
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
         READWRITE(nTime);
         READWRITE(nBits);
+        if (nVersion >= SAPLING_BLOCK_VERSION) {
+            READWRITE(hashReserved1);
+            READWRITE(hashReserved2);
+            READWRITE(nRoundNumber);
+        }
     }
 };
 

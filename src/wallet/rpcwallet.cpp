@@ -22,13 +22,14 @@
 #include "zcbenchmarks.h"
 #include "script/interpreter.h"
 #include "crypticcoin/zip32.h"
-
 #include "utiltime.h"
 #include "asyncrpcoperation.h"
 #include "asyncrpcqueue.h"
 #include "wallet/asyncrpcoperation_mergetoaddress.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
+#include "../masternodes/heartbeat.h"
+#include "../masternodes/dpos_controller.h"
 
 #include "sodium.h"
 
@@ -2614,6 +2615,55 @@ UniValue z_listunspent(const UniValue& params, bool fHelp)
 }
 
 
+UniValue instant_listunspent(const UniValue& params, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp)) {
+        return NullUniValue;
+    }
+
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "instant_listunspent\n"
+            "\nReturns array of unspent instant transaction outputs\n"
+            "\nResult\n"
+            "[                   (array of json object)\n"
+            "  {\n"
+            "    \"txid\" : \"txid\",          (string) the transaction id \n"
+            "    \"vout\" : n,                 (numeric) the vout value\n"
+            "    \"address\" : \"address\",    (string) the Crypticcoin address\n"
+            "    \"scriptPubKey\" : \"key\",   (string) the script key\n"
+            "    \"amount\" : x.xxx,           (numeric) the transaction amount in " + CURRENCY_UNIT + "\n"
+            "  }\n"
+            "  ,...\n"
+            "]\n"
+            "\nExamples\n"
+            + HelpExampleCli("instant_listunspent", "")
+            + HelpExampleRpc("instant_listunspent", "")
+        );
+    }
+
+    UniValue rv{UniValue::VARR};
+    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
+        for (std::size_t i{0}; i < tx.vout.size(); i++) {
+            CTxDestination address{};
+            UniValue entry{UniValue::VOBJ};
+            const CScript& scriptPubKey{tx.vout[i].scriptPubKey};
+            bool isValidAddress{ExtractDestination(scriptPubKey, address)};
+
+            entry.push_back(Pair("txid", tx.GetHash().GetHex()));
+            entry.push_back(Pair("vout", i));
+            entry.push_back(Pair("amount", ValueFromAmount(tx.vout[i].nValue)));
+            if (isValidAddress) {
+                entry.push_back(Pair("address", EncodeDestination(address)));
+            }
+            entry.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+            rv.push_back(entry);
+        }
+    }
+
+    return rv;
+}
+
 UniValue fundrawtransaction(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
@@ -3296,6 +3346,132 @@ CAmount getBalanceZaddr(std::string address, int minDepth, bool ignoreUnspendabl
     }
     return balance;
 }
+
+CAmount getInstantBalanceZaddr(std::string address, bool ignoreUnspendable) {
+    CAmount rv{0};
+    std::set<PaymentAddress> filterAddresses{};
+
+    if (!address.empty()) {
+        filterAddresses.insert(DecodePaymentAddress(address));
+    }
+
+    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
+        // Filter the transactions before checking for notes
+        if (!CheckFinalTx(tx)) {
+            continue;
+        }
+        auto sproutNoteData = pwalletMain->FindMySproutNotes(tx);
+        auto saplingNoteDataAndAddressesToAdd = pwalletMain->FindMySaplingNotes(tx);
+        auto saplingNoteData = saplingNoteDataAndAddressesToAdd.first;
+
+
+        if (!pwalletMain->IsMine(tx) &&
+            !pwalletMain->IsFromMe(tx) &&
+            sproutNoteData.empty() &&
+            saplingNoteData.empty())
+        {
+            continue;
+        }
+
+        for (const auto& pair : sproutNoteData) {
+            JSOutPoint jsop = pair.first;
+            SproutNoteData nd = pair.second;
+            SproutPaymentAddress pa = nd.address;
+
+            // skip notes which belong to a different payment address in the wallet
+            if (!(filterAddresses.empty() || filterAddresses.count(pa))) {
+                continue;
+            }
+
+            // skip note which has been spent
+            if (nd.nullifier && pwalletMain->IsSproutSpent(*nd.nullifier)) {
+                continue;
+            }
+
+            // skip notes which cannot be spent
+            if (ignoreUnspendable && !pwalletMain->HaveSproutSpendingKey(pa)) {
+                continue;
+            }
+
+            // skip locked notes
+            if (pwalletMain->IsLockedNote(jsop)) {
+                continue;
+            }
+
+            int i = jsop.js; // Index into CTransaction.vjoinsplit
+            int j = jsop.n; // Index into JSDescription.ciphertexts
+
+            // Get cached decryptor
+            ZCNoteDecryption decryptor{};
+            if (!pwalletMain->GetNoteDecryptor(pa, decryptor)) {
+                continue;
+            }
+
+            // determine amount of funds in the note
+            auto hSig = tx.vjoinsplit[i].h_sig(*pcrypticcoinParams, tx.joinSplitPubKey);
+            try {
+                rv += SproutNotePlaintext::decrypt(
+                            decryptor,
+                            tx.vjoinsplit[i].ciphertexts[j],
+                            tx.vjoinsplit[i].ephemeralKey,
+                            hSig,
+                            static_cast<unsigned char>(j)).value();
+            } catch (const note_decryption_failed &) {
+                continue;
+            } catch (const std::exception &) {
+                continue;
+            }
+        }
+
+        for (auto & pair : saplingNoteData) {
+            SaplingOutPoint op = pair.first;
+            SaplingNoteData nd = pair.second;
+
+            auto maybe_pt = SaplingNotePlaintext::decrypt(
+                        tx.vShieldedOutput[op.n].encCiphertext,
+                        nd.ivk,
+                        tx.vShieldedOutput[op.n].ephemeralKey,
+                        tx.vShieldedOutput[op.n].cm);
+            assert(static_cast<bool>(maybe_pt));
+            auto notePt = maybe_pt.get();
+
+            auto maybe_pa = nd.ivk.address(notePt.d);
+            assert(static_cast<bool>(maybe_pa));
+            auto pa = maybe_pa.get();
+
+            // skip notes which belong to a different payment address in the wallet
+            if (!(filterAddresses.empty() || filterAddresses.count(pa))) {
+                continue;
+            }
+
+            if (nd.nullifier && pwalletMain->IsSaplingSpent(*nd.nullifier)) {
+                continue;
+            }
+
+            // skip notes which cannot be spent
+            if (ignoreUnspendable) {
+                libzcash::SaplingIncomingViewingKey ivk;
+                libzcash::SaplingFullViewingKey fvk;
+                if (!(pwalletMain->GetSaplingIncomingViewingKey(pa, ivk) &&
+                    pwalletMain->GetSaplingFullViewingKey(ivk, fvk) &&
+                    pwalletMain->HaveSaplingSpendingKey(fvk)))
+                {
+                    continue;
+                }
+            }
+
+            // skip locked notes
+            if (pwalletMain->IsLockedNote(op)) {
+                continue;
+            }
+
+            rv += notePt.note(nd.ivk).get().value();
+        }
+    }
+    return rv;
+}
+
 
 
 UniValue z_listreceivedbyaddress(const UniValue& params, bool fHelp)
@@ -4581,6 +4757,98 @@ UniValue z_listoperationids(const UniValue& params, bool fHelp)
     return ret;
 }
 
+UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp)) {
+        return NullUniValue;
+    }
+    if (fHelp) {
+        throw runtime_error(
+            "heartbeat_send_message ( \"address\" timestamp )\n"
+            "\nSends heartbeat p2p message with provided timestamp value.\n"
+            "\nArguments:\n"
+            "1. \"address\"  (string, optional, default="") The operator authentication address. If empty then default wallet address will be used.\n"
+            "2. timestamp   (numeric, optional, default=0) The UNIX epoch time in ms of the heartbeat message. If 0 then current time will be used.\n"
+            "\nResult:\n"
+            "{\n"
+            "\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
+            "\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
+            "\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\" 1548923902519")
+            + HelpExampleRpc("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\", 1548923902519")
+        );
+    }
+
+    const std::string address{params.empty() ? std::string{} : params[0].get_str()};
+    const CTxDestination destination{(address.empty() ? GetAccountAddress("") : DecodeDestination(address))};
+
+    if (!IsValidDestination(destination)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Crypticcoin address");
+    }
+
+    std::int64_t timestamp{0};
+    if (params.size() > 1) {
+        timestamp = params[1].get_int64();
+    }
+    if (timestamp < 0) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid timestamp value");
+    }
+
+    CKey key{};
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    if (pwalletMain == nullptr || !pwalletMain->GetKey(boost::get<CKeyID>(destination), key)) {
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Invalid account address key");
+    }
+
+    const CHeartBeatMessage message{CHeartBeatTracker::getInstance().postMessage(key, timestamp)};
+    if(message.IsNull()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Failed to send heartbeat message (can't create signature)");
+    }
+
+    UniValue rv{UniValue::VOBJ};
+    rv.push_back(Pair("timestamp", message.GetTimestamp()));
+    rv.push_back(Pair("signature", HexStr(message.GetSignature())));
+    rv.push_back(Pair("hash", message.GetHash().ToString()));
+    return rv;
+}
+
+UniValue heartbeat_read_messages(const UniValue &, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp)) {
+        return NullUniValue;
+    }
+    if (fHelp) {
+        throw runtime_error(
+            "heartbeat_read_messages\n"
+            "\nReads heartbeat p2p messages.\n"
+            "\nArguments:\n"
+            "\nResult:\n"
+            "[\n"
+            "\t{\n"
+            "\t\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
+            "\t\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
+            "\t\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
+            "\t},...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("heartbeat_read_messages", "")
+            + HelpExampleRpc("heartbeat_read_messages", "")
+        );
+    }
+
+    UniValue rv{UniValue::VARR};
+    for (const auto& message : CHeartBeatTracker::getInstance().getReceivedMessages()) {
+        UniValue msg{UniValue::VOBJ};
+        msg.push_back(Pair("timestamp", message.GetTimestamp()));
+        msg.push_back(Pair("signature", HexStr(message.GetSignature())));
+        msg.push_back(Pair("hash", message.GetHash().ToString()));
+        rv.push_back(msg);
+    }
+    return rv;
+}
+
 extern UniValue dumpprivkey(const UniValue& params, bool fHelp); // in rpcdump.cpp
 extern UniValue importprivkey(const UniValue& params, bool fHelp);
 extern UniValue importaddress(const UniValue& params, bool fHelp);
@@ -4601,6 +4869,8 @@ static const CRPCCommand commands[] =
     //  --------------------- ------------------------    -----------------------    ----------
     { "rawtransactions",    "fundrawtransaction",       &fundrawtransaction,       false },
     { "hidden",             "resendwallettransactions", &resendwallettransactions, true  },
+    { "hidden",             "heartbeat_send_message",   &heartbeat_send_message,   true  },
+    { "hidden",             "heartbeat_read_messages",  &heartbeat_read_messages,  true  },
     { "wallet",             "addmultisigaddress",       &addmultisigaddress,       true  },
     { "wallet",             "backupwallet",             &backupwallet,             true  },
     { "wallet",             "dumpprivkey",              &dumpprivkey,              true  },

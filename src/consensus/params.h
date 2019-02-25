@@ -111,6 +111,11 @@ struct Params {
     int64_t MaxActualTimespan() const { return (AveragingWindowTimespan() * (100 + nPowMaxAdjustDown)) / 100; }
     uint256 nMinimumChainWork;
 
+    struct dPoS {
+        size_t nTeamSize;
+        size_t nMinQuorum;
+    };
+    dPoS dpos;
     /** dPOS announcement fee */
     int nDposMinPeriodOfIncome;
     int nDposMaxPeriodOfIncome;

@@ -118,3 +118,6 @@ libzcashconsensus.pc
 
 contrib/debian/files
 contrib/debian/substvars
+
+# QtCreator
+Makefile.am.user

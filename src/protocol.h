@@ -154,6 +154,10 @@ enum {
     // Nodes may always request a MSG_FILTERED_BLOCK in a getdata, however,
     // MSG_FILTERED_BLOCK should not appear in any invs except as a part of getdata.
     MSG_FILTERED_BLOCK,
+    MSG_HEARTBEAT,
+    MSG_VICE_BLOCK,
+    MSG_ROUND_VOTE,
+    MSG_TX_VOTE
 };
 
 #endif // BITCOIN_PROTOCOL_H

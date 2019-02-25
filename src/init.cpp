@@ -36,6 +36,8 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "validationinterface.h"
+#include "masternodes/heartbeat.h"
+#include "masternodes/dpos_controller.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
@@ -221,6 +223,7 @@ void Shutdown()
     StopNode();
     tor::StopTorControl();
     UnregisterNodeSignals(GetNodeSignals());
+    UnregisterValidationInterface(dpos::getController()->getValidator());
 
     if (fFeeEstimatesInitialized)
     {
@@ -1569,6 +1572,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 delete pblocktree;
                 delete pmasternodesview;
                 delete pmasternodesdb;
+                delete pdposdb;
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
@@ -1577,6 +1581,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 /// @todo @mn cash size???
                 pmasternodesdb = new CMasternodesDB(nMinDbCache << 20, false, fReindex);
                 pmasternodesview = new CMasternodesView(*pmasternodesdb);
+                pdposdb = new CDposDB(nMinDbCache << 20, false, fReindex);
 
                 /// @todo @mn I'm totally not sure where to load the Team. Where and when will be the correct Height?
                 pmasternodesview->Load(/*chainActive.Height()*/);
@@ -1640,6 +1645,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 strLoadError = _("Error opening block database");
                 break;
             }
+
+            dpos::getController()->initialize();
 
             fLoaded = true;
         } while(false);
@@ -1856,6 +1863,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
 #endif // ENABLE_MINING
 
+    RegisterValidationInterface(dpos::getController()->getValidator());
+
     // ********************************************************* Step 9: data directory maintenance
 
     // if pruning, unset the service bit and perform the initial blockstore prune
@@ -1945,6 +1954,15 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // SENDALERT
     threadGroup.create_thread(boost::bind(ThreadSendAlert));
+
+    // MN-Heartbeat
+    if (pwalletMain != nullptr) {
+        const auto hbThreadProc{&CHeartBeatTracker::runTickerLoop};
+        threadGroup.create_thread(boost::bind(&TraceThread<decltype(hbThreadProc)>, "heartbeat", hbThreadProc));
+
+        const auto dposThreadProc{&dpos::CDposController::runEventLoop};
+        threadGroup.create_thread(boost::bind(&TraceThread<decltype(dposThreadProc)>, "dpos", dposThreadProc));
+    }
 
     return !fRequestShutdown;
 }

@@ -30,6 +30,8 @@
 #include "validationinterface.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
+#include "masternodes/heartbeat.h"
+#include "masternodes/dpos_controller.h"
 
 #include <algorithm>
 #include <atomic>
@@ -214,6 +216,13 @@ namespace {
 
     /** Dirty block file entries. */
     set<int> setDirtyFileInfo;
+
+    template<typename T>
+    void ProcessInventoryCommand(const T& data,
+                                 CNode* pfrom,
+                                 int msgType,
+                                 std::function<void(const T&)> relayFunc,
+                                 std::function<bool(const T&, CValidationState&)> validationFunc = [](const T&, CValidationState&){ return true; });
 } // anon namespace
 
 //////////////////////////////////////////////////////////////////////////////
@@ -561,10 +570,11 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
     return chain.Genesis();
 }
 
-CCoinsViewCache *pcoinsTip = NULL;
-CBlockTreeDB *pblocktree = NULL;
-CMasternodesDB *pmasternodesdb = NULL;
-CMasternodesView *pmasternodesview = NULL;
+CCoinsViewCache *pcoinsTip = nullptr;
+CBlockTreeDB *pblocktree = nullptr;
+CMasternodesDB *pmasternodesdb = nullptr;
+CMasternodesView *pmasternodesview = nullptr;
+CDposDB * pdposdb = nullptr;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -905,6 +915,12 @@ bool ContextualCheckTransaction(
     }
 
     if (saplingActive) {
+        // Reject dPoS transactions with missing overwintered flag
+        if (tx.fInstant && !tx.fOverwintered) {
+            return state.DoS(100, error("ContextualCheckTransaction(): with dPoS transaction overwintered flag must be set"),
+                REJECT_INVALID, "tx-overwintered-flag-not-set-with-dpos");
+        }
+
         // Reject transactions with valid version but missing overwintered flag
         if (tx.nVersion >= SAPLING_MIN_TX_VERSION && !tx.fOverwintered) {
             return state.DoS(dosLevel, error("ContextualCheckTransaction(): overwintered flag must be set"),
@@ -948,6 +964,20 @@ bool ContextualCheckTransaction(
             return state.DoS(100, error("CheckTransaction(): overwinter version too high"),
                 REJECT_INVALID, "bad-tx-overwinter-version-too-high");
         }
+    }
+
+
+    // Reject transactions with instant flag
+    if (!saplingActive && tx.fInstant)
+    {
+        return state.DoS(100, error("ContextualCheckTransaction(): dPoS transaction not allowed"),
+                         REJECT_INVALID, "tx-instant-supported-in-sapling");
+    }
+    // Instant tx size
+    if (tx.fInstant && ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION) > MAX_INST_TX_SIZE_AFTER_SAPLING)
+    {
+        return state.DoS(100, error("ContextualCheckTransaction(): size limits failed for instant tx"),
+                         REJECT_INVALID, "bad-txns-oversize");
     }
 
     // Rules that apply to Overwinter or later:
@@ -2448,16 +2478,52 @@ void PartitionCheck(bool (*initialDownloadCheck)(), CCriticalSection& cs, const 
     }
 }
 
+static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const BlockHash& prevBlockHash, const BlockHash& blockHash, dpos::Round nRound, size_t minQuorum, size_t teamSize) {
+    const size_t ecdsaSigSize = 65;
+    if ((sigs.size() % ecdsaSigSize) != 0) {
+        LogPrintf("CheckDposSigs(): malformed signatures \n");
+        return false;
+    }
+    const size_t sigsSize = sigs.size() / ecdsaSigSize;
+    if (sigsSize < minQuorum) {
+        LogPrintf("CheckDposSigs(): not enough signatures \n");
+        return false;
+    }
+    if (sigsSize > teamSize) {
+        LogPrintf("CheckDposSigs(): TOO MUCH SIGNATURES! DOUBLESIGN IS POSSIBLE! \n");
+        return false;
+    }
+
+    dpos::CRoundVote_p2p roundVote;
+    roundVote.tip = prevBlockHash;
+    roundVote.round = nRound;
+    roundVote.choice.subject = blockHash;
+    roundVote.choice.decision = dpos::CVoteChoice::Decision::YES;
+
+    const uint256 hashToSign = roundVote.GetSignatureHash();
+    std::set<CKeyID> knownSigs;
+
+    for (int i = 0; i < sigsSize; i++) {
+        // TODO check sigs
+    }
+
+    return true;
+}
+
 static int64_t nTimeVerify = 0;
 static int64_t nTimeConnect = 0;
 static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck, bool calledByVerifyDB)
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck, bool calledByVerifyDB, const DposValidationRules& dvr)
 {
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
+
+    // checks only after sapling update
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindex->nHeight - 1).size();
+    const bool fDposActive = nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize;
 
     bool fExpensiveChecks = true;
     if (fCheckpointsEnabled) {
@@ -2502,6 +2568,17 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                              REJECT_INVALID, "bad-txns-BIP30");
     }
 
+    if (dvr.fCheckDposSigs)
+    {
+        if (!fDposActive && !block.vSig.empty())
+            return state.DoS(100, error("ConnectBlock(): didnt expect any dPoS signatures"),
+                             REJECT_INVALID, "bad-blk-dpos-sigs");
+        if (fDposActive && !CheckDposSigs(block.vSig, hashPrevBlock, block.GetHash(), block.nRoundNumber,
+                                             chainparams.GetConsensus().dpos.nMinQuorum, chainparams.GetConsensus().dpos.nTeamSize))
+            return state.DoS(100, error("ConnectBlock(): wrong dPoS signatures"),
+                             REJECT_INVALID, "bad-blk-dpos-sigs"); // TODO dont mark block as invalid
+    }
+
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
 
     // DERSIG (BIP66) is also always enforced, but does not have a flag.
@@ -2514,6 +2591,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     CAmount nFees = 0;
     int nInputs = 0;
     unsigned int nSigOps = 0;
+    unsigned int nSigOps_inst = 0;
+    unsigned int nSize_inst = 0;
     CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
     vPos.reserve(block.vtx.size());
@@ -2542,6 +2621,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // Grab the consensus branch ID for the block's height
     auto consensusBranchId = CurrentEpochBranchId(pindex->nHeight, Params().GetConsensus());
+
+    const size_t instSectionStart = 1;
+    size_t instSectionEnd = 0;
 
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
@@ -2573,6 +2655,48 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (nSigOps > MAX_BLOCK_SIGOPS)
                 return state.DoS(100, error("ConnectBlock(): too many sigops"),
                                  REJECT_INVALID, "bad-blk-sigops");
+        }
+
+        if (dvr.fCheckInstSection)
+        {
+            if (fDposActive)
+            {
+                // check txs order
+                if (tx.IsCoinBase())
+                {
+                    if (tx.fInstant)
+                        return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                         REJECT_INVALID, "bad-blk-order");
+                }
+                if (i >= instSectionStart && !tx.fInstant)
+                {
+                    if (instSectionEnd != 0)
+                        return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                         REJECT_INVALID, "bad-blk-order");
+                    instSectionEnd = i;
+                }
+
+                // check instant txs size, sigops
+                if (tx.fInstant)
+                {
+                    nSigOps_inst += GetLegacySigOpCount(tx);
+                    nSigOps_inst += GetP2SHSigOpCount(tx, view);
+                    if (nSigOps > dvr.nMaxInstsSigops)
+                        return state.DoS(100, error("ConnectBlock(): too many sigops in instant section"),
+                                         REJECT_INVALID, "bad-blk-sigops");
+                    const size_t txSize = ::GetSerializeSize(tx, SER_NETWORK, tx.nVersion);
+                    nSize_inst += txSize;
+                    if (nSize_inst > dvr.nMaxInstsSize)
+                        return state.DoS(100, error("ConnectBlock(): too big instant section"),
+                                         REJECT_INVALID, "bad-blk-inst-size");
+                }
+            }
+            else
+            {
+                if (tx.fInstant)
+                    return state.DoS(100, error("ConnectBlock(): instant tx when dPoS is disabled"),
+                                     REJECT_INVALID, "bad-blk-inst-unexpected");
+            }
         }
 
         txdata.emplace_back(tx);
@@ -3872,7 +3996,7 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
     return true;
 }
 
-bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex * const pindexPrev, bool fCheckPOW, bool fCheckMerkleRoot)
+bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex * const pindexPrev, bool fCheckPOW, bool fCheckMerkleRoot, const DposValidationRules& dvr)
 {
     AssertLockHeld(cs_main);
     assert(pindexPrev == chainActive.Tip());
@@ -3891,7 +4015,7 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
         return false;
     if (!ContextualCheckBlock(block, state, pindexPrev))
         return false;
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, true))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, true, false, dvr))
         return false;
     assert(state.IsValid());
 
@@ -4946,6 +5070,14 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         }
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
+    case MSG_HEARTBEAT:
+        return CHeartBeatTracker::getInstance().findReceivedMessage(inv.hash);
+    case MSG_VICE_BLOCK:
+        return dpos::getController()->findViceBlock(inv.hash);
+    case MSG_ROUND_VOTE:
+        return dpos::getController()->findRoundVote(inv.hash);
+    case MSG_TX_VOTE:
+        return dpos::getController()->findTxVote(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -4967,121 +5099,155 @@ void static ProcessGetData(CNode* pfrom)
             break;
 
         const CInv &inv = *it;
-        {
-            boost::this_thread::interruption_point();
-            it++;
+        boost::this_thread::interruption_point();
+        it++;
 
-            if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK)
-            {
-                bool send = false;
-                BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
-                if (mi != mapBlockIndex.end())
-                {
-                    if (chainActive.Contains(mi->second)) {
-                        send = true;
-                    } else {
-                        static const int nOneMonth = 30 * 24 * 60 * 60;
-                        // To prevent fingerprinting attacks, only send blocks outside of the active
-                        // chain if they are valid, and no more than a month older (both in time, and in
-                        // best equivalent proof of work) than the best header chain we know about.
-                        send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
-                            (pindexBestHeader->GetBlockTime() - mi->second->GetBlockTime() < nOneMonth) &&
-                            (GetBlockProofEquivalentTime(*pindexBestHeader, *mi->second, *pindexBestHeader, Params().GetConsensus()) < nOneMonth);
-                        if (!send) {
-                            LogPrintf("%s: ignoring request from peer=%i for old block that isn't in the main chain\n", __func__, pfrom->GetId());
-                        }
-                    }
-                }
-                // Pruned nodes may have deleted the block, so check whether
-                // it's available before trying to send.
-                if (send && (mi->second->nStatus & BLOCK_HAVE_DATA))
-                {
-                    // Send block from disk
-                    CBlock block;
-                    if (!ReadBlockFromDisk(block, (*mi).second))
-                        assert(!"cannot load block from disk");
-                    if (inv.type == MSG_BLOCK)
-                        pfrom->PushMessage("block", block);
-                    else // MSG_FILTERED_BLOCK)
-                    {
-                        LOCK(pfrom->cs_filter);
-                        if (pfrom->pfilter)
-                        {
-                            CMerkleBlock merkleBlock(block, *pfrom->pfilter);
-                            pfrom->PushMessage("merkleblock", merkleBlock);
-                            // CMerkleBlock just contains hashes, so also push any transactions in the block the client did not see
-                            // This avoids hurting performance by pointlessly requiring a round-trip
-                            // Note that there is currently no way for a node to request any single transactions we didn't send here -
-                            // they must either disconnect and retry or request the full block.
-                            // Thus, the protocol spec specified allows for us to provide duplicate txn here,
-                            // however we MUST always provide at least what the remote peer needs
-                            typedef std::pair<unsigned int, uint256> PairType;
-                            BOOST_FOREACH(PairType& pair, merkleBlock.vMatchedTxn)
-                                if (!pfrom->setInventoryKnown.count(CInv(MSG_TX, pair.second)))
-                                    pfrom->PushMessage("tx", block.vtx[pair.first]);
-                        }
-                        // else
-                            // no response
-                    }
-
-                    // Trigger the peer node to send a getblocks request for the next batch of inventory
-                    if (inv.hash == pfrom->hashContinue)
-                    {
-                        // Bypass PushInventory, this must send even if redundant,
-                        // and we want it right after the last block so they don't
-                        // wait for other stuff first.
-                        vector<CInv> vInv;
-                        vInv.push_back(CInv(MSG_BLOCK, chainActive.Tip()->GetBlockHash()));
-                        pfrom->PushMessage("inv", vInv);
-                        pfrom->hashContinue.SetNull();
+        if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK) {
+            bool send = false;
+            BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
+            if (mi != mapBlockIndex.end()) {
+                if (chainActive.Contains(mi->second)) {
+                    send = true;
+                } else {
+                    static const int nOneMonth = 30 * 24 * 60 * 60;
+                    // To prevent fingerprinting attacks, only send blocks outside of the active
+                    // chain if they are valid, and no more than a month older (both in time, and in
+                    // best equivalent proof of work) than the best header chain we know about.
+                    send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
+                        (pindexBestHeader->GetBlockTime() - mi->second->GetBlockTime() < nOneMonth) &&
+                        (GetBlockProofEquivalentTime(*pindexBestHeader, *mi->second, *pindexBestHeader, Params().GetConsensus()) < nOneMonth);
+                    if (!send) {
+                        LogPrintf("%s: ignoring request from peer=%i for old block that isn't in the main chain\n", __func__, pfrom->GetId());
                     }
                 }
             }
-            else if (inv.IsKnownType())
+            // Pruned nodes may have deleted the block, so check whether
+            // it's available before trying to send.
+            if (send && (mi->second->nStatus & BLOCK_HAVE_DATA)) {
+                // Send block from disk
+                CBlock block{};
+                if (!ReadBlockFromDisk(block, (*mi).second)) {
+                    assert(!"cannot load block from disk");
+                }
+                if (inv.type == MSG_BLOCK) {
+                    pfrom->PushMessage("block", block);
+                } else { // MSG_FILTERED_BLOCK)
+                    LOCK(pfrom->cs_filter);
+                    if (pfrom->pfilter) {
+                        CMerkleBlock merkleBlock(block, *pfrom->pfilter);
+                        pfrom->PushMessage("merkleblock", merkleBlock);
+                        // CMerkleBlock just contains hashes, so also push any transactions in the block the client did not see
+                        // This avoids hurting performance by pointlessly requiring a round-trip
+                        // Note that there is currently no way for a node to request any single transactions we didn't send here -
+                        // they must either disconnect and retry or request the full block.
+                        // Thus, the protocol spec specified allows for us to provide duplicate txn here,
+                        // however we MUST always provide at least what the remote peer needs
+                        typedef std::pair<unsigned int, uint256> PairType;
+                        BOOST_FOREACH(PairType& pair, merkleBlock.vMatchedTxn)
+                            if (!pfrom->setInventoryKnown.count(CInv(MSG_TX, pair.second)))
+                                pfrom->PushMessage("tx", block.vtx[pair.first]);
+                    }
+                    // else
+                    // no response
+                }
+
+                // Trigger the peer node to send a getblocks request for the next batch of inventory
+                if (inv.hash == pfrom->hashContinue) {
+                    // Bypass PushInventory, this must send even if redundant,
+                    // and we want it right after the last block so they don't
+                    // wait for other stuff first.
+                    vector<CInv> vInv;
+                    vInv.push_back(CInv(MSG_BLOCK, chainActive.Tip()->GetBlockHash()));
+                    pfrom->PushMessage("inv", vInv);
+                    pfrom->hashContinue.SetNull();
+                }
+            }
+        } else if (inv.IsKnownType()) {
+            bool pushed{false};
+            CDataStream ss{SER_NETWORK, PROTOCOL_VERSION};
+            const CDataStream* msg{&ss};
+            ss.reserve(1000);
+
+            if (inv.type == MSG_HEARTBEAT ||
+                inv.type == MSG_VICE_BLOCK ||
+                inv.type == MSG_ROUND_VOTE ||
+                inv.type == MSG_TX_VOTE)
             {
+               if (!pushed) {
+                   LOCK(cs_mapRelay);
+                   const auto mit{mapRelay.find(inv)};
+                   if (mit != mapRelay.end()) {
+                       msg = &mit->second;
+                       pushed = true;
+                   }
+               }
+               if (!pushed) {
+                   if (inv.type == MSG_HEARTBEAT) {
+                       CHeartBeatMessage message{};
+                       if (CHeartBeatTracker::getInstance().findReceivedMessage(inv.hash, &message)) {
+                           ss << message;
+                           pushed = true;
+                       }
+                   } else if (inv.type == MSG_VICE_BLOCK) {
+                       CBlock block{};
+                       if (dpos::getController()->findViceBlock(inv.hash, &block)) {
+                           ss << block;
+                           pushed = true;
+                       }
+                   } else if (inv.type == MSG_ROUND_VOTE) {
+                       dpos::CRoundVote_p2p vote{};
+                       if (dpos::getController()->findRoundVote(inv.hash, &vote)) {
+                           ss << vote;
+                           pushed = true;
+                       }
+                   } else if (inv.type == MSG_TX_VOTE) {
+                       dpos::CTxVote_p2p vote{};
+                       if (dpos::getController()->findTxVote(inv.hash, &vote)) {
+                           ss << vote;
+                           pushed = true;
+                       }
+                   }
+               }
+            } else {
                 // Check the mempool to see if a transaction is expiring soon.  If so, do not send to peer.
                 // Note that a transaction enters the mempool first, before the serialized form is cached
                 // in mapRelay after a successful relay.
-                bool isExpiringSoon = false;
-                bool pushed = false;
-                CTransaction tx;
-                bool isInMempool = mempool.lookup(inv.hash, tx);
+                CTransaction tx{};
+                bool isExpiringSoon{false};
+                const bool isInMempool{mempool.lookup(inv.hash, tx)};
+
                 if (isInMempool) {
                     isExpiringSoon = IsExpiringSoonTx(tx, currentHeight + 1);
                 }
 
                 if (!isExpiringSoon) {
                     // Send stream from relay memory
-                    {
+                    if (!pushed) {
                         LOCK(cs_mapRelay);
                         map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
                         if (mi != mapRelay.end()) {
-                            pfrom->PushMessage(inv.GetCommand(), (*mi).second);
+                            msg = &mi->second;
                             pushed = true;
                         }
                     }
-                    if (!pushed && inv.type == MSG_TX) {
-                        if (isInMempool) {
-                            CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                            ss.reserve(1000);
-                            ss << tx;
-                            pfrom->PushMessage("tx", ss);
-                            pushed = true;
-                        }
+                    if (!pushed && inv.type == MSG_TX && isInMempool) {
+                        ss << tx;
+                        pushed = true;
                     }
-                }
-
-                if (!pushed) {
-                    vNotFound.push_back(inv);
                 }
             }
-
-            // Track requests for our stuff.
-            GetMainSignals().Inventory(inv.hash);
-
-            if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK)
-                break;
+            if (pushed) {
+                pfrom->PushMessage(inv.GetCommand(), *msg);
+            } else {
+                vNotFound.push_back(inv);
+            }
         }
+
+        // Track requests for our stuff.
+        GetMainSignals().Inventory(inv.hash);
+
+        if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK)
+            break;
     }
 
     pfrom->vRecvGetData.erase(pfrom->vRecvGetData.begin(), it);
@@ -5107,7 +5273,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         LogPrintf("dropmessagestest DROPPING RECV MESSAGE\n");
         return true;
     }
-
 
     if (strCommand == "version")
     {
@@ -5665,8 +5830,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         }
         headers.resize(nCount);
         for (unsigned int n = 0; n < nCount; n++) {
-            vRecv >> headers[n];
-            ReadCompactSize(vRecv); // ignore tx count; assume it is 0.
+            CBlock deserializedAsBlock;
+            vRecv >> deserializedAsBlock; // the header was serialized as a block, so we read it as a block
+            headers[n] = deserializedAsBlock.GetBlockHeader();
         }
 
         LOCK(cs_main);
@@ -5989,6 +6155,76 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             }
         }
     }
+    else if (strCommand == "get_tx_votes") {
+        std::vector<CInv> reply{};
+        std::vector<uint256> interestedTxs{};
+        uint256 tipHash{};
+        vRecv >> interestedTxs >> tipHash;
+        std::set<uint256> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
+        LOCK(cs_main);
+
+        if (chainActive.Tip()->GetBlockHash() == tipHash) {
+            for (const auto& vote : dpos::getController()->listTxVotes()) {
+                for (const auto& choice : vote.choices) {
+                    if (setOfInterestedTxs.empty() || setOfInterestedTxs.count(choice.subject)) {
+                        reply.emplace_back(MSG_TX_VOTE, vote.GetHash());
+                    }
+                }
+            }
+        }
+        pfrom->PushMessage("inv", reply);
+    } else if (strCommand == "get_round_votes") {
+        std::vector<CInv> reply{};
+        uint256 tipHash{};
+        vRecv >> tipHash;
+        LOCK(cs_main);
+
+        if (chainActive.Tip()->GetBlockHash() == tipHash) {
+            for (const auto& vote : dpos::getController()->listRoundVotes()) {
+                reply.emplace_back(MSG_ROUND_VOTE, vote.GetHash());
+            }
+        }
+        pfrom->PushMessage("inv", reply);
+    } else if (strCommand == CInv{MSG_HEARTBEAT, uint256{}}.GetCommand()) {
+        CHeartBeatMessage message{};
+        vRecv >> message;
+        ProcessInventoryCommand<CHeartBeatMessage>(message, pfrom, MSG_HEARTBEAT, [](const CHeartBeatMessage& message) {
+            CHeartBeatTracker::getInstance().relayMessage(message);
+        });
+    } else if (strCommand == CInv{MSG_ROUND_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
+        dpos::CRoundVote_p2p vote{};
+        vRecv >> vote;
+        ProcessInventoryCommand<dpos::CRoundVote_p2p>(vote, pfrom, MSG_ROUND_VOTE, [](const dpos::CRoundVote_p2p& vote) {
+            dpos::getController()->proceedRoundVote(vote);
+        });
+    } else if (strCommand == CInv{MSG_TX_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
+        dpos::CTxVote_p2p vote{};
+        vRecv >> vote;
+        ProcessInventoryCommand<dpos::CTxVote_p2p>(vote, pfrom, MSG_TX_VOTE, [](const dpos::CTxVote_p2p& vote) {
+            dpos::getController()->proceedTxVote(vote);
+        });
+    } else if (strCommand == CInv{MSG_VICE_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex) {
+        CBlock block{};
+        vRecv >> block;
+        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_VICE_BLOCK, [](const CBlock& block) {
+            dpos::getController()->proceedViceBlock(block);
+        }, [](const CBlock& block, CValidationState& state) {
+            bool mutated{};
+            if (block.hashMerkleRoot != block.BuildMerkleTree(&mutated)) {
+                return state.DoS(100, error("CheckBlock(): merkle root mismatch"),
+                                 REJECT_INVALID, "bad-pro-mrklroot", true);
+            }
+            if (mutated) {
+                return state.DoS(100, error("CheckBlock(): duplicate transaction"),
+                                 REJECT_INVALID, "bad-pro-duplicate", true);
+            }
+            libzcash::ProofVerifier verifier{libzcash::ProofVerifier::Disabled()};
+            if (!CheckBlock(block, state, verifier, true, false)) {
+                return error("%s: CheckBlock FAILED", __func__);
+            }
+            return true;
+        });
+    }
 
     else if (strCommand == "notfound") {
         // We do not care about the NOTFOUND message, but logging an Unknown Command
@@ -6004,6 +6240,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
     return true;
 }
+
 
 // requires LOCK(cs_vRecvMsg)
 bool ProcessMessages(CNode* pfrom)
@@ -6634,4 +6871,62 @@ bool CheckFinalizeDismissVotingTx(CTransaction const & tx, int height, std::vect
 {
     uint256 against(metadata);
     return pmasternodesview->OnFinalizeDismissVoting(tx.GetHash(), against, height);
+}
+
+namespace
+{
+template<typename T>
+void ProcessInventoryCommand(const T& data,
+                             CNode* pfrom,
+                             int msgType,
+                             std::function<void(const T&)> relayFunc,
+                             std::function<bool(const T&, CValidationState&)> validationFunc)
+{
+    const CInv inv{msgType, data.GetHash()};
+    LogPrint("ProcessInventoryCommand", "received %d command %s peer=%d\n", msgType, inv.hash.ToString(), pfrom->id);
+
+    assert(pfrom != nullptr);
+    LOCK(cs_main);
+
+    pfrom->AddInventoryKnown(inv);
+    pfrom->setAskFor.erase(inv.hash);
+    mapAlreadyAskedFor.erase(inv);
+
+    int nDoS{};
+    CValidationState state{};
+    if (validationFunc(data, state)) {
+        assert(relayFunc != nullptr);
+
+        if (!AlreadyHave(inv)) {
+            relayFunc(data);
+        } else if (pfrom->fWhitelisted) {
+            if (!state.IsInvalid(nDoS) || nDoS == 0) {
+                LogPrint("ProcessInventoryCommand", "Force relaying inv %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
+                relayFunc(data);
+            } else {
+                LogPrint("ProcessInventoryCommand", "Not relaying invalid inv %s from whitelisted peer=%d (%s (code %d))\n",
+                          inv.hash.ToString(),
+                          pfrom->id,
+                          state.GetRejectReason(),
+                          state.GetRejectCode());
+            }
+        }
+        nDoS = 0;
+        if (state.IsInvalid(nDoS)) {
+            LogPrint("ProcessInventoryCommand", "%s from peer=%d %s was not accepted: %s\n",
+                     inv.hash.ToString(),
+                     pfrom->id,
+                     pfrom->cleanSubVer,
+                     state.GetRejectReason());
+            pfrom->PushMessage("reject",
+                               std::string{inv.GetCommand()},
+                               state.GetRejectCode(),
+                               state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH),
+                               inv.hash);
+            if (nDoS > 0) {
+                Misbehaving(pfrom->GetId(), nDoS);
+            }
+        }
+    }
+}
 }
