@@ -108,7 +108,7 @@ public:
     size_t minQuorum;
     size_t numOfVoters;
 
-    CDposVoter() = default;
+    explicit CDposVoter(Callbacks world);
 
     /**
     *
@@ -117,9 +117,7 @@ public:
     * @param amIvoter is true if voting is enabled and I'm an active operator, member of the team
     * @param me is ID of current masternode
     */
-    void setVoting(BlockHash tip,
-                   Callbacks world,
-                   bool amIvoter,
+    void setVoting(bool amIvoter,
                    CMasternode::ID me);
 
     void updateTip(BlockHash tip);

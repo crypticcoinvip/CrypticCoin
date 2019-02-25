@@ -1959,10 +1959,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (pwalletMain != nullptr) {
         const auto hbThreadProc{&CHeartBeatTracker::runTickerLoop};
         threadGroup.create_thread(boost::bind(&TraceThread<decltype(hbThreadProc)>, "heartbeat", hbThreadProc));
-
-        const auto dposThreadProc{&dpos::CDposController::runEventLoop};
-        threadGroup.create_thread(boost::bind(&TraceThread<decltype(dposThreadProc)>, "dpos", dposThreadProc));
     }
+    // MN-DPOS
+    const auto dposThreadProc{&dpos::CDposController::runEventLoop};
+    threadGroup.create_thread(boost::bind(&TraceThread<decltype(dposThreadProc)>, "dpos", dposThreadProc));
 
     return !fRequestShutdown;
 }

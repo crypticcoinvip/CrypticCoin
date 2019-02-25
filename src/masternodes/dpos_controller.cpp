@@ -170,13 +170,22 @@ void storeEntity(const T& entity, StoreMethod storeMethod)
 
 CDposController& CDposController::getInstance()
 {
+    using std::placeholders::_1;
+    using std::placeholders::_2;
+    using std::placeholders::_3;
+
     if (dposControllerInstance_ == nullptr) {
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
         if (dposControllerInstance_ == nullptr) {
             dposControllerInstance_ = new CDposController{};
-            std::make_shared<CDposVoter>().swap(dposControllerInstance_->voter);
             std::make_shared<Validator>().swap(dposControllerInstance_->validator);
+            Validator* validator{dposControllerInstance_->validator.get()};
+            CDposVoter::Callbacks callbacks{};
+            callbacks.validateTxs = std::bind(&Validator::validateTx, validator, _1);
+            callbacks.validateBlock = std::bind(&Validator::validateBlock, validator, _1, _2, _3);
+            callbacks.allowArchiving = std::bind(&Validator::allowArchiving, validator, _1);
+            std::make_shared<CDposVoter>(callbacks).swap(dposControllerInstance_->voter);
         }
     }
     assert(dposControllerInstance_ != nullptr);
@@ -185,9 +194,6 @@ CDposController& CDposController::getInstance()
 
 void CDposController::runEventLoop()
 {
-    using std::placeholders::_1;
-    using std::placeholders::_2;
-    using std::placeholders::_3;
     using std::chrono::duration_cast;
     using std::chrono::seconds;
     using std::chrono::steady_clock;
@@ -203,12 +209,8 @@ void CDposController::runEventLoop()
                 const auto mnId{findMasternodeId()};
                 if (mnId != boost::none) {
                     LogPrintf("%s: Enabling dpos voter\n", __func__);
-                    CDposVoter::Callbacks callbacks{};
-                    Validator* validator{self->validator.get()};
-                    callbacks.validateTxs = std::bind(&Validator::validateTx, validator, _1);
-                    callbacks.validateBlock = std::bind(&Validator::validateBlock, validator, _1, _2, _3);
-                    callbacks.allowArchiving = std::bind(&Validator::allowArchiving, validator, _1);
-                    self->voter->setVoting(getTipBlockHash(), callbacks, true, mnId.get());
+                    self->voter->updateTip(getTipBlockHash());
+                    self->voter->setVoting(true, mnId.get());
                 }
             }
         }

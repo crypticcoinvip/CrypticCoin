@@ -68,15 +68,13 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
-        #assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "announced")
-        #assert_equal(self.nodes[0].dumpmns([idnode1])[0]['status'], "announced")
+        assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "announced")
+        assert_equal(self.nodes[0].dumpmns([idnode1])[0]['status'], "announced")
 
 
         # Generate blocks for activation height
         self.nodes[0].generate(10)
         self.sync_all()
-        assert_equal(self.nodes[0].getblockcount(), 210)
-        assert_equal(self.nodes[1].getblockcount(), 210)
 
 
         # Restarting nodes

@@ -70,10 +70,13 @@ size_t CTxVotingDistribution::totus() const
     return pro + contra + abstinendi;
 }
 
-void CDposVoter::setVoting(BlockHash tip, Callbacks world, bool amIvoter, CMasternode::ID me)
+CDposVoter::CDposVoter(Callbacks world)
 {
-    this->tip = tip;
     this->world = std::move(world);
+}
+
+void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
+{
     this->amIvoter = amIvoter;
     this->me = me;
 }
