@@ -343,7 +343,7 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     // Current height + (1 day blocks) to avoid rejection;
     CAmount const blockSubsidy = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
     int targetHeight = chainActive.Height() + 1 + (60 * 60 / Params().GetConsensus().nPowTargetSpacing);
-    int targetMnCount = pmasternodesview->GetActiveMasternodes().size() - 4; // <0 is ok
+    size_t targetMnCount = pmasternodesview->GetActiveMasternodes().size() < 4 ? 0 : pmasternodesview->GetActiveMasternodes().size() - 4;
 
     UniValue vouts(UniValue::VOBJ);
     vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptMeta)), ValueFromAmount(GetMnAnnouncementFee(blockSubsidy, targetHeight, targetMnCount))));
