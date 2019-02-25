@@ -2589,6 +2589,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     int64_t nTimeStart = GetTimeMicros();
     CAmount nFees = 0;
+    CAmount nFees_inst = 0;
     int nInputs = 0;
     unsigned int nSigOps = 0;
     unsigned int nSigOps_inst = 0;
@@ -2704,6 +2705,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (!tx.IsCoinBase())
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
+            if (tx.fInstant)
+                nFees_inst += view.GetValueIn(tx)-tx.GetValueOut();
 
             std::vector<CScriptCheck> vChecks;
             if (!ContextualCheckInputs(tx, state, view, fExpensiveChecks, flags, false, txdata[i], chainparams.GetConsensus(), consensusBranchId, nScriptCheckThreads ? &vChecks : NULL))
@@ -2754,18 +2757,14 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
 
     // Checks dPos rewards
-    if (NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING))
+    if (fDposActive)
     {
-        /// @todo @mn replace dPosTransactionsFee with actual value
-        CAmount dPosTransactionsFee = 0;
         CAmount ignoreReturnValue = GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
-        std::vector<CTxOut> rewards = pmasternodesview->CalcDposTeamReward(ignoreReturnValue, dPosTransactionsFee, pindex->nHeight);
-        if (!std::equal(rewards.rbegin(), rewards.rend(), block.vtx[0].vout.rbegin()))
-        {
+        const auto rewards_p = pmasternodesview->CalcDposTeamReward(ignoreReturnValue, nFees_inst, pindex->nHeight);
+        if (!std::equal(rewards_p.first.rbegin(), rewards_p.first.rend(), block.vtx[0].vout.rbegin()))
             return state.DoS(100,
-                             error("ConnectBlock(): coinbase pays incorrect dPos reward"),
+                             error("ConnectBlock(): coinbase pays incorrect dPoS reward"),
                                    REJECT_INVALID, "bad-cb-amount");
-        }
     }
 
     CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
