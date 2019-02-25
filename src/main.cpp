@@ -2494,6 +2494,7 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
         return false;
     }
 
+    assert(pindex->pprev != nullptr);
     dpos::CRoundVote_p2p roundVote;
     roundVote.tip = pindex->pprev->GetBlockHash();
     roundVote.nRound = pindex->nRound;
@@ -2503,7 +2504,7 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
     const uint256 hashToSign = roundVote.GetSignatureHash();
     std::set<CKeyID> knownSigs;
 
-    for (int i = 0; i < sigsSize; i++) {
+    for (size_t i = 0; i < sigsSize; i++) {
         std::vector<unsigned char> sig;
         sig.reserve(ecdsaSigSize);
         sig.insert(sig.begin(), sigs.begin() + i * ecdsaSigSize, sigs.begin() + (i + 1) * ecdsaSigSize);

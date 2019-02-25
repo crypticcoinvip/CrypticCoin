@@ -53,7 +53,6 @@ TEST(dPoS, DummyEmptyBlock)
     for (uint64_t i = 0; i < 23; i++) {
         { // wrong round check
             viceBlock.nRound = static_cast<dpos::Round>(i * 2);
-            const size_t initSize = voters[i].v[tip].viceBlocks.size();
             const auto empty = voters[i].applyViceBlock(viceBlock);
             ASSERT_TRUE(empty.vTxVotes.empty());
             ASSERT_TRUE(!empty.blockToSubmit);
