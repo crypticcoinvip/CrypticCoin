@@ -246,6 +246,9 @@ void CDposController::initialize()
 {
     assert(pdposdb != nullptr);
 
+    voter->minQuorum = Params().GetConsensus().dpos.nMinQuorum;
+    voter->numOfVoters = Params().GetConsensus().dpos.nTeamSize;
+
     pdposdb->LoadViceBlocks([this](const uint256& tip, const CBlock& block) {
         assert(!this->voter->checkAmIVoter());
         this->voter->v[tip].viceBlocks.emplace(block.GetHash(), block);
