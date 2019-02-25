@@ -255,7 +255,7 @@ void CDposController::initialize()
             CRoundVote roundVote{};
             roundVote.tip = vote.tip;
             roundVote.voter = mnId.get();
-            roundVote.nRound = vote.round;
+            roundVote.nRound = vote.nRound;
             roundVote.choice = vote.choice;
 
             this->receivedRoundVotes.emplace(vote.GetHash(), vote);
@@ -271,7 +271,7 @@ void CDposController::initialize()
                 CTxVote txVote{};
                 txVote.tip = vote.tip;
                 txVote.voter = mnId.get();
-                txVote.nRound = vote.round;
+                txVote.nRound = vote.nRound;
                 txVote.choice = choice;
                 this->voter->v[tip].txVotes[txVote.nRound][choice.subject].emplace(txVote.voter, txVote);
             }
@@ -469,7 +469,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
             for (const auto& roundVote : out.vRoundVotes) {
                 CRoundVote_p2p vote{};
                 vote.tip = roundVote.tip;
-                vote.round = roundVote.nRound;
+                vote.nRound = roundVote.nRound;
                 vote.choice = roundVote.choice;
                 if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
                     LogPrintf("%s: Can't sign round vote\n", __func__);
@@ -482,7 +482,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
             for (const auto& txVote : out.vTxVotes) {
                 CTxVote_p2p vote{};
                 vote.tip = txVote.tip;
-                vote.round = txVote.nRound;
+                vote.nRound = txVote.nRound;
                 vote.choices.push_back(txVote.choice);
                 if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
                     LogPrintf("%s: Can't sign tx vote\n", __func__);
@@ -517,7 +517,7 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
         CRoundVote roundVote{};
         roundVote.tip = vote.tip;
         roundVote.voter = mnId.get();
-        roundVote.nRound = vote.round;
+        roundVote.nRound = vote.nRound;
         roundVote.choice = vote.choice;
 
         rv = handleVoterOutput(voter->applyRoundVote(roundVote));
@@ -537,7 +537,7 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
         CTxVote txVote{};
         txVote.tip = vote.tip;
         txVote.voter = mnId.get();
-        txVote.nRound = vote.round;
+        txVote.nRound = vote.nRound;
 
         for (const auto& choice : vote.choices) {
             txVote.choice = choice;

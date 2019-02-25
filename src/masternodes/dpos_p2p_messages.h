@@ -39,7 +39,7 @@ class CTxVote_p2p
 {
 public:
     uint256 tip;
-    Round round; // TODO refactor nRound
+    Round nRound;
     std::vector<CVoteChoice> choices;
     CVoteChoice::Signature signature;
 
@@ -54,7 +54,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
         READWRITE(tip);
-        READWRITE(round);
+        READWRITE(nRound);
         READWRITE(choices);
         READWRITE(signature);
     }
@@ -72,7 +72,7 @@ class CRoundVote_p2p
 {
 public:
     uint256 tip;
-    Round round; // TODO refactor nRound
+    Round nRound;
     CVoteChoice choice;
     CVoteChoice::Signature signature;
 
@@ -87,7 +87,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
         READWRITE(tip);
-        READWRITE(round);
+        READWRITE(nRound);
         READWRITE(choice);
         READWRITE(signature);
     }

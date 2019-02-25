@@ -98,7 +98,7 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
         return {};
     }
 
-    if (viceBlock.nRoundNumber != getCurrentRound()) {
+    if (viceBlock.nRound != getCurrentRound()) {
         LogPrintf("%s: Ignoring vice-block from prev. round: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
@@ -281,7 +281,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
             }
 
             const CBlock& viceBlock = v[tip].viceBlocks[viceBlockId];
-            if (viceBlock.nRoundNumber == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
+            if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
                 viceBlockToVote = {viceBlockId};
                 break;
             }
@@ -320,7 +320,7 @@ CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId)
 
     if (stats.pro[viceBlockId] >= minQuorum) {
         const auto& viceBlock = v[tip].viceBlocks[viceBlockId];
-        if (viceBlock.nRoundNumber != nCurrentRound) {
+        if (viceBlock.nRound != nCurrentRound) {
             return out;
         }
         if (!world.validateBlock(viceBlock, listCommittedTxs(), true)) {
@@ -573,7 +573,7 @@ bool CDposVoter::atLeastOneViceBlockIsValid(Round nRound) const
 
     for (const auto& viceBlock_p : v[tip].viceBlocks) {
         const CBlock& viceBlock = viceBlock_p.second;
-        if (viceBlock.nRoundNumber == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
+        if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
             return true;
         }
     }

@@ -11,7 +11,7 @@
 namespace dpos
 {
 
-using Round = uint16_t;
+using Round = uint32_t;
 
 }
 
