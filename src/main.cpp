@@ -2548,7 +2548,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
 
-    // checks only after sapling update
     const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindex->nHeight - 1).size();
     const bool fDposActive = nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize;
 
@@ -2689,19 +2688,17 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (fDposActive)
             {
                 // check txs order
-                if (tx.IsCoinBase())
-                {
-                    if (tx.fInstant)
+                if (tx.fInstant && tx.IsCoinBase()) // instant tx too early
                         return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
                                          REJECT_INVALID, "bad-blk-order");
-                }
-                if (i >= instSectionStart && !tx.fInstant)
-                {
-                    if (instSectionEnd != 0)
-                        return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
-                                         REJECT_INVALID, "bad-blk-order");
+                if (tx.fInstant && i < instSectionStart) // instant tx too early
+                    return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                     REJECT_INVALID, "bad-blk-order");
+                if (!tx.fInstant && i >= instSectionStart && instSectionEnd == 0) // not instant tx, then instant section is passed
                     instSectionEnd = i;
-                }
+                if (tx.fInstant && instSectionEnd != 0) // instant tx, but instant section is passed
+                    return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                     REJECT_INVALID, "bad-blk-order");
 
                 // check instant txs size, sigops
                 if (tx.fInstant)
@@ -2761,6 +2758,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
+    if (instSectionEnd == 0) { // didn't meet !tx.fInstant => all the txs are instant
+        instSectionEnd = block.vtx.size();
+    }
 
     view.PushAnchor(sprout_tree);
     view.PushAnchor(sapling_tree);
@@ -2779,21 +2779,37 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
     }
 
+    // check instant txs are equal to the template
+    if (dvr.instantTxsTemplate) {
+        const size_t instTxsNum = instSectionEnd - instSectionStart;
+        if (instTxsNum != dvr.instantTxsTemplate->size())
+            return state.DoS(100, error("ConnectBlock(): wrong instant txs num"),
+                             REJECT_INVALID, "bad-blk-inst-txs-num");
+
+        auto matchInstTx_it = dvr.instantTxsTemplate->begin();
+        for (size_t i = instSectionStart; i < instSectionEnd; i++) {
+            if (block.vtx[i] != matchInstTx_it->second)
+                return state.DoS(100, error("ConnectBlock(): wrong instant txs"),
+                                 REJECT_INVALID, "bad-blk-inst-txs");
+            matchInstTx_it++;
+        }
+    }
+
     int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
     LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
 
-    // Checks dPos rewards
+    // Checks dPoS rewards
+    const CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
     if (fDposActive)
     {
-        CAmount ignoreReturnValue = GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
-        const auto rewards_p = pmasternodesview->CalcDposTeamReward(ignoreReturnValue, nFees_inst, pindex->nHeight);
-        if (!std::equal(rewards_p.first.rbegin(), rewards_p.first.rend(), block.vtx[0].vout.rbegin()))
+        const auto rewards_p = pmasternodesview->CalcDposTeamReward(blockReward, nFees_inst, pindex->nHeight);
+        const bool sizeCheck = block.vtx[0].vout.size() < rewards_p.first.size();
+        if (!sizeCheck || !std::equal(rewards_p.first.rbegin(), rewards_p.first.rend(), block.vtx[0].vout.rbegin()))
             return state.DoS(100,
                              error("ConnectBlock(): coinbase pays incorrect dPoS reward"),
                                    REJECT_INVALID, "bad-cb-amount");
     }
 
-    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
     if (block.vtx[0].GetValueOut() > blockReward)
         return state.DoS(100,
                          error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
