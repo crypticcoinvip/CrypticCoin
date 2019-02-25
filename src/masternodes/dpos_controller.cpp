@@ -433,7 +433,7 @@ std::vector<CTxVote_p2p> CDposController::listTxVotes() const
     return rv;
 }
 
-std::vector<CTransaction> CDposController::listCommittedTransactions() const
+std::vector<CTransaction> CDposController::listCommittedTxs() const
 {
     std::vector<CTransaction> rv{};
     std::map<TxIdSorted, CTransaction> txs{};
@@ -451,6 +451,20 @@ std::vector<CTransaction> CDposController::listCommittedTransactions() const
     }
 
     return rv;
+}
+
+bool CDposController::isCommittedTx(const CTransaction& tx) const
+{
+    LockGuard lock{mutex_};
+    libsnark::UNUSED(lock);
+    return this->voter->isCommittedTx(tx);
+}
+
+bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
+{
+    LockGuard lock{mutex_};
+    libsnark::UNUSED(lock);
+    return this->voter->isTxApprovedByMe(tx);
 }
 
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)

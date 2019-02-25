@@ -2643,7 +2643,7 @@ UniValue instant_listunspent(const UniValue& params, bool fHelp)
     }
 
     UniValue rv{UniValue::VARR};
-    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
+    for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         for (std::size_t i{0}; i < tx.vout.size(); i++) {
             CTxDestination address{};
             UniValue entry{UniValue::VOBJ};
@@ -3355,7 +3355,7 @@ CAmount getInstantBalanceZaddr(std::string address, bool ignoreUnspendable) {
         filterAddresses.insert(DecodePaymentAddress(address));
     }
 
-    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
+    for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         LOCK2(cs_main, pwalletMain->cs_wallet);
         // Filter the transactions before checking for notes
         if (!CheckFinalTx(tx)) {

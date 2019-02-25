@@ -146,6 +146,8 @@ public:
     bool checkAmIVoter() const;
     Round getCurrentRound() const;
     std::map<TxIdSorted, CTransaction> listCommittedTxs() const;
+    bool isCommittedTx(const CTransaction& tx) const;
+    bool isTxApprovedByMe(const CTransaction& tx) const;
 
 private:
     Output misbehavingErr(const std::string& msg) const;
