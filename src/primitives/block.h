@@ -34,7 +34,7 @@ public:
     std::vector<unsigned char> nSolution;
     uint256 hashReserved1;
     uint256 hashReserved2;
-    uint16_t nRound;
+    uint32_t nRound;
 
     CBlockHeader()
     {

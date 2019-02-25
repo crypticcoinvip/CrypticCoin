@@ -186,7 +186,7 @@ public:
     std::vector<unsigned char> nSolution;
     uint256 hashReserved1;
     uint256 hashReserved2;
-    uint16_t nRound;
+    uint32_t nRound;
 
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     uint32_t nSequenceId;
