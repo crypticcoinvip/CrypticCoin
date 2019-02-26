@@ -435,8 +435,11 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nSolution.clear();
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
 
+        DposValidationRules dvr;
+        dvr.fCheckDposSigs = false; // don't check sigs, it's still a vice-block
+
         CValidationState state;
-        if (!TestBlockValidity(state, *pblock, pindexPrev, false, false))
+        if (!TestBlockValidity(state, *pblock, pindexPrev, false, false, dvr))
             throw std::runtime_error("CreateNewBlock(): TestBlockValidity failed");
     }
 
