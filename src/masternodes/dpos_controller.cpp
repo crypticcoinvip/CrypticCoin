@@ -204,31 +204,45 @@ void CDposController::runEventLoop()
     using std::chrono::seconds;
     using std::chrono::steady_clock;
 
+    Round lastRound{0};
     auto lastTime{steady_clock::now()};
+    auto roundTime{lastTime};
     const auto startTime{lastTime};
     const auto self{getController()};
 
     while (true) {
         boost::this_thread::interruption_point();
-        if (duration_cast<seconds>(steady_clock::now() - startTime).count() > 60 * 60) {
+        const auto now{steady_clock::now()};
+
+        if (duration_cast<seconds>(now - startTime).count() > 60 * 60) {
             if (!getInstance().voter->checkAmIVoter() && IsInitialBlockDownload()) {
                 const auto mnId{findMasternodeId()};
                 if (mnId != boost::none) {
                     LogPrintf("%s: Enabling dpos voter\n", __func__);
                     self->voter->updateTip(getTipBlockHash());
                     self->voter->setVoting(true, mnId.get());
+                    lastRound = self->getCurrentVotingRound();
                 }
             }
         }
 
-        if (duration_cast<seconds>(steady_clock::now() - lastTime).count() > 30) {
-            lastTime = steady_clock::now();
+        if (duration_cast<seconds>(now - lastTime).count() > 30) {
+            lastTime = now;
             getInstance().removeOldVotes();
 
             for (auto&& node : getNodes()) {
                 node->PushMessage("get_round_votes");
                 node->PushMessage("get_tx_votes", self->listTxVotes());
             }
+        }
+
+        if (duration_cast<seconds>(now - roundTime).count() > 60 * 5) {
+            const Round currentRound{self->getCurrentVotingRound()};
+            if (lastRound > 0 && lastRound == currentRound) {
+                handleVoterOutput(self->voter->onRoundTooLong());
+            }
+            roundTime = now;
+            lastRound = currentRound;
         }
 
         MilliSleep(500);
@@ -297,7 +311,7 @@ void CDposController::updateChainTip()
     this->voter->updateTip(getTipBlockHash());
 }
 
-int CDposController::getCurrentVotingRound() const
+Round CDposController::getCurrentVotingRound() const
 {
     return isEnabled() ? voter->getCurrentRound() : 0;
 }
@@ -321,7 +335,7 @@ void CDposController::proceedTransaction(const CTransaction& tx)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
-
+    
     handleVoterOutput(voter->applyTx(tx));
 }
 
@@ -522,8 +536,32 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 
             if (out.blockToSubmit != boost::none) {
                 CValidationState state{};
-                const CBlock* pblock{&out.blockToSubmit.get().block};
-                if (!ProcessNewBlock(state, NULL, const_cast<CBlock*>(pblock), true, NULL)) {
+                CBlockToSubmit blockToSubmit{out.blockToSubmit.get()};
+                CBlock* pblock{&blockToSubmit.block};
+                const Round currentRound{getCurrentVotingRound()};
+
+                pblock->vSig.reserve(blockToSubmit.vApprovedBy.size() * CPubKey::COMPACT_SIGNATURE_SIZE);
+
+                for (const auto& votePair : this->receivedRoundVotes) {
+                    for (const auto& mnIdApproved : blockToSubmit.vApprovedBy) {
+                        const auto mnId{extractMasternodeId(votePair.second)};
+                        if (mnId != boost::none &&
+                            mnId.get() == mnIdApproved &&
+                            votePair.second.nRound == currentRound)
+                        {
+                            pblock->vSig.insert(pblock->vSig.end(),
+                                                votePair.second.signature.begin(),
+                                                votePair.second.signature.end());
+                            break;
+                        }
+                    }
+                }
+                if (pblock->vSig.size() != blockToSubmit.vApprovedBy.size()) {
+                    LogPrintf("%s: Can't submit block - missing signatures (%d != %d)\n",
+                              __func__,
+                              pblock->vSig.size(),
+                              blockToSubmit.vApprovedBy.size());
+                } else if (!ProcessNewBlock(state, NULL, const_cast<CBlock*>(pblock), true, NULL)) {
                     LogPrintf("%s: Can't ProcessNewBlock\n", __func__);
                 }
             }
