@@ -6207,10 +6207,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     }
     else if (strCommand == "get_tx_votes") {
         std::vector<CInv> reply{};
-        std::vector<uint256> interestedTxs{};
-        uint256 tipHash{};
-        vRecv >> interestedTxs >> tipHash;
-        std::set<uint256> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
+        std::vector<TxId> interestedTxs{};
+        BlockHash tipHash{};
+        vRecv >> tipHash >> interestedTxs;
+        std::set<TxId> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
         LOCK(cs_main);
 
         if (chainActive.Tip()->GetBlockHash() == tipHash) {
