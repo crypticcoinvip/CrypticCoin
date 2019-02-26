@@ -239,7 +239,7 @@ void CDposController::runEventLoop()
         if (duration_cast<seconds>(now - roundTime).count() > 60 * 5) {
             const Round currentRound{self->getCurrentVotingRound()};
             if (lastRound > 0 && lastRound == currentRound) {
-                handleVoterOutput(self->voter->onRoundTooLong());
+                self->handleVoterOutput(self->voter->onRoundTooLong());
             }
             roundTime = now;
             lastRound = currentRound;
