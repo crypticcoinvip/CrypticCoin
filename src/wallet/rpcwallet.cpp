@@ -3836,7 +3836,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
 
-    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindexBestHeader->nHeight).size();
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
     const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
     const bool fInstant = params.size() > 4 && params[4].get_bool();
 
@@ -4143,7 +4143,7 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindexBestHeader->nHeight).size();
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
     const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
     const bool fInstant = params.size() > 4 && params[4].get_bool();
 
@@ -4398,7 +4398,7 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindexBestHeader->nHeight).size();
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
     const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
 
     const bool fInstant = params.size() > 6 && params[6].get_bool();
