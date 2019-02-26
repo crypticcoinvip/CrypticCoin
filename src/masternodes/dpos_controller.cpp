@@ -238,8 +238,8 @@ void CDposController::runEventLoop()
             getInstance().removeOldVotes();
 
             for (auto&& node : getNodes()) {
-                node->PushMessage("get_round_votes");
-                node->PushMessage("get_tx_votes", self->listTxVotes());
+                node->PushMessage("get_round_votes", getTipBlockHash());
+                node->PushMessage("get_tx_votes", getTipBlockHash(), self->listTxVotes());
             }
         }
 
