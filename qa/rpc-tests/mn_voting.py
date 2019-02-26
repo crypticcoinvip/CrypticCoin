@@ -13,6 +13,9 @@ from test_framework.util import assert_equal, assert_greater_than, \
 from decimal import Decimal
 import pprint
 
+import time
+
+
 class Mn(object):
 
     def __init__(self, node, name = ""):
@@ -118,8 +121,11 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         self.dismissvote_mn(3, 0)
 
         self.sync_all()
+        #time.sleep(5)
         self.nodes[0].generate(1)
+        time.sleep(5)
         self.sync_all()
+        assert_equal(self.nodes[0].getblockcount(), 212)
 
         dump0 = self.dump_mn(0)
         assert_equal(dump0['mn']['counterVotesAgainst'], 3)
@@ -153,8 +159,13 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         # Finalize voting against 0
         self.finalizedismissvoting_mn(1, 0)
 
-        self.nodes[1].generate(1)
         self.sync_all()
+        #time.sleep(5)
+        self.nodes[1].generate(1)
+        time.sleep(5)
+        self.sync_all()
+        assert_equal(self.nodes[1].getblockcount(), 213)
+
         dump0 = self.dump_mn(0)
         assert_equal(dump0['mn']['counterVotesAgainst'], 0)
         assert_equal(dump0['mn']['counterVotesFrom'], 0)
