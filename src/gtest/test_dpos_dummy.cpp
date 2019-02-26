@@ -5,14 +5,16 @@
 namespace
 {
 
-void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds, std::vector<dpos::CDposVoter>& voters, BlockHash& tip, dpos::CDposVoter::Callbacks callbacks)
+void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds,
+                      std::vector<dpos::CDposVoter>& voters,
+                      BlockHash tip,
+                      dpos::CDposVoter::Callbacks callbacks)
 {
     for (uint64_t i = 0; i < 32; i++) {
         masternodeIds[i] = ArithToUint256(arith_uint256{i});
         voters.emplace_back(callbacks);
     }
 
-    tip = uint256S("0xB101");
     for (uint64_t i = 0; i < 32; i++) {
         voters[i].minQuorum = 23;
         voters[i].numOfVoters = 32;
@@ -42,7 +44,7 @@ TEST(dPoS, DummyEmptyBlock)
     // Init voters
     std::array<CMasternode::ID, 32> masternodeIds;
     std::vector<dpos::CDposVoter> voters;
-    BlockHash tip;
+    BlockHash tip = uint256S("0xB101");
     initVoters_dummy(masternodeIds, voters, tip, callbacks);
 
     // Create dummy vice-block
@@ -134,7 +136,7 @@ TEST(dPoS, DummyCommitTx)
     // Init voters
     std::array<CMasternode::ID, 32> masternodeIds;
     std::vector<dpos::CDposVoter> voters;
-    BlockHash tip;
+    BlockHash tip = uint256S("0xB101");
     initVoters_dummy(masternodeIds, voters, tip, callbacks);
 
     // create dummy tx
@@ -154,7 +156,7 @@ TEST(dPoS, DummyCommitTx)
         ASSERT_TRUE(res.vRoundVotes.empty());
         ASSERT_TRUE(!res.blockToSubmit);
         ASSERT_TRUE(res.vErrors.empty());
-        ASSERT_EQ(voters[i].v[tip].txs[tx.GetHash()].GetHash(), tx.GetHash());
+        ASSERT_EQ(voters[i].txs[tx.GetHash()].GetHash(), tx.GetHash());
 
         dpos::CTxVote voteWant;
         voteWant.voter = masternodeIds[i];
@@ -204,7 +206,7 @@ TEST(dPoS, DummyRejectTx)
     // Init voters
     std::array<CMasternode::ID, 32> masternodeIds;
     std::vector<dpos::CDposVoter> voters;
-    BlockHash tip;
+    BlockHash tip = uint256S("0xB101");
     initVoters_dummy(masternodeIds, voters, tip, callbacks);
 
     voters[0].setVoting(true, masternodeIds[0]);
@@ -224,6 +226,6 @@ TEST(dPoS, DummyRejectTx)
 
         ASSERT_EQ(voters[i].v.size(), 0);
         ASSERT_TRUE(res.empty());
-        ASSERT_TRUE(voters[i].v[tip].txs.empty());
+        ASSERT_TRUE(voters[i].txs.empty());
     }
 }
