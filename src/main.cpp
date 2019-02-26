@@ -2523,7 +2523,7 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
             return false;
         }
         CKeyID operatorAuth = pubKey.GetID();
-        if (!mnview.IsTeamMember(pindex->nHeight, operatorAuth)) {
+        if (!mnview.IsTeamMember(pindex->nHeight - 1, operatorAuth)) {
             LogPrintf("CheckDposSigs(): signed not by a team member \n");
             return false;
         }
