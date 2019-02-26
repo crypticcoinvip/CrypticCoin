@@ -150,7 +150,8 @@ public:
      * @return transaction which had YES vote from me, from any round
      */
 
-    struct ApprovedByMeTxsList {
+    struct ApprovedByMeTxsList
+    {
         std::map<TxIdSorted, CTransaction> txs;
         std::set<TxId> missing;
     };
@@ -184,9 +185,8 @@ private:
     /**
      * @return false if all my txs are either committed or not committable, or if one of my txs is missing
      */
-    bool approvedByMeTxs_readyForRoundVoting(Round nRound) const;
-
-    void eraseCommittedAndNotCommittableTxs(Round nRound);
+    void filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Round nRound) const;
+    void filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nRound) const;
 private:
     CMasternode::ID me;
     BlockHash tip;

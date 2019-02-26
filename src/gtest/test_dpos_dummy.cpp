@@ -5,7 +5,10 @@
 namespace
 {
 
-void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds, std::vector<dpos::CDposVoter>& voters, BlockHash tip, dpos::CDposVoter::Callbacks callbacks)
+void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds,
+                      std::vector<dpos::CDposVoter>& voters,
+                      BlockHash tip,
+                      dpos::CDposVoter::Callbacks callbacks)
 {
     for (uint64_t i = 0; i < 32; i++) {
         masternodeIds[i] = ArithToUint256(arith_uint256{i});

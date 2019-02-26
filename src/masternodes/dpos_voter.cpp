@@ -87,7 +87,7 @@ void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
 void CDposVoter::updateTip(BlockHash tip)
 {
     if (this->tip != BlockHash{})
-        eraseCommittedAndNotCommittableTxs(getCurrentRound());
+        filterFinishedTxs(this->txs, getCurrentRound());
 
     this->tip = tip;
 }
@@ -269,63 +269,143 @@ CDposVoter::Output CDposVoter::doRoundVoting()
     const Round nRound = getCurrentRound();
     auto stats = calcRoundVotingStats(nRound);
 
-    if (!wasVotedByMe_round(nRound) && approvedByMeTxs_readyForRoundVoting(nRound)) {
-        using BlockVotes = std::pair<size_t, arith_uint256>;
+    auto myTxs = listApprovedByMe_txs();
+    if (!myTxs.missing.empty()) {
+        // forbid voting if one of approved by me txs is missing.
+        // It means that I can't check that a tx doesn't interfere with already approved by me.
+        // Without this condition, it's possible to do doublesign by accident.
+        std::copy(myTxs.missing.begin(),
+                  myTxs.missing.end(),
+                  std::back_inserter(out.vTxReqs)); // request missing txs
+        return out;
+    }
 
-        std::vector<BlockVotes> sortedViceBlocks{};
+    filterFinishedTxs(myTxs.txs, nRound); // filter finished tx. If all txs are finished, the result is empty
+    if (!myTxs.txs.empty()) {
+        LogPrintf("%s: Can't do round voting because %d of approved-by-me txs aren't finished (one of them is %s) \n",
+                  __func__,
+                  myTxs.txs.size(),
+                  myTxs.txs.begin()->first.GetHex());
+        return out;
+    }
 
-        // fill sortedViceBlocks
-        for (const auto& viceBlock_p : v[tip].viceBlocks) {
-            sortedViceBlocks.emplace_back(stats.pro[viceBlock_p.first], UintToArith256(viceBlock_p.first));
+    if (wasVotedByMe_round(nRound)) {
+        LogPrintf("%s: Round was already voted by me \n", __func__);
+        return out;
+    }
+
+    using BlockVotes = std::pair<size_t, arith_uint256>;
+
+    std::vector<BlockVotes> sortedViceBlocks{};
+
+    // fill sortedViceBlocks
+    for (const auto& viceBlock_p : v[tip].viceBlocks) {
+        sortedViceBlocks.emplace_back(stats.pro[viceBlock_p.first], UintToArith256(viceBlock_p.first));
+    }
+
+    // sort the vice-blocks by number of votes, vice-block Hash (decreasing)
+    std::sort(sortedViceBlocks.begin(), sortedViceBlocks.end(), [](const BlockVotes& l, const BlockVotes& r)
+    {
+        if (l.first == r.first)
+            return l.second < r.second;
+        return l.first < r.first;
+    });
+
+    // vote for block
+    // committed list may be not full, which is fine
+    const auto committedTxs = listCommittedTxs();
+    boost::optional<BlockHash> viceBlockToVote{};
+    for (const auto& viceBlock_p : sortedViceBlocks) {
+        const BlockHash viceBlockId = ArithToUint256(viceBlock_p.second);
+        if (v[tip].viceBlocks.count(viceBlockId) == 0) {
+            continue; // TODO request vice-block if missing
         }
 
-        // sort the vice-blocks by number of votes, vice-block Hash (decreasing)
-        std::sort(sortedViceBlocks.begin(), sortedViceBlocks.end(), [](const BlockVotes& l, const BlockVotes& r)
-        {
-            if (l.first == r.first)
-                return l.second < r.second;
-            return l.first < r.first;
-        });
-
-        // vote for block
-        // committed list may be not full, which is fine
-        const auto committedTxs = listCommittedTxs();
-        boost::optional<BlockHash> viceBlockToVote{};
-        for (const auto& viceBlock_p : sortedViceBlocks) {
-            const BlockHash viceBlockId = ArithToUint256(viceBlock_p.second);
-            if (v[tip].viceBlocks.count(viceBlockId) == 0) {
-                continue; // TODO request vice-block if missing
-            }
-
-            const CBlock& viceBlock = v[tip].viceBlocks[viceBlockId];
-            if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
-                viceBlockToVote = {viceBlockId};
-                break;
-            }
+        const CBlock& viceBlock = v[tip].viceBlocks[viceBlockId];
+        if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
+            viceBlockToVote = {viceBlockId};
+            break;
         }
+    }
 
-        if (viceBlockToVote) {
-            LogPrintf("%s: Vote for vice block %s at round %d \n", __func__, viceBlockToVote->GetHex(), nRound);
+    if (viceBlockToVote) {
+        LogPrintf("%s: Vote for vice block %s at round %d \n", __func__, viceBlockToVote->GetHex(), nRound);
 
-            CRoundVote newVote{};
-            newVote.voter = me;
-            newVote.choice = {*viceBlockToVote, CVoteChoice::Decision::YES};
-            newVote.nRound = nRound;
-            newVote.tip = tip;
-            out.vRoundVotes.push_back(newVote);
+        CRoundVote newVote{};
+        newVote.voter = me;
+        newVote.choice = {*viceBlockToVote, CVoteChoice::Decision::YES};
+        newVote.nRound = nRound;
+        newVote.tip = tip;
+        out.vRoundVotes.push_back(newVote);
 
-            out += applyRoundVote(newVote);
-        }
-        else {
-            LogPrintf("%s: Can't find sutable vice block \n", __func__);
-        }
+        out += applyRoundVote(newVote);
     }
     else {
-        LogPrintf("%s: Can't for vote vice block %d %d \n",
-                  __func__,
-                  wasVotedByMe_round(nRound),
-                  approvedByMeTxs_readyForRoundVoting(nRound));
+        LogPrintf("%s: Suitable vice block wasn't found \n", __func__);
     }
+
+    return out;
+}
+
+CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
+{
+    if (!amIvoter) {
+        return {};
+    }
+    TxId txid = tx.GetHash();
+    Output out{};
+
+    const Round nRound = getCurrentRound();
+
+    if (wasVotedByMe_tx(txid, nRound)) {
+        LogPrintf("%s: Tx %s was already voted by me \n", __func__, txid.GetHex());
+        return out;
+    }
+
+    CVoteChoice::Decision decision{CVoteChoice::Decision::YES};
+
+    auto myTxs = listApprovedByMe_txs();
+    if (!myTxs.missing.empty()) {
+        // forbid voting if one of approved by me txs is missing.
+        // It means that I can't check that a tx doesn't interfere with already approved by me.
+        // Without this condition, it's possible to do doublesign by accident.
+        std::copy(myTxs.missing.begin(),
+                  myTxs.missing.end(),
+                  std::back_inserter(out.vTxReqs)); // request missing txs
+        return out;
+    }
+
+    myTxs.txs.emplace(UintToArith256(txid), tx);
+    if (!world.validateTxs(myTxs.txs)) { // check against my list
+        decision = CVoteChoice::Decision::NO;
+    }
+    else {
+        // check against committed list. Strictly we need to to check only against my list,
+        // but checking against committed txs will speed up the consensus.
+        // committed list may be not full, which is fine
+        auto committedTxs = listCommittedTxs();
+        committedTxs.emplace(UintToArith256(txid), tx);
+        if (!world.validateTxs(committedTxs)) {
+            decision = CVoteChoice::Decision::NO;
+        }
+    }
+
+    if (decision == CVoteChoice::Decision::YES && wasVotedByMe_round(nRound)) {
+        decision = CVoteChoice::Decision::PASS;
+    }
+    if (decision == CVoteChoice::Decision::YES && atLeastOneViceBlockIsValid(nRound)) {
+        decision = CVoteChoice::Decision::PASS;
+    }
+
+    CTxVote newVote{};
+    newVote.voter = me;
+    newVote.nRound = nRound;
+    newVote.tip = tip;
+    newVote.choice = CVoteChoice{txid, decision};
+    out.vTxVotes.push_back(newVote);
+
+    out += applyTxVote(newVote);
+
     return out;
 }
 
@@ -442,63 +522,6 @@ CDposVoter::Output CDposVoter::misbehavingErr(const std::string& msg) const
 {
     Output out;
     out.vErrors.push_back(msg);
-    return out;
-}
-
-CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
-{
-    if (!amIvoter) {
-        return {};
-    }
-    TxId txid = tx.GetHash();
-    Output out{};
-
-    const Round nRound = getCurrentRound();
-    if (!wasVotedByMe_tx(txid, nRound)) {
-        CVoteChoice::Decision decision{CVoteChoice::Decision::YES};
-
-        auto myTxs = listApprovedByMe_txs();
-        if (!myTxs.missing.empty()) {
-            // forbid voting if one of approved by me txs is missing.
-            // It means that I can't check that a tx doesn't interfere with already approved by me.
-            // Without this condition, it's possible to do doublesign by accident.
-            std::copy(myTxs.missing.begin(),
-                      myTxs.missing.end(),
-                      std::back_inserter(out.vTxReqs)); // request missing txs
-            return out;
-        }
-
-        myTxs.txs.emplace(UintToArith256(txid), tx);
-        if (!world.validateTxs(myTxs.txs)) { // check against my list
-            decision = CVoteChoice::Decision::NO;
-        }
-        else {
-            // check against committed list. Strictly we need to to check only against my list,
-            // but checking against committed txs will speed up the consensus.
-            // committed list may be not full, which is fine
-            auto committedTxs = listCommittedTxs();
-            committedTxs.emplace(UintToArith256(txid), tx);
-            if (!world.validateTxs(committedTxs)) {
-                decision = CVoteChoice::Decision::NO;
-            }
-        }
-
-        if (decision == CVoteChoice::Decision::YES && wasVotedByMe_round(nRound)) {
-            decision = CVoteChoice::Decision::PASS;
-        }
-        if (decision == CVoteChoice::Decision::YES && atLeastOneViceBlockIsValid(nRound)) {
-            decision = CVoteChoice::Decision::PASS;
-        }
-
-        CTxVote newVote{};
-        newVote.voter = me;
-        newVote.nRound = nRound;
-        newVote.tip = tip;
-        newVote.choice = CVoteChoice{txid, decision};
-        out.vTxVotes.push_back(newVote);
-
-        out += applyTxVote(newVote);
-    }
     return out;
 }
 
@@ -654,8 +677,9 @@ bool CDposVoter::wasTxLost(TxId txid) const
 
 bool CDposVoter::checkRoundStalemate(const CRoundVotingDistribution& stats) const
 {
+    assert(minQuorum <= numOfVoters);
     const size_t totus = stats.totus();
-    const size_t notKnown = numOfVoters - totus;
+    const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
 
     const auto best_it = std::max_element(stats.pro.begin(), stats.pro.end());
     const size_t nBest = (best_it != stats.pro.end()) ? best_it->second : 0;
@@ -666,44 +690,43 @@ bool CDposVoter::checkRoundStalemate(const CRoundVotingDistribution& stats) cons
 
 bool CDposVoter::checkTxNotCommittable(const CTxVotingDistribution& stats) const
 {
+    assert(minQuorum <= numOfVoters);
     const size_t totus = stats.totus();
-    const size_t notKnown = numOfVoters - totus;
+    const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
 
     // not committed, and not possible to commit
     return (stats.pro + notKnown) < minQuorum;
 }
 
-bool CDposVoter::approvedByMeTxs_readyForRoundVoting(Round nRound) const
+void CDposVoter::filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Round nRound) const
 {
-    const auto myTxs = listApprovedByMe_txs();
-    if (!myTxs.missing.empty())
-        return false;
-
-    for (const auto& tx_p : myTxs.txs) {
-        const TxId txid = ArithToUint256(tx_p.first);
+    for (auto it = txs_f.begin(); it != txs_f.end();) {
+        const TxId txid = ArithToUint256(it->first);
         const auto stats = calcTxVotingStats(txid, nRound);
 
         const bool notCommittable = checkTxNotCommittable(stats);
         const bool committed = stats.pro >= minQuorum;
-
         const bool finished = notCommittable || committed;
-        if (!finished) {
-            return false;
-        }
+
+        if (finished)
+            it = txs_f.erase(it);
+        else
+            it++;
     }
-    return true;
 }
 
-void CDposVoter::eraseCommittedAndNotCommittableTxs(Round nRound)
+void CDposVoter::filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nRound) const
 {
-    for (auto it = txs.begin(); it != txs.end();) {
-        const auto stats = calcTxVotingStats(it->first, nRound);
+    for (auto it = txs_f.begin(); it != txs_f.end();) {
+        const TxId txid = it->first;
+        const auto stats = calcTxVotingStats(txid, nRound);
 
         const bool notCommittable = checkTxNotCommittable(stats);
         const bool committed = stats.pro >= minQuorum;
+        const bool finished = notCommittable || committed;
 
-        if (notCommittable || committed)
-            it = txs.erase(it);
+        if (finished)
+            it = txs_f.erase(it);
         else
             it++;
     }
