@@ -2486,7 +2486,7 @@ void PartitionCheck(bool (*initialDownloadCheck)(), CCriticalSection& cs, const 
 }
 
 static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIndex* pindex, size_t minQuorum, size_t teamSize, const CMasternodesView& mnview) {
-    const size_t ecdsaSigSize = 65;
+    const size_t ecdsaSigSize = CPubKey::COMPACT_SIGNATURE_SIZE;
     if ((sigs.size() % ecdsaSigSize) != 0) {
         LogPrintf("CheckDposSigs(): malformed signatures \n");
         return false;

@@ -322,12 +322,7 @@ void CDposController::proceedTransaction(const CTransaction& tx)
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
 
-    for (const auto& pair : this->voter->v) {
-        if (pair.second.txs.count(tx.GetHash()) == 0) {
-            handleVoterOutput(voter->applyTx(tx));
-            break;
-        }
-    }
+    handleVoterOutput(voter->applyTx(tx));
 }
 
 void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)

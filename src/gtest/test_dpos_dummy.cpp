@@ -154,7 +154,7 @@ TEST(dPoS, DummyCommitTx)
         ASSERT_TRUE(res.vRoundVotes.empty());
         ASSERT_TRUE(!res.blockToSubmit);
         ASSERT_TRUE(res.vErrors.empty());
-        ASSERT_EQ(voters[i].v[tip].txs[tx.GetHash()].GetHash(), tx.GetHash());
+        ASSERT_EQ(voters[i].txs[tx.GetHash()].GetHash(), tx.GetHash());
 
         dpos::CTxVote voteWant;
         voteWant.voter = masternodeIds[i];
@@ -224,6 +224,6 @@ TEST(dPoS, DummyRejectTx)
 
         ASSERT_EQ(voters[i].v.size(), 0);
         ASSERT_TRUE(res.empty());
-        ASSERT_TRUE(voters[i].v[tip].txs.empty());
+        ASSERT_TRUE(voters[i].txs.empty());
     }
 }
