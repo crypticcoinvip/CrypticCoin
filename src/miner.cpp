@@ -543,8 +543,10 @@ static bool ProcessBlockFound(CBlock* pblock)
 //    }
 #endif
     if (dpos::getController()->isEnabled()) {
-        dpos::getController()->proceedViceBlock(*pblock);
+        LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
+            dpos::getController()->proceedViceBlock(*pblock);
     } else {
+        LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
         // Process this block the same as if we had received it from another node
         CValidationState state;
         if (!ProcessNewBlock(state, NULL, pblock, true, NULL))

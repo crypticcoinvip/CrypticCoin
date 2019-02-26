@@ -21,7 +21,6 @@ namespace dpos
 using LockGuard = std::lock_guard<std::mutex>;
 std::mutex mutex_{};
 CDposController* dposControllerInstance_{nullptr};
-std::array<unsigned char, 16> salt_{0x4D, 0x48, 0x7A, 0x52, 0x5D, 0x4D, 0x37, 0x78, 0x42, 0x36, 0x5B, 0x64, 0x44, 0x79, 0x59, 0x4F};
 
 uint256 getTipBlockHash()
 {
@@ -331,8 +330,8 @@ void CDposController::proceedViceBlock(const CBlock& viceBlock)
 
         const CDposVoterOutput out{voter->applyViceBlock(viceBlock)};
 
-        storeEntity(viceBlock, &CDposDB::WriteViceBlock); // TODO move into voter
         if (handleVoterOutput(out)) {
+            storeEntity(viceBlock, &CDposDB::WriteViceBlock);
             relayEntity(viceBlock, MSG_VICE_BLOCK);
         }
     }
@@ -352,8 +351,8 @@ void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
 
+        this->receivedRoundVotes.emplace(vote.GetHash(), vote); // TODO move into voter
         if (acceptRoundVote(vote)) {
-            this->receivedRoundVotes.emplace(vote.GetHash(), vote);
             storeEntity(vote, &CDposDB::WriteRoundVote);
             relayEntity(vote, MSG_ROUND_VOTE);
         }
