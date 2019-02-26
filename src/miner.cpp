@@ -410,15 +410,15 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         txNew.vout[0].nValue += nFees;
         txNew.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
-        pblock->vtx[0] = txNew;
-        pblocktemplate->vTxFees[0] = -nFees;
-
         // Share reward with masternodes' team
         {
             const auto rewards_p = pmasternodesview->CalcDposTeamReward(txNew.vout[0].nValue, nFees_inst, nHeight);
             txNew.vout[0].nValue -= rewards_p.second;
             txNew.vout.insert(txNew.vout.end(), rewards_p.first.begin(), rewards_p.first.end());
         }
+
+        pblock->vtx[0] = txNew;
+        pblocktemplate->vTxFees[0] = -nFees;
 
         // Randomise nonce
         arith_uint256 nonce = UintToArith256(GetRandHash());
