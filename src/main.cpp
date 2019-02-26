@@ -2805,7 +2805,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     if (fDposActive)
     {
         const auto rewards_p = mnview.CalcDposTeamReward(blockReward, nFees_inst, pindex->nHeight);
-        const bool sizeCheck = block.vtx[0].vout.size() < rewards_p.first.size();
+        const bool sizeCheck = block.vtx[0].vout.size() >= rewards_p.first.size();
         if (!sizeCheck || !std::equal(rewards_p.first.rbegin(), rewards_p.first.rend(), block.vtx[0].vout.rbegin()))
             return state.DoS(100,
                              error("ConnectBlock(): coinbase pays incorrect dPoS reward"),
