@@ -462,7 +462,7 @@ struct DposValidationRules {
     size_t nMaxInstsSize = MAX_INST_SECTION_SIZE;
     size_t nMaxInstsSigops = MAX_INST_SECTION_SIGOPS;
 
-    boost::optional< std::map<TxIdSorted, CTransaction> > instantTxs;
+    boost::optional< std::map<TxIdSorted, CTransaction> > instantTxsTemplate;
 
     bool fCheckDposSigs = true;
     bool fCheckInstSection = true;

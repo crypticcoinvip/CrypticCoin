@@ -359,8 +359,8 @@ public:
         consensus.nMinimumChainWork = uint256S("0x00");
 
         // dPoS
-        consensus.dpos.nTeamSize = 4;
-        consensus.dpos.nMinQuorum = 3;
+        consensus.dpos.nTeamSize = 6;
+        consensus.dpos.nMinQuorum = 4;
         consensus.nDposMinPeriodOfIncome = (1 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -500,11 +500,6 @@ CScript CChainParams::GetFoundersRewardScriptAtHeight(int nHeight) const {
 std::string CChainParams::GetFoundersRewardAddressAtIndex(int i) const {
     assert(i >= 0 && i < vFoundersRewardAddress.size());
     return vFoundersRewardAddress[i];
-}
-
-std::uint32_t CChainParams::GetMinimalMasternodeCount() const
-{
-    return this == &regTestParams ? GetArg("-minimal-masternode-count", 1) : 100;
 }
 
 void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight)
