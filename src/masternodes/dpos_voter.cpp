@@ -86,7 +86,8 @@ void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
 
 void CDposVoter::updateTip(BlockHash tip)
 {
-    eraseCommittedAndNotCommittableTxs(getCurrentRound());
+    if (this->tip != BlockHash{})
+        eraseCommittedAndNotCommittableTxs(getCurrentRound());
 
     this->tip = tip;
 }
@@ -268,7 +269,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
     const Round nRound = getCurrentRound();
     auto stats = calcRoundVotingStats(nRound);
 
-    if (!wasVotedByMe_round(nRound) && !haveAnyUnfinishedTxs(nRound)) {
+    if (!wasVotedByMe_round(nRound) && approvedByMeTxs_readyForRoundVoting(nRound)) {
         using BlockVotes = std::pair<size_t, arith_uint256>;
 
         std::vector<BlockVotes> sortedViceBlocks{};
@@ -323,7 +324,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         LogPrintf("%s: Can't for vote vice block %d %d \n",
                   __func__,
                   wasVotedByMe_round(nRound),
-                  haveAnyUnfinishedTxs(nRound));
+                  approvedByMeTxs_readyForRoundVoting(nRound));
     }
     return out;
 }
@@ -461,7 +462,9 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
             // forbid voting if one of approved by me txs is missing.
             // It means that I can't check that a tx doesn't interfere with already approved by me.
             // Without this condition, it's possible to do doublesign by accident.
-            std::copy(myTxs.missing.begin(), myTxs.missing.end(), std::back_inserter(out.vTxReqs)); // request missing txs
+            std::copy(myTxs.missing.begin(),
+                      myTxs.missing.end(),
+                      std::back_inserter(out.vTxReqs)); // request missing txs
             return out;
         }
 
@@ -670,21 +673,25 @@ bool CDposVoter::checkTxNotCommittable(const CTxVotingDistribution& stats) const
     return (stats.pro + notKnown) < minQuorum;
 }
 
-bool CDposVoter::haveAnyUnfinishedTxs(Round nRound) const
+bool CDposVoter::approvedByMeTxs_readyForRoundVoting(Round nRound) const
 {
-    for (const auto& tx_p : txs) {
-        const auto stats = calcTxVotingStats(tx_p.first, nRound);
+    const auto myTxs = listApprovedByMe_txs();
+    if (!myTxs.missing.empty())
+        return false;
+
+    for (const auto& tx_p : myTxs.txs) {
+        const TxId txid = ArithToUint256(tx_p.first);
+        const auto stats = calcTxVotingStats(txid, nRound);
 
         const bool notCommittable = checkTxNotCommittable(stats);
-        const bool notVoted = stats.totus() == 0;
         const bool committed = stats.pro >= minQuorum;
 
-        const bool finished = notVoted || notCommittable || committed;
+        const bool finished = notCommittable || committed;
         if (!finished) {
-            return true;
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 void CDposVoter::eraseCommittedAndNotCommittableTxs(Round nRound)

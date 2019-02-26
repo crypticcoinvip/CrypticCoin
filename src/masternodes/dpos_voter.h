@@ -182,9 +182,9 @@ private:
     bool checkTxNotCommittable(const CTxVotingDistribution& stats) const;
 
     /**
-     * @return false if all txs are either committed, not committable, or without votes
+     * @return false if all my txs are either committed or not committable, or if one of my txs is missing
      */
-    bool haveAnyUnfinishedTxs(Round nRound) const;
+    bool approvedByMeTxs_readyForRoundVoting(Round nRound) const;
 
     void eraseCommittedAndNotCommittableTxs(Round nRound);
 private:
