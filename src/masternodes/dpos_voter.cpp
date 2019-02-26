@@ -86,7 +86,7 @@ void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
 
 void CDposVoter::updateTip(BlockHash tip)
 {
-    if (this->tip != BlockHash{})
+    if (this->tip != BlockHash{} && this->tip != tip)
         filterFinishedTxs(this->txs, getCurrentRound());
 
     this->tip = tip;
@@ -155,7 +155,7 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
               __func__,
               txid.GetHex(),
               vote.voter.GetHex());
-    auto& txVoting = v[tip].txVotes[vote.nRound][txid];
+    auto& txVoting = v[vote.tip].txVotes[vote.nRound][txid];
 
     // Check misbehaving or duplicating
     if (txVoting.count(vote.voter) > 0) {
@@ -196,7 +196,7 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
               __func__,
               vote.choice.subject.GetHex(),
               vote.voter.GetHex());
-    auto& roundVoting = v[tip].roundVotes[vote.nRound];
+    auto& roundVoting = v[vote.tip].roundVotes[vote.nRound];
 
     // Check misbehaving or duplicating
     if (roundVoting.count(vote.voter) > 0) {
@@ -425,12 +425,12 @@ CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId)
             return out;
         }
 
-        LogPrintf("%s: Submit block ... \n", __func__);
+        LogPrintf("%s: Submit block, num of votes = %d, minQuorum = %d \n", __func__, stats.pro[viceBlockId], minQuorum);
         CBlockToSubmit blockToSubmit;
         blockToSubmit.block = viceBlock;
         const auto& approvedBy_m = v[tip].roundVotes[nCurrentRound];
         // Retrieve all keys
-        boost::copy(approvedBy_m | boost::adaptors::map_keys, std::back_inserter(blockToSubmit.vApprovedBy));
+        boost::copy(approvedBy_m | boost::adaptors::map_keys, std::back_inserter(blockToSubmit.vApprovedBy)); // TODO filter pass votes
 
         out.blockToSubmit = {blockToSubmit};
     }

@@ -207,6 +207,11 @@ UniValue generate(const UniValue& params, bool fHelp)
         nHeight = nHeightStart;
         nHeightEnd = nHeightStart+nGenerate;
     }
+
+    if (nGenerate > 1 && dpos::getController()->isEnabled()) {
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "dPoS is active, can't mine more than 1 block at once");
+    }
+
     unsigned int nExtraNonce = 0;
     UniValue blockHashes(UniValue::VARR);
     unsigned int n = Params().EquihashN();
@@ -277,8 +282,10 @@ UniValue generate(const UniValue& params, bool fHelp)
         }
 endloop:
         if (dpos::getController()->isEnabled()) {
+            LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
             dpos::getController()->proceedViceBlock(*pblock);
         } else {
+            LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
             CValidationState state;
             if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
                 throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
