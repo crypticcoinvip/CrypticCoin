@@ -239,7 +239,7 @@ void CDposController::runEventLoop()
 
             for (auto&& node : getNodes()) {
                 node->PushMessage("get_round_votes", getTipBlockHash());
-                node->PushMessage("get_tx_votes", getTipBlockHash(), self->listIntersectedTxs());
+                node->PushMessage("get_tx_votes", getTipBlockHash(), self->getTxsFilter());
             }
         }
 
@@ -501,12 +501,6 @@ bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
     return this->voter->isTxApprovedByMe(tx);
 }
 
-std::vector<TxId> CDposController::listIntersectedTxs() const
-{
-    std::vector<TxId> rv{};
-    return rv;
-}
-
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 {
     if (!out.vErrors.empty()) {
@@ -644,5 +638,12 @@ void CDposController::removeOldVotes()
         }
     }
 }
+
+std::vector<TxId> CDposController::getTxsFilter() const
+{
+    std::vector<TxId> rv{};
+    return rv;
+}
+
 
 } //namespace dpos
