@@ -239,7 +239,7 @@ void CDposController::runEventLoop()
 
             for (auto&& node : getNodes()) {
                 node->PushMessage("get_round_votes", getTipBlockHash());
-                node->PushMessage("get_tx_votes", getTipBlockHash(), self->listTxVotes());
+                node->PushMessage("get_tx_votes", getTipBlockHash(), self->getTxsFilter());
             }
         }
 
@@ -638,5 +638,12 @@ void CDposController::removeOldVotes()
         }
     }
 }
+
+std::vector<TxId> CDposController::getTxsFilter() const
+{
+    std::vector<TxId> rv{};
+    return rv;
+}
+
 
 } //namespace dpos

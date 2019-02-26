@@ -61,6 +61,8 @@ private:
 
     void removeOldVotes();
 
+    std::vector<TxId> getTxsFilter() const;
+
 private:
     std::shared_ptr<CDposVoter> voter;
     std::shared_ptr<Validator> validator;
