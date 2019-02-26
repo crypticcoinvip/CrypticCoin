@@ -239,7 +239,7 @@ void CDposController::runEventLoop()
 
             for (auto&& node : getNodes()) {
                 node->PushMessage("get_round_votes", getTipBlockHash());
-                node->PushMessage("get_tx_votes", getTipBlockHash(), self->listTxVotes());
+                node->PushMessage("get_tx_votes", getTipBlockHash(), self->listIntersectedTxs());
             }
         }
 
@@ -499,6 +499,12 @@ bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
     return this->voter->isTxApprovedByMe(tx);
+}
+
+std::vector<TxId> CDposController::listIntersectedTxs() const
+{
+    std::vector<TxId> rv{};
+    return rv;
 }
 
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)

@@ -48,6 +48,8 @@ public:
     bool isCommittedTx(const CTransaction& tx) const;
     bool isTxApprovedByMe(const CTransaction& tx) const;
 
+    std::vector<TxId> listIntersectedTxs() const;
+
 private:
     CDposController() = default;
     ~CDposController() = default;
