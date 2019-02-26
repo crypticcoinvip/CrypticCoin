@@ -527,8 +527,28 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 
             if (out.blockToSubmit != boost::none) {
                 CValidationState state{};
-                const CBlock* pblock{&out.blockToSubmit.get().block};
-                if (!ProcessNewBlock(state, NULL, const_cast<CBlock*>(pblock), true, NULL)) {
+                CBlockToSubmit blockToSubmit{out.blockToSubmit.get()};
+                CBlock* pblock{&blockToSubmit.block};
+
+                pblock->vSig.reserve(blockToSubmit.vApprovedBy.size() * CPubKey::COMPACT_SIGNATURE_SIZE);
+
+                for (const auto& mnIdApproved : blockToSubmit.vApprovedBy) {
+                    for (const auto& votePair : this->receivedRoundVotes) {
+                        const auto mnId{extractMasternodeId(votePair.second)};
+                        if (mnId != boost::none && mnId.get() == mnIdApproved) {
+                            pblock->vSig.insert(pblock->vSig.end(),
+                                                votePair.second.signature.begin(),
+                                                votePair.second.signature.end());
+                            break;
+                        }
+                    }
+                }
+                if (pblock->vSig.size() != blockToSubmit.vApprovedBy.size()) {
+                    LogPrintf("%s: Can't submit block - missing signatures (%d != %d)\n",
+                              __func__,
+                              pblock->vSig.size(),
+                              blockToSubmit.vApprovedBy.size());
+                } else if (!ProcessNewBlock(state, NULL, const_cast<CBlock*>(pblock), true, NULL)) {
                     LogPrintf("%s: Can't ProcessNewBlock\n", __func__);
                 }
             }
