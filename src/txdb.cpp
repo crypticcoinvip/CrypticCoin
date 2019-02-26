@@ -378,59 +378,84 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
 }
 
 
-CMasternodesDB::CMasternodesDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "masternodes", nCacheSize, fMemory, fWipe)
+CMasternodesDB::CMasternodesDB(size_t nCacheSize, bool fMemory, bool fWipe)
+    : db(new CDBWrapper(GetDataDir() / "masternodes", nCacheSize, fMemory, fWipe))
+    , readOnly(false)
 {
 }
 
-void CMasternodesDB::WriteMasternode(uint256 const & txid, CMasternode const & node, CDBBatch & batch)
+CMasternodesDB::CMasternodesDB(const CMasternodesDB & other)
+    : db(other.db)
+    , readOnly(true)
 {
-    batch.Write(make_pair(DB_MASTERNODES, txid), node);
 }
 
-void CMasternodesDB::EraseMasternode(uint256 const & txid, CDBBatch & batch)
+void CMasternodesDB::CommitBatch()
 {
-    batch.Erase(make_pair(DB_MASTERNODES, txid));
+    if (batch && !readOnly)
+    {
+        db->WriteBatch(*batch);
+        batch.reset();
+    }
 }
 
-void CMasternodesDB::WriteVote(uint256 const & txid, CDismissVote const & vote, CDBBatch & batch)
+void CMasternodesDB::DropBatch()
 {
-    batch.Write(make_pair(DB_DISMISSVOTES, txid), vote);
+    if (batch && !readOnly)
+    {
+        batch.reset();
+    }
 }
 
-void CMasternodesDB::EraseVote(uint256 const & txid, CDBBatch & batch)
+void CMasternodesDB::WriteMasternode(uint256 const & txid, CMasternode const & node)
 {
-    batch.Erase(make_pair(DB_DISMISSVOTES, txid));
+    BatchWrite(make_pair(DB_MASTERNODES, txid), node);
 }
 
-void CMasternodesDB::WriteUndo(uint256 const & txid, uint256 const & affectedItem, char undoType, CDBBatch & batch)
+void CMasternodesDB::EraseMasternode(uint256 const & txid)
 {
-    batch.Write(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem), undoType);
+    BatchErase(make_pair(DB_MASTERNODES, txid));
 }
 
-void CMasternodesDB::EraseUndo(uint256 const & txid, uint256 const & affectedItem, CDBBatch & batch)
+void CMasternodesDB::WriteVote(uint256 const & txid, CDismissVote const & vote)
 {
-    batch.Erase(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem));
+    BatchWrite(make_pair(DB_DISMISSVOTES, txid), vote);
+}
+
+void CMasternodesDB::EraseVote(uint256 const & txid)
+{
+    BatchErase(make_pair(DB_DISMISSVOTES, txid));
+}
+
+void CMasternodesDB::WriteUndo(uint256 const & txid, uint256 const & affectedItem, char undoType)
+{
+    BatchWrite(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem), undoType);
+}
+
+void CMasternodesDB::EraseUndo(uint256 const & txid, uint256 const & affectedItem)
+{
+    BatchErase(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem));
 }
 
 void CMasternodesDB::ReadOperatorUndo(const uint256 & txid, CMasternodesView::COperatorUndoRec & value)
 {
-    Read(make_pair(DB_SETOPERATORUNDO, txid), value);
+    db->Read(make_pair(DB_SETOPERATORUNDO, txid), value);
 }
 
-void CMasternodesDB::WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value, CDBBatch & batch)
+void CMasternodesDB::WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value)
 {
-    batch.Write(make_pair(DB_SETOPERATORUNDO, txid), value);
+    BatchWrite(make_pair(DB_SETOPERATORUNDO, txid), value);
 }
 
-void CMasternodesDB::EraseOperatorUndo(uint256 const & txid, CDBBatch & batch)
+void CMasternodesDB::EraseOperatorUndo(uint256 const & txid)
 {
-    batch.Erase(make_pair(DB_SETOPERATORUNDO, txid));
+    BatchErase(make_pair(DB_SETOPERATORUNDO, txid));
 }
 
-bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team)
+bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team) const
 {
     team.clear();
-    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&*db)->NewIterator());
     pcursor->Seek(make_pair(DB_TEAM, blockHeight));
 
     while (pcursor->Valid())
@@ -460,25 +485,33 @@ bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team)
 
 bool CMasternodesDB::WriteTeam(int blockHeight, CTeam const & team)
 {
+    if (readOnly)
+    {
+        return true;
+    }
     // To enshure that we have no any mismatches in particular records
-    /// @attention EraseTeam() and WriteTeam() uses their own batches
-    /// cause i'm not sure that 'erasing' and then 'writing' in one batch will lead to the expected result
     bool erased = EraseTeam(blockHeight);
 
-    CDBBatch batch(*this);
+    /// @attention EraseTeam() and WriteTeam() uses their own batches
+    /// cause i'm not sure that 'erasing' and then 'writing' in one batch will lead to the expected result
+    CDBBatch batch(*db);
     for (CTeam::const_iterator it = team.begin(); it != team.end(); ++it)
     {
         batch.Write(make_pair(make_pair(DB_TEAM, blockHeight), it->first), it->second);
     }
-    return erased && WriteBatch(batch);
+    return erased && db->WriteBatch(batch);
 }
 
 bool CMasternodesDB::EraseTeam(int blockHeight)
 {
+    if (readOnly)
+    {
+        return true;
+    }
     /// @attention EraseTeam() and WriteTeam() uses their own batches
     /// cause i'm not sure that 'erasing' and then 'writing' in one batch will lead to the expected result
-    CDBBatch batch(*this);
-    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    CDBBatch batch(*db);
+    boost::scoped_ptr<CDBIterator> pcursor(db->NewIterator());
     pcursor->Seek(make_pair(DB_TEAM, blockHeight));
 
     while (pcursor->Valid())
@@ -495,13 +528,13 @@ bool CMasternodesDB::EraseTeam(int blockHeight)
         }
         pcursor->Next();
     }
-    return WriteBatch(batch);
+    return db->WriteBatch(batch);
 }
 
 
-bool CMasternodesDB::LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode)
+bool CMasternodesDB::LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode) const
 {
-    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&*db)->NewIterator());
     pcursor->Seek(DB_MASTERNODES);
 
     while (pcursor->Valid())
@@ -529,9 +562,9 @@ bool CMasternodesDB::LoadMasternodes(std::function<void(uint256 &, CMasternode &
     return true;
 }
 
-bool CMasternodesDB::LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote)
+bool CMasternodesDB::LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote) const
 {
-    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&*db)->NewIterator());
     pcursor->Seek(DB_DISMISSVOTES);
 
     while (pcursor->Valid())
@@ -559,9 +592,9 @@ bool CMasternodesDB::LoadVotes(std::function<void(uint256 &, CDismissVote &)> on
     return true;
 }
 
-bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo)
+bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo) const
 {
-    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&*db)->NewIterator());
     pcursor->Seek(DB_MASTERNODESUNDO);
 
     while (pcursor->Valid())

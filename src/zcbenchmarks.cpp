@@ -411,8 +411,8 @@ double benchmark_connectblock_slow()
     auto hashPrev = uint256S("00000000159a41f468e22135942a567781c3f3dc7ad62257993eb3c69c3f95ef");
     FakeCoinsViewDB fakeDB("benchmark/block-107134-inputs", hashPrev);
     CCoinsViewCache view(&fakeDB);
-    /// @todo @mn replace with fake mnview
-    CMasternodesView & mnview = *pmasternodesview;
+    // Read-only copy:
+    CMasternodesView mnview(*pmasternodesview);
 
     // Fake the chain
     CBlockIndex index(block);
