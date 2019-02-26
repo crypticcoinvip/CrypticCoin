@@ -91,7 +91,8 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
 
 
         # Generate blocks for activation height
-        self.nodes[0].generate(10)
+        for i in range(10):
+            self.nodes[0].generate(1)
         self.sync_all()
 
 
