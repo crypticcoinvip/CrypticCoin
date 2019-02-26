@@ -2350,11 +2350,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             }
         }
         // process transaction revert for masternodes.
-//         if we are kicked out from this loop (with checks above), mnview will be spoiled. but it is safe, cause it will lead to reindexing
-        if (pfClean == nullptr)
-        {
-            mnview.OnUndo(hash);
-        }
+        mnview.OnUndo(hash);
     }
 
     // set the old best Sprout anchor back
@@ -2375,14 +2371,14 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     view.SetBestBlock(pindex->pprev->GetBlockHash());
 
     // fix masternodes view state
-    if (fClean && pfClean == nullptr)
+    if (fClean)
     {
-        mnview.WriteBatch();
+        mnview.CommitBatch();
     }
-//    else
-//    {
-//        pmasternodesview->DropBatch();
-//    }
+    else
+    {
+        mnview.DropBatch();
+    }
 
     if (pfClean) {
         *pfClean = fClean;
@@ -2545,7 +2541,7 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
 /// @todo @mn totally review 'mnview' uses (with batches and so on) on connect and disconnect
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CMasternodesView& mnview, bool fJustCheck, bool calledByVerifyDB, const DposValidationRules& dvr)
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CMasternodesView& mnview, bool fJustCheck, const DposValidationRules& dvr)
 {
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
@@ -2876,11 +2872,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
 
     // If we are here - everything is OK
-    /// @todo @mn check all!
-    if (!calledByVerifyDB)
-    {
-        ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight);
-    }
+    ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight);
     return true;
 }
 
@@ -4046,8 +4038,8 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
     assert(pindexPrev == chainActive.Tip());
 
     CCoinsViewCache viewNew(pcoinsTip);
-    /// @todo @mn replace with fake mnview. But anyway, it runs 'ConnectBlock' with 'justCheck' here
-    CMasternodesView & mnview = *pmasternodesview;
+    // Read-only copy of masternodesview. But anyway, it runs 'ConnectBlock' with 'justCheck' here
+    CMasternodesView mnview(*pmasternodesview);
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
     indexDummy.nHeight = pindexPrev->nHeight + 1;
@@ -4063,7 +4055,7 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
         return false;
     if (!ContextualCheckBlock(block, state, pindexPrev))
         return false;
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, mnview, true, false, dvr))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, mnview, true, dvr))
         return false;
     assert(state.IsValid());
 
@@ -4422,7 +4414,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
     LogPrintf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(coinsview);
     /// @todo @mn replace with fake mnview
-    CMasternodesView & mnview = *pmasternodesview;
+    CMasternodesView mnview(*pmasternodesview);
     CBlockIndex* pindexState = chainActive.Tip();
     CBlockIndex* pindexFailure = NULL;
     int nGoodTransactions = 0;
@@ -4456,10 +4448,6 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
             bool fClean = true;
             if (!DisconnectBlock(block, state, pindex, coins, mnview, &fClean))
             {
-                /// @todo @mn check if it is possible to DisconnectBlock() == true, but fClean == false ???
-                /// or this is all done 'in memory' and we should not take any changes at all??? I'm disappointed :(
-                /// update: if DisconnectBlock() called with pfClean (from VerifyDB) - it always retuns 'true'. false only on hard DB errors
-//                pmasternodesview->DropBatch();
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             }
             pindexState = pindex->pprev;
@@ -4485,7 +4473,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
             CBlock block;
             if (!ReadBlockFromDisk(block, pindex))
                 return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
-            if (!ConnectBlock(block, state, pindex, coins, mnview, false, true))
+            if (!ConnectBlock(block, state, pindex, coins, mnview, false))
                 return error("VerifyDB(): *** found unconnectable block at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         }
     }
@@ -6778,7 +6766,7 @@ void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & blo
 
     }
     mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
-    mnview.WriteBatch();
+    mnview.CommitBatch();
 }
 
 void ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height)
@@ -6793,7 +6781,7 @@ void ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & 
     {
         mnview.OnUndo(block.vtx[i].GetHash());
     }
-    mnview.WriteBatch();
+    mnview.CommitBatch();
 }
 
 CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)

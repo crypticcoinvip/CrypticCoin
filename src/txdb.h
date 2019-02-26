@@ -84,39 +84,71 @@ public:
 };
 
 /** Access to the masternodes database (masternodes/) */
-class CMasternodesDB : public CDBWrapper
+class CMasternodesDB
 {
 private:
-//    CDBWrapper db;
+    boost::shared_ptr<CDBWrapper> db;
+    boost::scoped_ptr<CDBBatch> batch;
+    const bool readOnly;
 
 public:
     CMasternodesDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    CMasternodesDB(CMasternodesDB const & other);
 
 private:
-    CMasternodesDB(CMasternodesDB const &);
-    void operator=(CMasternodesDB const &);
+    CMasternodesDB & operator=(CMasternodesDB const &) = delete;
+
+    template <typename K, typename V>
+    void BatchWrite(const K& key, const V& value)
+    {
+        if (readOnly)
+        {
+            return;
+        }
+        if (!batch)
+        {
+            batch.reset(new CDBBatch(*db));
+        }
+        batch->Write<K,V>(key, value);
+    }
+    template <typename K>
+    void BatchErase(const K& key)
+    {
+        if (readOnly)
+        {
+            return;
+        }
+        if (!batch)
+        {
+            batch.reset(new CDBBatch(*db));
+        }
+        batch->Erase<K>(key);
+    }
 
 public:
-    void WriteMasternode(uint256 const & txid, CMasternode const & node, CDBBatch & batch);
-    void EraseMasternode(uint256 const & txid, CDBBatch & batch);
+    void CommitBatch();
+    void DropBatch();
 
-    void WriteVote(uint256 const & txid, CDismissVote const & vote, CDBBatch & batch);
-    void EraseVote(uint256 const & txid, CDBBatch & batch);
+    void WriteMasternode(uint256 const & txid, CMasternode const & node);
+    void EraseMasternode(uint256 const & txid);
 
-    void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType, CDBBatch & batch);
-    void EraseUndo(uint256 const & txid, uint256 const & affectedItem, CDBBatch & batch);
+    void WriteVote(uint256 const & txid, CDismissVote const & vote);
+    void EraseVote(uint256 const & txid);
+
+    void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType);
+    void EraseUndo(uint256 const & txid, uint256 const & affectedItem);
 
     void ReadOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec & value);
-    void WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value, CDBBatch & batch);
-    void EraseOperatorUndo(uint256 const & txid, CDBBatch & batch);
+    void WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value);
+    void EraseOperatorUndo(uint256 const & txid);
 
-    bool ReadTeam(int blockHeight, CTeam & team);
+    bool ReadTeam(int blockHeight, CTeam & team) const;
     bool WriteTeam(int blockHeight, CTeam const & team);
     bool EraseTeam(int blockHeight);
 
-    bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode);
-    bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote);
-    bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo);
+    bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode) const;
+    bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote) const;
+    bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo) const;
 };
 
 

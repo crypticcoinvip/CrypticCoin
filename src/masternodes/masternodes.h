@@ -234,7 +234,7 @@ public:
 
 private:
     CMasternodesDB & db;
-    boost::scoped_ptr<CDBBatch> currentBatch;
+//    boost::scoped_ptr<CDBBatch> currentBatch;
 
     CMasternodes allNodes;
     CActiveMasternodes activeNodes;
@@ -250,6 +250,10 @@ private:
 
 public:
     CMasternodesView(CMasternodesDB & mndb) : db(mndb) {}
+    CMasternodesView(CMasternodesView const & other);
+
+    CMasternodesView & operator=(CMasternodesView const & other) = delete;
+
     ~CMasternodesView() {}
 
     CMasternodes const & GetMasternodes() const
@@ -322,8 +326,7 @@ public:
 
     uint32_t GetMinDismissingQuorum();
 
-    void PrepareBatch();
-    void WriteBatch();
+    void CommitBatch();
     void DropBatch();
 
 private:
