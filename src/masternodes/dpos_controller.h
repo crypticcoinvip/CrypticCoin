@@ -29,7 +29,7 @@ public:
     void initialize();
     void updateChainTip();
 
-    int getCurrentVotingRound() const;
+    Round getCurrentVotingRound() const;
 
     void proceedViceBlock(const CBlock& viceBlock);
     void proceedTransaction(const CTransaction& tx);
