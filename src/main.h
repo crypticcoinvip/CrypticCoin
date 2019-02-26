@@ -456,7 +456,7 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex);
  *  In case pfClean is provided, operation will try to be tolerant about errors, and *pfClean
  *  will be true if no problems were found. Otherwise, the return value will be false in case
  *  of problems. Note that in any case, coins may be modified. */
-bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, bool* pfClean = NULL);
+bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, CMasternodesView& mnview, bool* pfClean = NULL);
 
 struct DposValidationRules {
     size_t nMaxInstsSize = MAX_INST_SECTION_SIZE;
@@ -469,7 +469,7 @@ struct DposValidationRules {
 };
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins */
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, bool fJustCheck = false, bool calledByVerifyDB = false, const DposValidationRules& dvr = DposValidationRules{});
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, CMasternodesView& mnview, bool fJustCheck = false, bool calledByVerifyDB = false, const DposValidationRules& dvr = DposValidationRules{});
 
 /** Context-independent validity checks */
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool fCheckPOW = true);
@@ -607,16 +607,16 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
 
 //////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
 
-void ProcessMasternodeTxsOnConnect(CBlock const & block, int nHeight);
-void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height);
+void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int nHeight);
+void ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height);
 
-void CheckInputsForCollateralSpent(CTransaction const & tx, int nHeight);
+void CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int nHeight);
 //! Deep check (and write)
-bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
-bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
-bool CheckSetOperatorRewardTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
-bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
-bool CheckDismissVoteRecallTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
-bool CheckFinalizeDismissVotingTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckAnnounceMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckActivateMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckSetOperatorRewardTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckDismissVoteTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckDismissVoteRecallTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
+bool CheckFinalizeDismissVotingTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 
 #endif // BITCOIN_MAIN_H

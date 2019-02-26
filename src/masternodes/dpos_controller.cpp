@@ -335,6 +335,7 @@ void CDposController::proceedTransaction(const CTransaction& tx)
 {
     LockGuard lock{mutex_};
     libsnark::UNUSED(lock);
+
     handleVoterOutput(voter->applyTx(tx));
 }
 
