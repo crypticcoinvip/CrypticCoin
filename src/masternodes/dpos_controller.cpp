@@ -197,39 +197,39 @@ CDposController& CDposController::getInstance()
 
 void CDposController::runEventLoop()
 {
-    using std::chrono::duration_cast;
-    using std::chrono::seconds;
-    using std::chrono::steady_clock;
-
     Round lastRound{0};
-    auto lastTime{steady_clock::now()};
-    auto roundTime{lastTime};
-    auto ibdPassedTime{lastTime};
+    time_t lastTime{GetTimeMillis()};
+    time_t roundTime{lastTime};
+    time_t ibdPassedTime{lastTime};
     bool ibdPassed{false};
     const auto self{getController()};
+    const Consensus::Params& params{Params().GetConsensus()};
 
     while (true) {
         boost::this_thread::interruption_point();
-        const auto now{steady_clock::now()};
+        const auto now{GetTimeMillis()};
 
-        if (!IsInitialBlockDownload() && !ibdPassed) {
+        if (!ibdPassed && !IsInitialBlockDownload()) {
             ibdPassedTime = now;
             ibdPassed = true;
         }
 
-        if (ibdPassed && duration_cast<seconds>(now - ibdPassedTime).count() > 1) {
-            if (!getInstance().voter->checkAmIVoter()) {
-                const auto mnId{findMasternodeId()};
-                if (mnId != boost::none) {
-                    LogPrintf("%s: Enabling dpos voter\n", __func__);
-                    self->voter->updateTip(getTipHash());
-                    self->voter->setVoting(true, mnId.get());
-                    lastRound = self->getCurrentVotingRound();
-                }
-            }
+        if (ibdPassed && (now - ibdPassedTime > params.dpos.nDelayIBD * 1000)) {
+            ibdPassedTime *= -1; // simulate latch
+            self->onChainTipUpdated(getTipHash());
         }
 
-        if (duration_cast<seconds>(now - lastTime).count() > 10) {
+        if (now - roundTime > params.dpos.nStalemateTimeout * 1000) {
+            const Round currentRound{self->getCurrentVotingRound()};
+            if (lastRound > 0 && lastRound == currentRound) {
+                LOCK(cs_dpos);
+                self->handleVoterOutput(self->voter->onRoundTooLong());
+            }
+            roundTime = now;
+            lastRound = currentRound;
+        }
+
+        if (now - lastTime > params.dpos.nPollingPeriod * 1000) {
             lastTime = now;
             self->removeOldVotes();
 
@@ -238,15 +238,6 @@ void CDposController::runEventLoop()
                 node->PushMessage("get_round_votes", tipHash);
                 node->PushMessage("get_tx_votes", tipHash, self->getTxsFilter());
             }
-        }
-
-        if (duration_cast<seconds>(now - roundTime).count() > 60 * 5) {
-            const Round currentRound{self->getCurrentVotingRound()};
-            if (lastRound > 0 && lastRound == currentRound) {
-                self->handleVoterOutput(self->voter->onRoundTooLong());
-            }
-            roundTime = now;
-            lastRound = currentRound;
         }
 
         MilliSleep(500);
@@ -318,8 +309,18 @@ void CDposController::initialize()
 
 void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 {
+    const auto mnId{findMasternodeId()};
     LOCK(cs_dpos);
+
     this->voter->updateTip(tipHash);
+
+    if (mnId != boost::none && !this->voter->checkAmIVoter()) {
+        LogPrintf("%s: Enabling dpos voter\n", __func__);
+        this->voter->setVoting(true, mnId.get());
+    } else if (this->voter->checkAmIVoter()) {
+        LogPrintf("%s: Disabling dpos voter\n", __func__);
+        this->voter->setVoting(false, CMasternode::ID{});
+    }
 }
 
 Round CDposController::getCurrentVotingRound() const

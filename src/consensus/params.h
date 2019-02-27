@@ -116,6 +116,9 @@ struct Params {
     struct dPoS {
         size_t nTeamSize;
         size_t nMinQuorum;
+        int64_t nDelayIBD;
+        int64_t nPollingPeriod;
+        int64_t nStalemateTimeout;
     };
     dPoS dpos;
     /** dPOS announcement fee */
