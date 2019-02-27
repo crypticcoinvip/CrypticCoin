@@ -51,7 +51,7 @@ class CHeartBeatTracker
     static constexpr std::int64_t maxHeartbeatInFuture{4444};
 
 public:
-    enum AgeFilter {recentlyFilter, staleFilter, outdatedFilter};
+    enum AgeFilter {RECENTLY, STALE, OUTDATED};
 
     static void runTickerLoop();
     static CHeartBeatTracker& getInstance();

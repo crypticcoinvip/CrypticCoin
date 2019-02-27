@@ -95,26 +95,23 @@ uint256 CHeartBeatMessage::getSignHash() const
 
 void CHeartBeatTracker::runTickerLoop()
 {
-    CKey operKey{};
     CHeartBeatTracker tracker{};
-    std::int64_t delay{tracker.getMinPeriod() * 2};
-
-//    mns::mockMasternodesDB({
-//                               std::string{"tmXWM1dEwR8ANoc8iwwQ4pKzHvApXb65LsG"},
-//                               std::string{"tmXbhS7QTA98nQhd3NMf7xe7ETLXiU4Dp41"},
-//                               std::string{"tmYDASd8j9bBLEVmiaU8tArTYmSVA9DJjXW"}
-//                           }, 3);
-
-    tracker.startupTime = GetTimeMillis();
+    time_t lastTime{GetTimeMillis()};
+    tracker.startupTime = lastTime;
 
     while (true) {
         boost::this_thread::interruption_point();
-        const CKey masternodeKey{getMasternodeKey()};
+        const time_t currentTime{GetTimeMillis()};
 
-        if (masternodeKey.IsValid()) {
-            tracker.postMessage(masternodeKey);
+        if (currentTime - lastTime > tracker.getMinPeriod() * 2) {
+            const CKey masternodeKey{getMasternodeKey()};
+            if (masternodeKey.IsValid()) {
+                tracker.postMessage(masternodeKey);
+            }
+            lastTime = currentTime;
         }
-        MilliSleep(delay);
+
+        MilliSleep(500);
     }
 }
 
@@ -258,7 +255,8 @@ std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
 int CHeartBeatTracker::getMinPeriod() const
 {
     LOCK(cs_main);
-    return std::max(pmasternodesview->GetMasternodes().size(), static_cast<std::size_t>(30)) * 1000;
+    const std::size_t period{1u * Params().GetConsensus().nMasternodesHeartbeatPeriod};
+    return std::max(pmasternodesview->GetMasternodes().size(), period) * 1000;
 }
 
 int CHeartBeatTracker::getMaxPeriod() const
@@ -270,24 +268,29 @@ std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilte
 {
     std::vector<CMasternode> rv{};
     const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
-    const auto myKey{getMasternodeKey()};
+    const auto mnKey{getMasternodeKey()};
     LOCK(cs_main);
 
     for (const auto& mnPair : pmasternodesview->GetMasternodesByOperator()) {
-        if (mnPair.first == myKey.GetPubKey().GetID()) {
-            // skip me
+        if (!mnKey.IsValid() || mnPair.first == mnKey.GetPubKey().GetID()) {
+            // skip me or if not masternode
             continue;
         }
-
         const CMasternode& mn{pmasternodesview->GetMasternodes().at(mnPair.second)};
-        const auto it{keyMessageMap.find(mnPair.first)};
-        const std::int64_t elapsed{GetTimeMicros() -
-                                   std::max(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime,
-                                            chainActive[mn.activationHeight]->GetBlockTime())};
+        if (mn.activationHeight < 0 ){
+            // skip if masternode is not active
+            continue;
+        }
+        assert(chainActive[mn.activationHeight] != nullptr);
 
-        if ((elapsed < period.first && ageFilter == recentlyFilter) ||
-            (elapsed > period.second && ageFilter == outdatedFilter) ||
-            (elapsed >= period.first && elapsed < period.second && ageFilter == staleFilter))
+        const auto it{keyMessageMap.find(mnPair.first)};
+        const time_t previousTime{(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime)};
+        const time_t previousMaxTime{std::max(previousTime, chainActive[mn.activationHeight]->GetBlockTime() * 1000)};
+        const std::int64_t elapsed{GetTimeMicros() - previousMaxTime};
+
+        if ((elapsed < period.first && ageFilter == RECENTLY) ||
+            (elapsed > period.second && ageFilter == OUTDATED) ||
+            (elapsed >= period.first && elapsed < period.second && ageFilter == STALE))
         {
             rv.emplace_back(mn);
         }

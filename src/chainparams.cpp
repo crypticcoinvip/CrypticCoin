@@ -120,6 +120,8 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000006d9629934e7");
 
+        consensus.nMasternodesHeartbeatPeriod = 30;
+
         // dPoS
         consensus.dpos.nTeamSize = 32;
         consensus.dpos.nMinQuorum = 23;
@@ -243,6 +245,8 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
+        consensus.nMasternodesHeartbeatPeriod = 30;
+
         // dPoS
         consensus.dpos.nTeamSize = 32;
         consensus.dpos.nMinQuorum = 23;
@@ -357,6 +361,8 @@ public:
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
+
+        consensus.nMasternodesHeartbeatPeriod = 5;
 
         // dPoS
         consensus.dpos.nTeamSize = 4;
