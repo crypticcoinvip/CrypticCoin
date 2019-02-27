@@ -229,7 +229,7 @@ void CDposController::runEventLoop()
             }
         }
 
-        if (duration_cast<seconds>(now - lastTime).count() > 1) {
+        if (duration_cast<seconds>(now - lastTime).count() > 10) {
             lastTime = now;
             self->removeOldVotes();
 
@@ -255,12 +255,13 @@ void CDposController::runEventLoop()
 
 bool CDposController::isEnabled() const
 {
-    const CChainParams& params{Params()};
+    const Consensus::Params& params{Params().GetConsensus()};
     LOCK(cs_main);
+    assert(chainActive.Tip() != nullptr);
     const int tipHeight{computeBlockHeight(chainActive.Tip()->GetBlockHash())};
     const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
-    return NetworkUpgradeActive(tipHeight, params.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
-           nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+    return NetworkUpgradeActive(tipHeight, params, Consensus::UPGRADE_SAPLING) &&
+           nCurrentTeamSize == params.dpos.nTeamSize;
 }
 
 CValidationInterface* CDposController::getValidator()

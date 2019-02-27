@@ -174,7 +174,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
         }
     }
     if (hashMessageMap.find(hash) == hashMessageMap.end()) {
-        LogPrintf("%s: Skipping heartbeat (%s,%d) message at %d",
+        LogPrintf("%s: Skipping heartbeat (%s,%d) message at %d\n",
                   __func__,
                   hash.ToString(),
                   message.GetTimestamp(),
