@@ -203,6 +203,7 @@ void CDposController::runEventLoop()
     int64_t roundTime{lastTime};
     int64_t ibdPassedTime{lastTime};
     bool ibdPassed{false};
+    bool ibdLatched{false};
     const auto self{getController()};
     const Consensus::Params& params{Params().GetConsensus()};
 
@@ -215,8 +216,8 @@ void CDposController::runEventLoop()
             ibdPassed = true;
         }
 
-        if (ibdPassed && (now - ibdPassedTime > params.dpos.nDelayIBD * 1000)) {
-            ibdPassedTime *= -1; // simulate latch
+        if (!ibdLatched && ibdPassed && (now - ibdPassedTime > params.dpos.nDelayIBD * 1000)) {
+            ibdLatched = true;
             self->onChainTipUpdated(getTipHash());
         }
 
