@@ -21,7 +21,7 @@ Uni& operator+=(Uni& l, const Uni& r)
 class StormTestSuit
 {
 public:
-    const int MAX_PROBABILITY = 1000;
+    const int MAX_PROBABILITY = 50000;
 
     int probabilityOfBlockGeneration = MAX_PROBABILITY / 100;
     int probabilityOfDisconnection = MAX_PROBABILITY / 1000;
@@ -265,7 +265,7 @@ private:
 /// all the txs are not conflicting, almost no disconnections, instant ping
 TEST(dPoS_storm, OptimisticStorm)
 {
-    StormTestSuit suit;
+    StormTestSuit suit{};
 
     // create dummy txs
     for (int i = 0; i < 10; i++) {
@@ -294,13 +294,16 @@ TEST(dPoS_storm, OptimisticStorm)
     }
 
     suit.maxTick = 5;
+    suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 10;
     ASSERT_LE(suit.run(), suit.maxTick);
+
+    ASSERT_EQ(suit.voters[0].listCommittedTxs().size(), 10);
 }
 
-/// 2 pairs of conflicted txs, frequent disconnections, big ping
+/// 2 pairs of conflicted txs, frequent disconnections, big ping, a lot of vice-blocks
 TEST(dPoS_storm, PessimisticStorm)
 {
-    StormTestSuit suit;
+    StormTestSuit suit{};
 
     // create dummy txs
     for (int i = 0; i < 4; i++) {
@@ -330,10 +333,57 @@ TEST(dPoS_storm, PessimisticStorm)
         suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
     }
 
-    suit.maxTick = 550;
     suit.randRange = 25;
-    suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 16;
+    suit.maxTick = 500;
+    suit.minTick = suit.randRange + 1;
+    suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 2000;
+    suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 2000;
     ASSERT_LE(suit.run(), suit.maxTick);
 
-    ASSERT_LE(suit.voters[0].listCommittedTxs().size(), 2);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs().size(), 2);
+}
+
+/// 2 pairs of conflicted txs, a lot of not conflixted txs, small number of vice-blocks, rare disconnections, medium ping
+TEST(dPoS_storm, RealisticStorm)
+{
+    StormTestSuit suit{};
+
+    // create dummy txs
+    for (int i = 0; i < 50; i++) {
+        CMutableTransaction mtx;
+        mtx.fInstant = true;
+        mtx.fOverwintered = true;
+        mtx.nVersion = 4;
+        mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
+        mtx.nExpiryHeight = 0;
+        mtx.nLockTime = i;
+
+        suit.txs.emplace_back(mtx);
+        LogPrintf("tx%d: %s \n", i, mtx.GetHash().GetHex());
+    }
+
+    suit.addConflict(suit.txs[0].GetHash(), suit.txs[1].GetHash());
+    suit.addConflict(suit.txs[2].GetHash(), suit.txs[3].GetHash());
+
+    // create voters
+    BlockHash tip = uint256S("0xB101");
+    for (uint64_t i = 0; i < 32; i++) {
+        suit.voters.emplace_back(suit.getValidationCallbacks());
+    }
+    for (uint64_t i = 0; i < 32; i++) {
+        suit.voters[i].minQuorum = 23;
+        suit.voters[i].numOfVoters = 32;
+        suit.voters[i].updateTip(tip);
+        suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
+    }
+
+    suit.randRange = 10;
+    suit.maxTick = 150;
+    suit.minTick = suit.randRange + 1;
+    suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 5000;
+    suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 50000;
+    ASSERT_LE(suit.run(), suit.maxTick);
+
+    ASSERT_LE(suit.voters[0].listCommittedTxs().size(), 48);
+    ASSERT_GE(suit.voters[0].listCommittedTxs().size(), 46);
 }
