@@ -104,7 +104,7 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
         return {};
     }
 
-    if (!v[tip].viceBlocks.emplace(viceBlock.GetHash(), viceBlock).second) {
+    if (!v[viceBlock.hashPrevBlock].viceBlocks.emplace(viceBlock.GetHash(), viceBlock).second) {
         LogPrintf("%s: Ignoring duplicating vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
