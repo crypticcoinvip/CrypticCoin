@@ -191,9 +191,11 @@ TEST(dPoS, DummyCommitTx)
     voters[0].applyTx(CTransaction{mtx});
 
     ASSERT_EQ(voters[0].txs.size(), 2);
-    voters[0].updateTip(uint256S("0xB102"));
+    voters[0].updateTip(tip); // the same tip, nothing changes
+    ASSERT_EQ(voters[0].txs.size(), 2);
+    voters[0].updateTip(uint256S("0xB102")); // new tip
     ASSERT_EQ(voters[0].txs.size(), 1);
-    voters[0].updateTip(uint256S("0xB103"));
+    voters[0].updateTip(uint256S("0xB103")); // new tip
     ASSERT_EQ(voters[0].txs.size(), 1);
 }
 
