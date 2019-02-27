@@ -53,7 +53,9 @@ public:
 void initVoters(std::vector<CMasternode::ID>& masternodeIds,
                 std::vector<CDposVoterTesting>& voters,
                 BlockHash tip,
-                CDposVoterTesting::Callbacks callbacks, std::array<TxId, 6>& vTxs, std::array<BlockHash, 4>& vViceBlocks)
+                CDposVoterTesting::Callbacks callbacks,
+                std::array<TxId, 6>& vTxs,
+                std::array<BlockHash, 4>& vViceBlocks)
 {
     for (uint64_t i = 0; i < 200; i++) {
         masternodeIds.emplace_back(ArithToUint256(arith_uint256{i}));

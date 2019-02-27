@@ -29,6 +29,26 @@ bool operator!=(const CDposVote& l, const CDposVote& r)
     return !(l == r);
 }
 
+bool operator==(const CTxVote& l, const CTxVote& r)
+{
+    return static_cast<const CDposVote&>(l) == static_cast<const CDposVote&>(r);
+}
+
+bool operator!=(const CTxVote& l, const CTxVote& r)
+{
+    return !(l == r);
+}
+
+bool operator==(const CRoundVote& l, const CRoundVote& r)
+{
+    return static_cast<const CDposVote&>(l) == static_cast<const CDposVote&>(r);
+}
+
+bool operator!=(const CRoundVote& l, const CRoundVote& r)
+{
+    return !(l == r);
+}
+
 CDposVoterOutput& CDposVoterOutput::operator+=(const CDposVoterOutput& r)
 {
     std::copy(r.vTxVotes.begin(), r.vTxVotes.end(), std::back_inserter(this->vTxVotes));
@@ -717,9 +737,11 @@ bool CDposVoter::checkRoundStalemate(const CRoundVotingDistribution& stats) cons
     const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
 
     const auto best_it = std::max_element(stats.pro.begin(), stats.pro.end(),
-                                          [](const std::pair<BlockHash, size_t>& p1, const std::pair<BlockHash, size_t>& p2) {
-        return p1.second < p2.second;
-    });
+                                          [](const std::pair<BlockHash, size_t>& p1,
+                                             const std::pair<BlockHash, size_t>& p2)
+                                          {
+                                              return p1.second < p2.second;
+                                          });
     const size_t nBest = (best_it != stats.pro.end()) ? best_it->second : 0;
 
     // no winner, and no winner possible
@@ -760,7 +782,8 @@ void CDposVoter::filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nR
     for (auto it = txs_f.begin(); it != txs_f.end();) {
         const TxId txid = it->first;
         auto stats = calcTxVotingStats(txid, nRound);
-        if (nRound == 0) // round starts with 1, so we didn't accept any votes for round 0. yes/no votes could come from any round.
+        if (nRound
+            == 0) // round starts with 1, so we didn't accept any votes for round 0. yes/no votes could come from any round.
             assert(stats.abstinendi == 0);
 
         const bool notCommittable = checkTxNotCommittable(stats);

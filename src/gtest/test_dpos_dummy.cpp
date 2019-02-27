@@ -316,7 +316,7 @@ TEST(dPoS, InvalidVote)
 
         voteRInvalid.nRound = 1;
         voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), 55};
-        res = voters[i].applyRoundVote(voteInvalid);
+        res = voters[i].applyRoundVote(voteRInvalid);
         ASSERT_EQ(voters[i].v.size(), 0);
         ASSERT_TRUE(res.vRoundVotes.empty());
         ASSERT_TRUE(!res.blockToSubmit);
@@ -350,11 +350,13 @@ TEST(dPoS, InvalidVote)
         ASSERT_EQ(voters[i].v.size(), 1);
         ASSERT_TRUE(res.vErrors.empty());
 
-        voteRInvalid.choice = dpos::CVoteChoice{BlockHash{}, dpos::CVoteChoice::Decision::PASS}; // pass after voted for another vice block
+        voteRInvalid.choice = dpos::CVoteChoice{BlockHash{},
+                                                dpos::CVoteChoice::Decision::PASS}; // pass after voted for another vice block
         res = voters[i].applyRoundVote(voteRInvalid);
         ASSERT_FALSE(res.vErrors.empty()); // err
 
-        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB102"), dpos::CVoteChoice::Decision::YES}; // vote for another vice block
+        voteRInvalid.choice =
+            dpos::CVoteChoice{uint256S("0xB102"), dpos::CVoteChoice::Decision::YES}; // vote for another vice block
         res = voters[i].applyRoundVote(voteRInvalid);
         ASSERT_FALSE(res.vErrors.empty()); // err
 
