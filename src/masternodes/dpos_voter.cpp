@@ -147,6 +147,10 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
 
 CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
 {
+    if (vote.nRound == 0 || !vote.choice.isStandardDecision()) {
+        return misbehavingErr("masternode malformed tx vote");
+    }
+
     if (vote.tip != tip && !world.allowArchiving(vote.tip)) {
         LogPrintf("%s: Ignoring too old transaction vote from block %s \n", __func__, vote.tip.GetHex());
         return {};
@@ -190,6 +194,23 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
 
 CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
 {
+    if (vote.nRound == 0 || !vote.choice.isStandardDecision()) {
+        return misbehavingErr("masternode malformed round vote");
+    }
+    if (vote.choice.decision == CVoteChoice::Decision::PASS && vote.choice.subject != uint256{}) {
+        return misbehavingErr("masternode malformed vote subject");
+    }
+    if (vote.choice.decision == CVoteChoice::Decision::NO) {
+        return misbehavingErr("masternode malformed vote decision");
+    }
+
+    if (vote.nRound == 0) {
+        LogPrintf("%s: MISBEHAVING MASTERNODE! malformed vote from %s \n",
+                  __func__,
+                  vote.voter.GetHex());
+        return misbehavingErr("masternode malformed tx vote");
+    }
+
     if (vote.tip != tip && !world.allowArchiving(vote.tip)) {
         LogPrintf("%s: Ignoring too old round vote from block %s \n", __func__, vote.tip.GetHex());
         return {};
@@ -212,20 +233,6 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
         }
         LogPrintf("%s: Ignoring duplicating Round vote \n", __func__);
         return {};
-    }
-    if (vote.choice.decision == CVoteChoice::Decision::PASS && vote.choice.subject != uint256{}) {
-        LogPrintf("%s: MISBEHAVING MASTERNODE! malformed vote subject. round voting, vote for %s, from %s \n",
-                  __func__,
-                  vote.choice.subject.GetHex(),
-                  vote.voter.GetHex());
-        return misbehavingErr("malformed vote subject");
-    }
-    if (vote.choice.decision == CVoteChoice::Decision::NO) {
-        LogPrintf("%s: MISBEHAVING MASTERNODE! malformed vote decision, vote for %s, from %s \n",
-                  __func__,
-                  vote.choice.subject.GetHex(),
-                  vote.voter.GetHex());
-        return misbehavingErr("malformed vote decision");
     }
 
     roundVoting.emplace(vote.voter, vote);
