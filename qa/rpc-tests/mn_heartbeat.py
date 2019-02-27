@@ -7,29 +7,15 @@
 #
 
 import sys
-from decimal import Decimal
+import time
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.authproxy import JSONRPCException
 from test_framework.util import \
     assert_equal, \
     assert_greater_than, \
-    initialize_chain, \
-    initialize_chain_clean, \
     start_nodes, \
-    start_node, \
-    connect_nodes_bi, \
     stop_nodes, \
-    sync_blocks, \
-    sync_mempools, \
-    wait_and_assert_operationid_status, \
+    connect_nodes_bi, \
     wait_bitcoinds
-
-#_WALLET_KEYS = [
-#    ("cSMhqrt1wStUuEnCyV97P3P9sUXVXVpn6Jb1iQ9VR5NPHYiMskkX", "tmXWM1dEwR8ANoc8iwwQ4pKzHvApXb65LsG"),
-#    ("cQvcpuFVeKHBmtCDHu1mXx8tU5b4HHw52FcUg62ZvALvaT6yrst9", "tmXbhS7QTA98nQhd3NMf7xe7ETLXiU4Dp41"),
-#    ("cPzSk8LGtysk8J5UEZDFdh7gVs8xGXd7PvSfgBoJtPKH4vnzH5kL", "tmYgqY2N9ykAqv9YqRsoPi16iojB9VuxBvY"),
-#    ("cQCtVNgf4J3CTTMtLqeXeeoFiZVCsSjv8gG7TRRD1xL69owZ1j9Z", "tmYDASd8j9bBLEVmiaU8tArTYmSVA9DJjXW")
-#]
 
 class MasternodesHeartbeatTest(BitcoinTestFramework):
     def add_options(self, parser):
@@ -38,27 +24,67 @@ class MasternodesHeartbeatTest(BitcoinTestFramework):
                           default="1",
                           help="Setup node graph layout")
 
+    def setup_nodes(self):
+        return start_nodes(self.num_nodes, self.options.tmpdir)
+
     def setup_chain(self):
         self.num_nodes = 4
-        self.predpos_block_count = 204
+        self.predpos_block_count = 201
         self.is_network_split = False
         super(MasternodesHeartbeatTest, self).setup_chain()
         sys.stdout.flush()
 
-    def setup_network(self):
-        super(MasternodesHeartbeatTest, self).setup_network(False)
+    def setup_network(self, split=False):
+        self.nodes = self.setup_nodes()
+        connect_nodes_bi(self.nodes, 0, 1)
+        if len(self.nodes) > 3:
+            connect_nodes_bi(self.nodes, 1, 2)
+            connect_nodes_bi(self.nodes, 2, 3)
+        if len(self.nodes) > 5:
+            connect_nodes_bi(self.nodes, 3, 4)
+            connect_nodes_bi(self.nodes, 4, 5)
+        if len(self.nodes) > 7:
+            connect_nodes_bi(self.nodes, 5, 6)
+            connect_nodes_bi(self.nodes, 6, 7)
+        self.sync_all()
+        self.operators = []
+        for n in range(self.num_nodes):
+            self.operators.append(self.nodes[n].getnewaddress())
         self.stop_nodes()
 
     def start_nodes(self, args = []):
+        assert_equal(len(self.nodes), 0)
+
         if len(args) == 0:
             args = [[]] * self.num_nodes
 
         for i in range(len(args)):
             args[i] = args[i][:]
             args[i] += self.get_nuparams_args()
-            #args[i] += ['-masternode-operator=' + _WALLET_KEYS[i][1]]
-
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
+
+        if self.options.node_garaph_layout == "1":
+            print("                      *")
+            print("Nodes graph layout *<-*")
+            print("                      *")
+            connect_nodes_bi(self.nodes, 0, 1)
+            connect_nodes_bi(self.nodes, 0, 2)
+            connect_nodes_bi(self.nodes, 0, 3)
+        elif self.options.node_garaph_layout == "2":
+            print("                        *")
+            print("Nodes graph layout *-*<")
+            print("                        *")
+            connect_nodes_bi(self.nodes, 0, 1)
+            connect_nodes_bi(self.nodes, 1, 2)
+            connect_nodes_bi(self.nodes, 1, 3)
+        elif self.options.node_garaph_layout == "3":
+            print("                      *")
+            print("Check graph layout *<   >*")
+            print("                      *")
+            connect_nodes_bi(self.nodes, 0, 1)
+            connect_nodes_bi(self.nodes, 1, 2)
+            connect_nodes_bi(self.nodes, 2, 3)
+            connect_nodes_bi(self.nodes, 3, 0)
 
     def stop_nodes(self):
         stop_nodes(self.nodes)
@@ -70,85 +96,43 @@ class MasternodesHeartbeatTest(BitcoinTestFramework):
             '-nuparams=76b809bb:' + str(self.predpos_block_count)  # Suppling
         ]
 
-    def run_test(self):
-        assert_equal(len(self.nodes), 0)
-        if self.options.node_garaph_layout == "1":
-            print("                      *")
-            print("Nodes graph layout *<-*")
-            print("                      *")
-            self.start_nodes()
-            connect_nodes_bi(self.nodes, 0, 1)
-            connect_nodes_bi(self.nodes, 0, 2)
-            connect_nodes_bi(self.nodes, 0, 3)
-        elif self.options.node_garaph_layout == "2":
-            print("                        *")
-            print("Nodes graph layout *-*<")
-            print("                        *")
-            self.start_nodes()
-            connect_nodes_bi(self.nodes, 0, 1)
-            connect_nodes_bi(self.nodes, 1, 2)
-            connect_nodes_bi(self.nodes, 1, 3)
-        elif self.options.node_garaph_layout == "3":
-            print("                      *")
-            print("Check graph layout *<   >*")
-            print("                      *")
-            self.start_nodes()
-            connect_nodes_bi(self.nodes, 0, 1)
-            connect_nodes_bi(self.nodes, 1, 2)
-            connect_nodes_bi(self.nodes, 2, 3)
-            connect_nodes_bi(self.nodes, 3, 0)
-
-        assert_equal(len(self.nodes), self.num_nodes)
-        super(MasternodesHeartbeatTest, self).run_test()
-        for node in self.nodes:
-            node.generate(1)
-            self.sync_all()
-        for node in self.nodes:
-            assert_equal(node.getblockcount(), self.predpos_block_count)
-
-        # Announce node0
-        owner0 = self.nodes[0].getnewaddress()
-        operator0 = self.nodes[0].getnewaddress()
-        collateral0 = self.nodes[0].getnewaddress()
-
-        idnode0 = self.nodes[0].createraw_mn_announce([], {
-            "name": "node0",
-            "ownerAuthAddress": owner0,
-            "operatorAuthAddress": operator0,
-            "ownerRewardAddress": owner0,
-            "collateralAddress": collateral0
-        })
-
-        # Announce node3
-        owner3 = self.nodes[3].getnewaddress()
-        operator3 = self.nodes[3].getnewaddress()
-        collateral3 = self.nodes[3].getnewaddress()
-
-        idnode3 = self.nodes[3].createraw_mn_announce([], {
-            "name": "node3",
-            "ownerAuthAddress": owner3,
-            "operatorAuthAddress": operator3,
-            "ownerRewardAddress": owner3,
-            "collateralAddress": collateral3
-        })
+    def create_masternodes(self):
+        # Announce nodes
+        idnodes = []
+        for n in range(self.num_nodes):
+            idnode = None
+            if n == 0 or n == 3:
+                owner = self.nodes[n].getnewaddress()
+                collateral = self.nodes[n].getnewaddress()
+                idnode = self.nodes[n].createraw_mn_announce([], {
+                    "name": "node%d" % n,
+                    "ownerAuthAddress": owner,
+                    "operatorAuthAddress": self.operators[n],
+                    "ownerRewardAddress": owner,
+                    "collateralAddress": collateral
+                })
+            idnodes.append(idnode)
 
         # Sending some coins for auth
-        self.nodes[0].sendtoaddress(operator0, 5)
-        self.nodes[3].sendtoaddress(operator3, 5)
+        self.nodes[0].sendtoaddress(self.operators[0], 5)
+        self.nodes[3].sendtoaddress(self.operators[3], 5)
         self.sync_all()
-        self.nodes[0].generate(1)
-        self.sync_all()
-        assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "announced")
-        assert_equal(self.nodes[0].dumpmns([idnode3])[0]['status'], "announced")
+        for node in self.nodes:
+            node.generate(1) # +4
+            self.sync_all()
 
+        for node in self.nodes:
+            for idnode in idnodes:
+                if idnode:
+                    assert_equal(node.dumpmns([idnode])[0]['status'], "announced")
 
         # Generate blocks for activation height
-        self.nodes[0].generate(10)
-        self.sync_all()
+        for node in self.nodes:
+            node.generate(10) # +40
+            self.sync_all()
+        for node in self.nodes:
+            assert_equal(node.getblockcount(), self.predpos_block_count + 48 - 1)
 
-        # Restarting nodes
-        self.stop_nodes()
-        self.start_nodes([[ "-masternode_operator="+operator0 ], [], [], [ "-masternode_operator="+operator3 ]])
 
         # Activate nodes
         self.nodes[0].createraw_mn_activate([])
@@ -156,8 +140,37 @@ class MasternodesHeartbeatTest(BitcoinTestFramework):
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
-        assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "active")
-        assert_equal(self.nodes[0].dumpmns([idnode3])[0]['status'], "active")
+        for node in self.nodes:
+            for idnode in idnodes:
+                if idnode:
+                    assert_equal(node.dumpmns([idnode])[0]['status'], "active")
+        for node in self.nodes:
+            assert_equal(node.getblockcount(), self.predpos_block_count + 48)
+
+
+    def run_test(self):
+        self.start_nodes([["-masternode_operator="+self.operators[0]],
+                          [],
+                          [],
+                          ["-masternode_operator="+self.operators[3]]])
+        assert_equal(len(self.nodes), self.num_nodes)
+        super(MasternodesHeartbeatTest, self).run_test()
+        for node in self.nodes:
+            node.generate(1) # +4
+            self.sync_all()
+
+        self.create_masternodes()
+
+        for node in self.nodes:
+            assert_equal(len(node.heartbeat_read_messages()), 0)
+        time.sleep(10)
+        for node in self.nodes:
+            assert_equal(len(node.heartbeat_read_messages()), 2)
+
+        for node in self.nodes:
+            assert_equal(len(node.heartbeat_filter_masternodes("recently")), 2)
+            assert_equal(len(node.heartbeat_filter_masternodes("stale")), 0)
+            assert_equal(len(node.heartbeat_filter_masternodes("outdated")), 0)
 
         print "Done"
 

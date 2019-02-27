@@ -89,6 +89,7 @@ bool checkIsTeamMember(const BlockHash& tipHash, const CKeyID& operatorKey)
     }
 
     if (height > 0) {
+        LogPrintf("%s: %d ~~~~ %s\n", __func__, height, operatorKey.GetHex());
         return pmasternodesview->IsTeamMember(height, operatorKey);
     }
 
@@ -197,39 +198,40 @@ CDposController& CDposController::getInstance()
 
 void CDposController::runEventLoop()
 {
-    using std::chrono::duration_cast;
-    using std::chrono::seconds;
-    using std::chrono::steady_clock;
-
     Round lastRound{0};
-    auto lastTime{steady_clock::now()};
-    auto roundTime{lastTime};
-    auto ibdPassedTime{lastTime};
+    int64_t lastTime{GetTimeMillis()};
+    int64_t roundTime{lastTime};
+    int64_t ibdPassedTime{lastTime};
     bool ibdPassed{false};
+    bool ibdLatched{false};
     const auto self{getController()};
+    const Consensus::Params& params{Params().GetConsensus()};
 
     while (true) {
         boost::this_thread::interruption_point();
-        const auto now{steady_clock::now()};
+        const auto now{GetTimeMillis()};
 
-        if (!IsInitialBlockDownload() && !ibdPassed) {
+        if (!ibdPassed && !IsInitialBlockDownload()) {
             ibdPassedTime = now;
             ibdPassed = true;
         }
 
-        if (ibdPassed && duration_cast<seconds>(now - ibdPassedTime).count() > 1) {
-            if (!getInstance().voter->checkAmIVoter()) {
-                const auto mnId{findMasternodeId()};
-                if (mnId != boost::none) {
-                    LogPrintf("%s: Enabling dpos voter\n", __func__);
-                    self->voter->updateTip(getTipHash());
-                    self->voter->setVoting(true, mnId.get());
-                    lastRound = self->getCurrentVotingRound();
-                }
-            }
+        if (!ibdLatched && ibdPassed && (now - ibdPassedTime > params.dpos.nDelayIBD * 1000)) {
+            ibdLatched = true;
+            self->onChainTipUpdated(getTipHash());
         }
 
-        if (duration_cast<seconds>(now - lastTime).count() > 1) {
+        if (now - roundTime > params.dpos.nStalemateTimeout * 1000) {
+            const Round currentRound{self->getCurrentVotingRound()};
+            if (lastRound > 0 && lastRound == currentRound) {
+                LOCK(cs_dpos);
+                self->handleVoterOutput(self->voter->onRoundTooLong());
+            }
+            roundTime = now;
+            lastRound = currentRound;
+        }
+
+        if (now - lastTime > params.dpos.nPollingPeriod * 1000) {
             lastTime = now;
             self->removeOldVotes();
 
@@ -240,27 +242,19 @@ void CDposController::runEventLoop()
             }
         }
 
-        if (duration_cast<seconds>(now - roundTime).count() > 60 * 5) {
-            const Round currentRound{self->getCurrentVotingRound()};
-            if (lastRound > 0 && lastRound == currentRound) {
-                self->handleVoterOutput(self->voter->onRoundTooLong());
-            }
-            roundTime = now;
-            lastRound = currentRound;
-        }
-
         MilliSleep(500);
     }
 }
 
 bool CDposController::isEnabled() const
 {
-    const CChainParams& params{Params()};
+    const Consensus::Params& params{Params().GetConsensus()};
     LOCK(cs_main);
+    assert(chainActive.Tip() != nullptr);
     const int tipHeight{computeBlockHeight(chainActive.Tip()->GetBlockHash())};
     const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
-    return NetworkUpgradeActive(tipHeight, params.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
-           nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+    return NetworkUpgradeActive(tipHeight, params, Consensus::UPGRADE_SAPLING) &&
+           nCurrentTeamSize == params.dpos.nTeamSize;
 }
 
 CValidationInterface* CDposController::getValidator()
@@ -317,8 +311,18 @@ void CDposController::initialize()
 
 void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 {
+    const auto mnId{findMasternodeId()};
     LOCK(cs_dpos);
+
     this->voter->updateTip(tipHash);
+
+    if (mnId != boost::none && !this->voter->checkAmIVoter()) {
+        LogPrintf("%s: Enabling dpos voter\n", __func__);
+        this->voter->setVoting(true, mnId.get());
+    } else if (this->voter->checkAmIVoter()) {
+        LogPrintf("%s: Disabling dpos voter\n", __func__);
+        this->voter->setVoting(false, CMasternode::ID{});
+    }
 }
 
 Round CDposController::getCurrentVotingRound() const

@@ -51,7 +51,7 @@ class CHeartBeatTracker
     static constexpr std::int64_t maxHeartbeatInFuture{4444};
 
 public:
-    enum AgeFilter {recentlyFilter, staleFilter, outdatedFilter};
+    enum AgeFilter {RECENTLY, STALE, OUTDATED};
 
     static void runTickerLoop();
     static CHeartBeatTracker& getInstance();
@@ -73,7 +73,7 @@ private:
     ~CHeartBeatTracker();
 
 private:
-    time_t startupTime;
+    int64_t startupTime;
     MessageList messageList;
     std::map<CKeyID, MessageList::const_iterator> keyMessageMap;
     std::map<uint256, MessageList::const_iterator> hashMessageMap;
