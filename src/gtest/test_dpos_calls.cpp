@@ -53,7 +53,7 @@ public:
 void initVoters(std::vector<CMasternode::ID>& masternodeIds,
                 std::vector<CDposVoterTesting>& voters,
                 BlockHash tip,
-                CDposVoterTesting::Callbacks callbacks, std::array<TxId, 6>& vTxs, std::array<BlockHash, 4>& vVbs)
+                CDposVoterTesting::Callbacks callbacks, std::array<TxId, 6>& vTxs, std::array<BlockHash, 4>& vViceBlocks)
 {
     for (uint64_t i = 0; i < 200; i++) {
         masternodeIds.emplace_back(ArithToUint256(arith_uint256{i}));
@@ -89,11 +89,11 @@ void initVoters(std::vector<CMasternode::ID>& masternodeIds,
         viceBlock.nRound = i;
 
         voters[0].v[tip].viceBlocks.emplace(viceBlock.GetHash(), viceBlock);
-        vVbs[(i - 1) * 2] = viceBlock.GetHash();
+        vViceBlocks[(i - 1) * 2] = viceBlock.GetHash();
 
         viceBlock.nTime = 1;
         voters[0].v[tip].viceBlocks.emplace(viceBlock.GetHash(), viceBlock);
-        vVbs[(i - 1) * 2 + 1] = viceBlock.GetHash();
+        vViceBlocks[(i - 1) * 2 + 1] = viceBlock.GetHash();
     }
 
     // votes table:
@@ -155,32 +155,32 @@ void initVoters(std::vector<CMasternode::ID>& masternodeIds,
         //voters[0].applyTxVote(newVote);
         voters[0].v[tip].txVotes[newVote.nRound][newVote.choice.subject].emplace(masternodeIds[i], newVote);
 
-        CRoundVote newVoteVb;
-        newVoteVb.nRound = 1;
-        newVoteVb.tip = tip;
-        newVoteVb.voter = masternodeIds[i];
-        newVoteVb.choice.decision = CVoteChoice::Decision::YES;
-        newVoteVb.choice.subject = vVbs[1];
-        //voters[0].applyRoundVote(newVoteVb);
-        voters[0].v[tip].roundVotes[newVoteVb.nRound].emplace(masternodeIds[i], newVoteVb);
+        CRoundVote newVoteR;
+        newVoteR.nRound = 1;
+        newVoteR.tip = tip;
+        newVoteR.voter = masternodeIds[i];
+        newVoteR.choice.decision = CVoteChoice::Decision::YES;
+        newVoteR.choice.subject = vViceBlocks[1];
+        //voters[0].applyRoundVote(newVoteR);
+        voters[0].v[tip].roundVotes[newVoteR.nRound].emplace(masternodeIds[i], newVoteR);
 
         // Round 2
-        newVoteVb.nRound = 2;
-        newVoteVb.choice.decision = CVoteChoice::Decision::YES;
-        newVoteVb.choice.subject = vVbs[3];
-        //voters[0].applyRoundVote(newVoteVb);
-        voters[0].v[tip].roundVotes[newVoteVb.nRound].emplace(masternodeIds[i], newVoteVb);
+        newVoteR.nRound = 2;
+        newVoteR.choice.decision = CVoteChoice::Decision::YES;
+        newVoteR.choice.subject = vViceBlocks[3];
+        //voters[0].applyRoundVote(newVoteR);
+        voters[0].v[tip].roundVotes[newVoteR.nRound].emplace(masternodeIds[i], newVoteR);
     }
 
     for (uint64_t i = 22; i < 23; i++) {
         // Round 1
-        CRoundVote newVoteVb;
-        newVoteVb.nRound = 1;
-        newVoteVb.tip = tip;
-        newVoteVb.voter = masternodeIds[i];
-        newVoteVb.choice.decision = CVoteChoice::Decision::PASS;
-        //voters[0].applyRoundVote(newVoteVb);
-        voters[0].v[tip].roundVotes[newVoteVb.nRound].emplace(masternodeIds[i], newVoteVb);
+        CRoundVote newVoteR;
+        newVoteR.nRound = 1;
+        newVoteR.tip = tip;
+        newVoteR.voter = masternodeIds[i];
+        newVoteR.choice.decision = CVoteChoice::Decision::PASS;
+        //voters[0].applyRoundVote(newVoteR);
+        voters[0].v[tip].roundVotes[newVoteR.nRound].emplace(masternodeIds[i], newVoteR);
 
         // Round 2
         CTxVote newVote;
@@ -195,14 +195,14 @@ void initVoters(std::vector<CMasternode::ID>& masternodeIds,
 
     for (uint64_t i = 100; i < 200; i++) {
         // Round 2
-        CRoundVote newVoteVb;
-        newVoteVb.nRound = 2;
-        newVoteVb.tip = tip;
-        newVoteVb.voter = masternodeIds[i];
-        newVoteVb.choice.decision = CVoteChoice::Decision::YES;
-        newVoteVb.choice.subject = vVbs[2];
-        voters[0].v[tip].roundVotes[newVoteVb.nRound].emplace(masternodeIds[i], newVoteVb);
-        //voters[0].applyRoundVote(newVoteVb);
+        CRoundVote newVoteR;
+        newVoteR.nRound = 2;
+        newVoteR.tip = tip;
+        newVoteR.voter = masternodeIds[i];
+        newVoteR.choice.decision = CVoteChoice::Decision::YES;
+        newVoteR.choice.subject = vViceBlocks[2];
+        voters[0].v[tip].roundVotes[newVoteR.nRound].emplace(masternodeIds[i], newVoteR);
+        //voters[0].applyRoundVote(newVoteR);
 
         CTxVote newVote;
         newVote.nRound = 2;
@@ -245,9 +245,9 @@ TEST(dPoS_calls, TestStats)
     std::vector<CMasternode::ID> masternodeIds;
     std::vector<dpos::CDposVoterTesting> voters;
     std::array<TxId, 6> vTxs;
-    std::array<BlockHash, 4> vVbs;
+    std::array<BlockHash, 4> vViceBlocks;
     BlockHash tip = uint256S("0xB101");
-    dpos::initVoters(masternodeIds, voters, tip, callbacks, vTxs, vVbs);
+    dpos::initVoters(masternodeIds, voters, tip, callbacks, vTxs, vViceBlocks);
 
     auto stats1 = voters[0].priv_calcRoundVotingStats(1);
     auto stats2 = voters[0].priv_calcRoundVotingStats(2);
@@ -274,13 +274,13 @@ TEST(dPoS_calls, TestStats)
     auto stats5_3 = voters[0].priv_calcTxVotingStats(vTxs[5], 3);
 
     ASSERT_EQ(stats1.totus(), 23);
-    ASSERT_EQ(stats1.pro[vVbs[0]], 0);
-    ASSERT_EQ(stats1.pro[vVbs[1]], 22);
+    ASSERT_EQ(stats1.pro[vViceBlocks[0]], 0);
+    ASSERT_EQ(stats1.pro[vViceBlocks[1]], 22);
     ASSERT_EQ(stats1.abstinendi, 1);
 
     ASSERT_EQ(stats2.totus(), 122);
-    ASSERT_EQ(stats2.pro[vVbs[2]], 100);
-    ASSERT_EQ(stats2.pro[vVbs[3]], 22);
+    ASSERT_EQ(stats2.pro[vViceBlocks[2]], 100);
+    ASSERT_EQ(stats2.pro[vViceBlocks[3]], 22);
     ASSERT_EQ(stats2.abstinendi, 0);
 
     { // txs round 1
