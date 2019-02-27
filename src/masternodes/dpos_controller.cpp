@@ -20,9 +20,9 @@ namespace dpos
 CCriticalSection cs_dpos{};
 CDposController* dposControllerInstance_{nullptr};
 
-int computeBlockHeight(const BlockHash& blockHash)
+int computeBlockHeight(const BlockHash& blockHash, int maxDeep = -1)
 {
-    int rv{0};
+    int rv{-1};
 
     if (blockHash == chainActive.Tip()->GetBlockHash()) {
         rv = chainActive.Height();
@@ -30,6 +30,12 @@ int computeBlockHeight(const BlockHash& blockHash)
         for (CBlockIndex* index{chainActive.Tip()}; index != nullptr; index = index->pprev) {
             if (blockHash == index->GetBlockHash()) {
                 rv = index->nHeight;
+                break;
+            }
+            if (maxDeep > 0) {
+                maxDeep--;
+            }
+            if (maxDeep == 0) {
                 break;
             }
         }
@@ -235,6 +241,7 @@ void CDposController::runEventLoop()
 
             for (auto&& node : getNodes()) {
                 const BlockHash tipHash{getTipHash()};
+//                node->PushMessage("get_vice_blocks", tipHash);
                 node->PushMessage("get_round_votes", tipHash);
                 node->PushMessage("get_tx_votes", tipHash, self->getTxsFilter());
             }
@@ -620,13 +627,15 @@ void CDposController::removeOldVotes()
     const auto tipHeight{computeBlockHeight(chainActive.Tip()->GetBlockHash())};
 
     for (const auto& pair: this->receivedRoundVotes) {
-        if (tipHeight - computeBlockHeight(pair.second.tip) > 100) {
+        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
             this->receivedRoundVotes.erase(pair.first);
+            pdposdb->EraseRoundVote(pair.second.tip);
         }
     }
     for (const auto& pair: this->receivedTxVotes) {
-        if (tipHeight - computeBlockHeight(pair.second.tip) > 100) {
+        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
             this->receivedRoundVotes.erase(pair.first);
+            pdposdb->EraseTxVote(pair.second.tip);
         }
     }
 }
