@@ -25,8 +25,8 @@ bool CDposController::Validator::allowArchiving(BlockHash blockHash)
 
 void CDposController::Validator::UpdatedBlockTip(const CBlockIndex* pindex)
 {
-    libsnark::UNUSED(pindex);
-    getController()->updateChainTip();
+    assert(pindex != nullptr);
+    getController()->onChainTipUpdated(pindex->GetBlockHash());
 }
 
 void CDposController::Validator::SyncTransaction(const CTransaction& tx, const CBlock* pblock)
