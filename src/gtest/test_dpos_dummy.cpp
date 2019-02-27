@@ -241,3 +241,131 @@ TEST(dPoS, DummyRejectTx)
         ASSERT_TRUE(voters[i].txs.empty());
     }
 }
+
+TEST(dPoS, InvalidVote)
+{
+    dpos::CDposVoter::Callbacks callbacks{};
+    callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
+    {
+        return false;
+    };
+    callbacks.validateBlock = [](const CBlock& b, const std::map<TxIdSorted, CTransaction>& txs, bool checkTxs)
+    {
+        return true;
+    };
+    callbacks.allowArchiving = [](BlockHash votingId)
+    {
+        return true;
+    };
+
+    // Init voters
+    std::vector<CMasternode::ID> masternodeIds;
+    std::vector<dpos::CDposVoter> voters;
+    BlockHash tip = uint256S("0xB101");
+    initVoters_dummy(masternodeIds, voters, tip, callbacks);
+
+    voters[0].setVoting(true, masternodeIds[0]);
+
+    // create dummy tx
+    CMutableTransaction mtx;
+    mtx.fInstant = true;
+    mtx.fOverwintered = true;
+    mtx.nVersion = 4;
+    mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
+    mtx.nExpiryHeight = 0;
+    CTransaction tx{mtx};
+
+    dpos::CDposVoter::Output res;
+    for (uint64_t i = 0; i < 1; i++) {
+        // try to apply vote with nRound = 0
+        dpos::CTxVote voteInvalid;
+        voteInvalid.voter = masternodeIds[i];
+        voteInvalid.nRound = 0;
+        voteInvalid.tip = tip;
+        voteInvalid.choice = dpos::CVoteChoice{tx.GetHash(), dpos::CVoteChoice::Decision::YES};
+        res = voters[i].applyTxVote(voteInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        dpos::CRoundVote voteRInvalid;
+        voteRInvalid.voter = masternodeIds[i];
+        voteRInvalid.nRound = 0;
+        voteRInvalid.tip = tip;
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), dpos::CVoteChoice::Decision::YES};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+        // try to apply vote with invalid decision
+        voteInvalid.nRound = 1;
+        voteInvalid.choice = dpos::CVoteChoice{tx.GetHash(), 55};
+        res = voters[i].applyTxVote(voteInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        voteRInvalid.nRound = 1;
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), 55};
+        res = voters[i].applyRoundVote(voteInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        // try to apply round vote with NO
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), dpos::CVoteChoice::Decision::NO};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        // try to apply round vote with PASS, but not empty hash
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), dpos::CVoteChoice::Decision::NO};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        // Try to doublesign with round vote
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), dpos::CVoteChoice::Decision::YES};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 1);
+        ASSERT_TRUE(res.vErrors.empty());
+
+        voteRInvalid.choice = dpos::CVoteChoice{BlockHash{}, dpos::CVoteChoice::Decision::PASS}; // pass after voted for another vice block
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB102"), dpos::CVoteChoice::Decision::YES}; // vote for another vice block
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+
+
+        // Try to doublesign with tx vote
+        voteInvalid.choice = dpos::CVoteChoice{tx.GetHash(), dpos::CVoteChoice::Decision::YES};
+        res = voters[i].applyTxVote(voteInvalid);
+        ASSERT_TRUE(res.vErrors.empty());
+
+        voteInvalid.choice = dpos::CVoteChoice{tx.GetHash(), dpos::CVoteChoice::Decision::PASS};
+        res = voters[i].applyTxVote(voteInvalid);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+    }
+}
