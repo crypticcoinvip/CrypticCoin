@@ -199,7 +199,7 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
 
     txVoting.emplace(vote.voter, vote);
 
-    if (vote.tip != tip) {
+    if (vote.tip != tip) { // if vote isn't for current tip, voting state didn't chagne, and I don't need to do voting
         return {};
     }
 
@@ -371,7 +371,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         out += applyRoundVote(newVote);
     }
     else {
-        LogPrintf("%s: Suitable vice block wasn't found \n", __func__);
+        LogPrintf("%s: Suitable vice block wasn't found at round %d, candidates=%d \n", __func__, nRound, sortedViceBlocks.size());
     }
 
     return out;
@@ -600,22 +600,19 @@ CDposVoter::ApprovedByMeTxsList CDposVoter::listApprovedByMe_txs() const
 {
     ApprovedByMeTxsList res{};
 
-    for (const auto& txRoundVoting_p : v[tip].txVotes) {
-        if (txRoundVoting_p.second.count(me) == 0) {
-            continue;
-        }
-        for (const auto& myVotes_p : txRoundVoting_p.second.at(me)) {
-            // Do these sanity checks only here, no need to copy-paste them
-            assert(myVotes_p.second.nRound == txRoundVoting_p.first);
-            assert(myVotes_p.second.tip == tip);
-            assert(myVotes_p.second.voter == me);
-
-            if (myVotes_p.second.choice.decision == CVoteChoice::Decision::YES) {
-                const TxId txid = myVotes_p.second.choice.subject;
+    for (auto&& txsRoundVoting_p : v[tip].txVotes) {
+        for (auto&& txVoting_p : txsRoundVoting_p.second) {
+            // don't insert empty element if empty
+            if (txVoting_p.second.count(me) == 0)
+                continue;
+            // search for my vote
+            const CTxVote myVote = txVoting_p.second[me];
+            if (myVote.choice.decision == CVoteChoice::Decision::YES) {
+                const TxId txid = myVote.choice.subject;
 
                 if (txs.count(txid) == 0) {
                     // theoretically can happen after reindex, if we didn't download all the txs
-                    LogPrintf("%s didn't found approved tx=%d in the map of txs \n", __func__, txid.GetHex());
+                    LogPrintf("%s approved tx=%d wasn't found in the map of txs \n", __func__, txid.GetHex());
                     res.missing.insert(txid);
                     continue;
                 }
@@ -634,15 +631,15 @@ CTxVotingDistribution CDposVoter::calcTxVotingStats(TxId txid, Round nRound) con
 {
     CTxVotingDistribution stats{};
 
-    for (auto&& txRoundVoting_p : v[tip].txVotes) {
+    for (auto&& txsRoundVoting_p : v[tip].txVotes) {
         // don't insert empty element if empty
-        if (txRoundVoting_p.second.count(txid) == 0)
+        if (txsRoundVoting_p.second.count(txid) == 0)
             continue;
         // count votes
-        for (const auto& vote_p : txRoundVoting_p.second[txid]) {
+        for (const auto& vote_p : txsRoundVoting_p.second[txid]) {
             const auto& vote = vote_p.second;
             // Do these sanity checks only here, no need to copy-paste them
-            assert(vote.nRound == txRoundVoting_p.first);
+            assert(vote.nRound == txsRoundVoting_p.first);
             assert(vote.tip == tip);
             assert(vote.choice.subject == txid);
 
@@ -712,9 +709,9 @@ bool CDposVoter::atLeastOneViceBlockIsValid(Round nRound) const
 
 bool CDposVoter::txHasAnyVote(TxId txid) const
 {
-    for (const auto& roundVoting_p : v[tip].txVotes) {
-        const auto& txVoting_it = roundVoting_p.second.find(txid);
-        if (txVoting_it == roundVoting_p.second.end()) // voting not found
+    for (const auto& txsRoundVoting_p : v[tip].txVotes) {
+        const auto& txVoting_it = txsRoundVoting_p.second.find(txid);
+        if (txVoting_it == txsRoundVoting_p.second.end()) // voting not found
             continue;
         if (txVoting_it->second.size() > 0) // voting isn't empty
             return true;
