@@ -22,8 +22,13 @@ struct CDposVote
 bool operator==(const CDposVote& l, const CDposVote& r);
 bool operator!=(const CDposVote& l, const CDposVote& r);
 
-using CTxVote = CDposVote;
-using CRoundVote = CDposVote;
+class CTxVote : public CDposVote {};
+bool operator==(const CTxVote& l, const CTxVote& r);
+bool operator!=(const CTxVote& l, const CTxVote& r);
+
+class CRoundVote : public CDposVote {};
+bool operator==(const CRoundVote& l, const CRoundVote& r);
+bool operator!=(const CRoundVote& l, const CRoundVote& r);
 
 struct CTxVotingDistribution
 {
@@ -87,8 +92,8 @@ public:
     */
     struct VotingState
     {
-        std::map<Round, std::map<TxId, std::map<CMasternode::ID, CDposVote> > > txVotes;
-        std::map<Round, std::map<CMasternode::ID, CDposVote> > roundVotes;
+        std::map<Round, std::map<TxId, std::map<CMasternode::ID, CTxVote> > > txVotes;
+        std::map<Round, std::map<CMasternode::ID, CRoundVote> > roundVotes;
 
         std::map<BlockHash, CBlock> viceBlocks;
     };
