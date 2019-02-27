@@ -619,9 +619,9 @@ UniValue heartbeat_send_message(const UniValue& params, bool fHelp)
     return rv;
 }
 
-UniValue heartbeat_read_messages(const UniValue&, bool fHelp)
+UniValue heartbeat_read_messages(const UniValue& params, bool fHelp)
 {
-    if (fHelp) {
+    if (fHelp || params.size() != 0) {
         throw runtime_error(
             "heartbeat_read_messages\n"
             "\nReads heartbeat p2p messages.\n"
@@ -695,6 +695,37 @@ UniValue heartbeat_filter_masternodes(const UniValue& params, bool fHelp)
     return rv;
 }
 
+UniValue list_instant_transactions(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "list_instant_transactions\n"
+            "\nLists committed instant transactions.\n"
+            "\nResult:\n"
+            "[\n"
+            "\t{\n"
+            "\t\t\"hash\": xxx         (string) The hash of the instant transaction\n"
+            "\t\tvin: xxx              (numeric) The inputs count\n"
+            "\t\tvout: xxx              (numeric) The outputs count\n"
+            "\t},...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("list_instant_transactions", "")
+            + HelpExampleRpc("list_instant_transactions", "")
+        );
+    }
+
+    UniValue rv{UniValue::VARR};
+    for (const auto& tx : dpos::getController()->listCommittedTxs()) {
+        UniValue entry{UniValue::VOBJ};
+        entry.push_back(Pair("hash", tx.GetHash().GetHex()));
+        entry.push_back(Pair("vin", tx.vin.size()));
+        entry.push_back(Pair("vout", tx.vout.size()));
+        rv.push_back(entry);
+    }
+    return rv;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -712,6 +743,8 @@ static const CRPCCommand commands[] =
     { "hidden",     "heartbeat_send_message",       &heartbeat_send_message,        true  },
     { "hidden",     "heartbeat_read_messages",      &heartbeat_read_messages,       true  },
     { "hidden",     "heartbeat_filter_masternodes", &heartbeat_filter_masternodes,  true  },
+    /* dPoS */
+    { "hidden",     "list_instant_transactions",    &list_instant_transactions,     true  },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &tableRPC)
