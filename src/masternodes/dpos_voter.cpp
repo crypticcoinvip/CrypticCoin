@@ -128,6 +128,7 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
         LogPrintf("%s: Received invalid tx %s \n", __func__, txid.GetHex());
         return {};
     }
+    LogPrintf("%s: Received tx %s \n", __func__, txid.GetHex());
 
     const bool wasLost = wasTxLost(txid);
     txs[txid] = tx;
@@ -151,10 +152,11 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
     }
 
     const TxId txid = vote.choice.subject;
-    LogPrintf("%s: Received transaction vote for %s, from %s \n",
+    LogPrintf("%s: Received transaction vote for %s, from %s, decision=%d \n",
               __func__,
               txid.GetHex(),
-              vote.voter.GetHex());
+              vote.voter.GetHex(),
+              vote.choice.decision);
     auto& txVoting = v[vote.tip].txVotes[vote.nRound][txid];
 
     // Check misbehaving or duplicating
@@ -428,12 +430,16 @@ CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId)
             return out;
         }
 
-        LogPrintf("%s: Submit block, num of votes = %d, minQuorum = %d \n", __func__, stats.pro[viceBlockId], minQuorum);
+        LogPrintf("%s: Submit block, num of votes = %d, minQuorum = %d \n",
+                  __func__,
+                  stats.pro[viceBlockId],
+                  minQuorum);
         CBlockToSubmit blockToSubmit;
         blockToSubmit.block = viceBlock;
         const auto& approvedBy_m = v[tip].roundVotes[nCurrentRound];
         // Retrieve all keys
-        boost::copy(approvedBy_m | boost::adaptors::map_keys, std::back_inserter(blockToSubmit.vApprovedBy)); // TODO filter pass votes
+        boost::copy(approvedBy_m | boost::adaptors::map_keys,
+                    std::back_inserter(blockToSubmit.vApprovedBy)); // TODO filter pass votes
 
         out.blockToSubmit = {blockToSubmit};
     }
@@ -532,13 +538,18 @@ bool CDposVoter::wasVotedByMe_tx(TxId txid, Round nRound) const
 {
     // check specified round
     {
-        const size_t roundFromMe = v[tip].txVotes[nRound][txid].count(me);
-        if (roundFromMe > 0)
-            return true;
+        if (v[tip].txVotes.count(nRound) != 0) {
+            const size_t roundFromMe = v[tip].txVotes[nRound][txid].count(me);
+            if (roundFromMe > 0)
+                return true;
+        }
     }
 
     // check Yes and No votes on other rounds. Such votes are active for all the rounds.
     for (auto&& txRoundVoting_p: v[tip].txVotes) {
+        if (txRoundVoting_p.second.count(txid) == 0)
+            continue;
+
         auto txVoting = txRoundVoting_p.second[txid];
         auto myVote_it = txVoting.find(me);
 
@@ -595,19 +606,28 @@ CTxVotingDistribution CDposVoter::calcTxVotingStats(TxId txid, Round nRound) con
 {
     CTxVotingDistribution stats{};
 
-    for (const auto& roundVoting_p : v[tip].roundVotes) {
-        for (const auto& vote_p : roundVoting_p.second) {
-            const auto& vote = vote_p.second;
-            switch (vote.choice.decision) {
-                case CVoteChoice::Decision::YES : stats.pro++;
-                    break;
-                case CVoteChoice::Decision::NO : stats.contra++;
-                    break;
-                case CVoteChoice::Decision::PASS :
-                    if (vote.choice.subject == txid)
-                        stats.abstinendi++;
-                    break;
-            }
+    // don't insert empty element if empty
+    if (v[tip].txVotes.count(nRound) == 0)
+        return stats;
+    if (v[tip].txVotes[nRound].count(txid) == 0)
+        return stats;
+
+    for (const auto& vote_p : v[tip].txVotes[nRound][txid]) {
+        const auto& vote = vote_p.second;
+        // Do these sanity checks only here, no need to copy-paste them
+        assert(vote.nRound == nRound);
+        assert(vote.tip == tip);
+        assert(vote.choice.subject == txid);
+
+        switch (vote.choice.decision) {
+            case CVoteChoice::Decision::YES : stats.pro++;
+                break;
+            case CVoteChoice::Decision::NO : stats.contra++;
+                break;
+            case CVoteChoice::Decision::PASS : stats.abstinendi++;
+                break;
+            default: assert(false);
+                break;
         }
     }
 
@@ -630,6 +650,8 @@ CRoundVotingDistribution CDposVoter::calcRoundVotingStats(Round nRound) const
                 break;
             case CVoteChoice::Decision::PASS : stats.abstinendi++;
                 assert(vote.choice.subject == uint256{});
+                break;
+            default: assert(false);
                 break;
         }
     }
@@ -717,7 +739,6 @@ void CDposVoter::filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Ro
             it++;
     }
 }
-
 void CDposVoter::filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nRound) const
 {
     for (auto it = txs_f.begin(); it != txs_f.end();) {

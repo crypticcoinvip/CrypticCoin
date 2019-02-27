@@ -27,16 +27,16 @@ using CRoundVote = CDposVote;
 
 struct CTxVotingDistribution
 {
-    size_t pro; //< yes
-    size_t contra; //< no
-    size_t abstinendi; //< pass
+    size_t pro = 0; //< yes
+    size_t contra = 0; //< no
+    size_t abstinendi = 0; //< pass
     size_t totus() const; //< total
 };
 
 struct CRoundVotingDistribution
 {
     std::map<BlockHash, size_t> pro; //< yes
-    size_t abstinendi; //< pass
+    size_t abstinendi = 0; //< pass
     size_t totus() const; //< total
 };
 
