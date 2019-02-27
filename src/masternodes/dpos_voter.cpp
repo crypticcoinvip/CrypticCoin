@@ -86,6 +86,7 @@ void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
 
 void CDposVoter::updateTip(BlockHash tip)
 {
+    // tip is changed not first time. TODO filter only after N blocks. store txs to clear here
     if (this->tip != BlockHash{} && this->tip != tip)
         filterFinishedTxs(this->txs, getCurrentRound());
 
@@ -678,19 +679,14 @@ bool CDposVoter::atLeastOneViceBlockIsValid(Round nRound) const
 
 bool CDposVoter::txHasAnyVote(TxId txid) const
 {
-    bool found = false;
     for (const auto& roundVoting_p : v[tip].txVotes) {
-        for (const auto& txVoting_p : roundVoting_p.second) {
-            for (const auto& vote_p : txVoting_p.second) {
-                const auto& vote = vote_p.second;
-                if (vote.choice.subject == txid) {
-                    found = true;
-                    break;
-                }
-            }
-        }
+        const auto& txVoting_it = roundVoting_p.second.find(txid);
+        if (txVoting_it == roundVoting_p.second.end()) // voting not found
+            continue;
+        if (txVoting_it->second.size() > 0) // voting isn't empty
+            return true;
     }
-    return found;
+    return false;
 }
 
 bool CDposVoter::wasTxLost(TxId txid) const
