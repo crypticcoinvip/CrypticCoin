@@ -21,7 +21,6 @@ namespace dpos
 using LockGuard = std::lock_guard<std::mutex>;
 std::mutex mutex_{};
 CDposController* dposControllerInstance_{nullptr};
-std::array<unsigned char, 16> salt_{0x4D, 0x48, 0x7A, 0x52, 0x5D, 0x4D, 0x37, 0x78, 0x42, 0x36, 0x5B, 0x64, 0x44, 0x79, 0x59, 0x4F};
 
 uint256 getTipBlockHash()
 {
@@ -207,6 +206,8 @@ void CDposController::runEventLoop()
     Round lastRound{0};
     auto lastTime{steady_clock::now()};
     auto roundTime{lastTime};
+    auto ibdPassedTime{lastTime};
+    bool ibdPassed = false;
     const auto startTime{lastTime};
     const auto self{getController()};
 
@@ -214,8 +215,13 @@ void CDposController::runEventLoop()
         boost::this_thread::interruption_point();
         const auto now{steady_clock::now()};
 
-        if (duration_cast<seconds>(now - startTime).count() > 60 * 60) {
-            if (!getInstance().voter->checkAmIVoter() && IsInitialBlockDownload()) {
+        if (!IsInitialBlockDownload() && !ibdPassed) {
+            ibdPassedTime = now;
+            ibdPassed = true;
+        }
+
+        if (ibdPassed && duration_cast<seconds>(now - ibdPassedTime).count() > 1) {
+            if (!getInstance().voter->checkAmIVoter()) {
                 const auto mnId{findMasternodeId()};
                 if (mnId != boost::none) {
                     LogPrintf("%s: Enabling dpos voter\n", __func__);
@@ -226,13 +232,13 @@ void CDposController::runEventLoop()
             }
         }
 
-        if (duration_cast<seconds>(now - lastTime).count() > 30) {
+        if (duration_cast<seconds>(now - lastTime).count() > 1) {
             lastTime = now;
             getInstance().removeOldVotes();
 
             for (auto&& node : getNodes()) {
-                node->PushMessage("get_round_votes");
-                node->PushMessage("get_tx_votes", self->listTxVotes());
+                node->PushMessage("get_round_votes", getTipBlockHash());
+                node->PushMessage("get_tx_votes", getTipBlockHash(), self->getTxsFilter());
             }
         }
 
@@ -345,8 +351,8 @@ void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
         LockGuard lock{mutex_};
         libsnark::UNUSED(lock);
 
+        this->receivedRoundVotes.emplace(vote.GetHash(), vote); // TODO move into voter
         if (acceptRoundVote(vote)) {
-            this->receivedRoundVotes.emplace(vote.GetHash(), vote);
             storeEntity(vote, &CDposDB::WriteRoundVote);
             relayEntity(vote, MSG_ROUND_VOTE);
         }
@@ -496,7 +502,7 @@ bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
 
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 {
-    if (out.vErrors.empty()) {
+    if (!out.vErrors.empty()) {
         for (const auto& error : out.vErrors) {
             LogPrintf("%s: %s\n", __func__, error);
         }
@@ -507,6 +513,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
         const CKey masternodeKey{getMasternodeKey()};
 
         if (masternodeKey.IsValid()) {
+
             for (const auto& roundVote : out.vRoundVotes) {
                 CRoundVote_p2p vote{};
                 vote.tip = roundVote.tip;
@@ -540,27 +547,23 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                 CBlock* pblock{&blockToSubmit.block};
                 const Round currentRound{getCurrentVotingRound()};
 
-                pblock->vSig.reserve(blockToSubmit.vApprovedBy.size() * CPubKey::COMPACT_SIGNATURE_SIZE);
+                BlockHash blockHash = pblock->GetHash();
 
                 for (const auto& votePair : this->receivedRoundVotes) {
-                    for (const auto& mnIdApproved : blockToSubmit.vApprovedBy) {
-                        const auto mnId{extractMasternodeId(votePair.second)};
-                        if (mnId != boost::none &&
-                            mnId.get() == mnIdApproved &&
-                            votePair.second.nRound == currentRound)
-                        {
-                            pblock->vSig.insert(pblock->vSig.end(),
-                                                votePair.second.signature.begin(),
-                                                votePair.second.signature.end());
-                            break;
-                        }
+                    if (votePair.second.nRound == currentRound &&
+                        votePair.second.choice.decision == CVoteChoice::Decision::YES &&
+                        votePair.second.choice.subject == blockHash) {
+
+                        pblock->vSig.insert(pblock->vSig.end(),
+                                            votePair.second.signature.begin(),
+                                            votePair.second.signature.end());
                     }
                 }
-                if (pblock->vSig.size() != blockToSubmit.vApprovedBy.size()) {
-                    LogPrintf("%s: Can't submit block - missing signatures (%d != %d)\n",
+                if ((pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE) < this->voter->minQuorum) {
+                    LogPrintf("%s: Can't submit block - missing signatures (%d < %d)\n",
                               __func__,
-                              pblock->vSig.size(),
-                              blockToSubmit.vApprovedBy.size());
+                              pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE,
+                              this->voter->minQuorum);
                 } else if (!ProcessNewBlock(state, NULL, const_cast<CBlock*>(pblock), true, NULL)) {
                     LogPrintf("%s: Can't ProcessNewBlock\n", __func__);
                 }
@@ -634,5 +637,12 @@ void CDposController::removeOldVotes()
         }
     }
 }
+
+std::vector<TxId> CDposController::getTxsFilter() const
+{
+    std::vector<TxId> rv{};
+    return rv;
+}
+
 
 } //namespace dpos

@@ -410,15 +410,15 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         txNew.vout[0].nValue += nFees;
         txNew.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
-        pblock->vtx[0] = txNew;
-        pblocktemplate->vTxFees[0] = -nFees;
-
         // Share reward with masternodes' team
         {
             const auto rewards_p = pmasternodesview->CalcDposTeamReward(txNew.vout[0].nValue, nFees_inst, nHeight);
             txNew.vout[0].nValue -= rewards_p.second;
             txNew.vout.insert(txNew.vout.end(), rewards_p.first.begin(), rewards_p.first.end());
         }
+
+        pblock->vtx[0] = txNew;
+        pblocktemplate->vTxFees[0] = -nFees;
 
         // Randomise nonce
         arith_uint256 nonce = UintToArith256(GetRandHash());
@@ -435,8 +435,11 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nSolution.clear();
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
 
+        DposValidationRules dvr;
+        dvr.fCheckDposSigs = false; // don't check sigs, it's still a vice-block
+
         CValidationState state;
-        if (!TestBlockValidity(state, *pblock, pindexPrev, false, false))
+        if (!TestBlockValidity(state, *pblock, pindexPrev, false, false, dvr))
             throw std::runtime_error("CreateNewBlock(): TestBlockValidity failed");
     }
 
@@ -540,8 +543,10 @@ static bool ProcessBlockFound(CBlock* pblock)
 //    }
 #endif
     if (dpos::getController()->isEnabled()) {
-        dpos::getController()->proceedViceBlock(*pblock);
+        LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
+            dpos::getController()->proceedViceBlock(*pblock);
     } else {
+        LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
         // Process this block the same as if we had received it from another node
         CValidationState state;
         if (!ProcessNewBlock(state, NULL, pblock, true, NULL))

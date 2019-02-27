@@ -469,7 +469,7 @@ struct DposValidationRules {
 };
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins */
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, CMasternodesView& mnview, bool fJustCheck = false, bool calledByVerifyDB = false, const DposValidationRules& dvr = DposValidationRules{});
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, CMasternodesView& mnview, bool fJustCheck = false, const DposValidationRules& dvr = DposValidationRules{});
 
 /** Context-independent validity checks */
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool fCheckPOW = true);
