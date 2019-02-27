@@ -6204,10 +6204,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         BlockHash tipHash{};
         vRecv >> tipHash >> interestedTxs;
         std::set<TxId> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
-        LOCK(cs_main);
 
-        if (chainActive.Tip()->GetBlockHash() == tipHash) {
-            for (const auto& vote : dpos::getController()->listTxVotes()) {
+        for (const auto& vote : dpos::getController()->listTxVotes()) {
+            if (vote.tip == tipHash) {
                 for (const auto& choice : vote.choices) {
                     if (setOfInterestedTxs.empty() || setOfInterestedTxs.count(choice.subject)) {
                         reply.emplace_back(MSG_TX_VOTE, vote.GetHash());
@@ -6220,11 +6219,21 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         std::vector<CInv> reply{};
         uint256 tipHash{};
         vRecv >> tipHash;
-        LOCK(cs_main);
 
-        if (chainActive.Tip()->GetBlockHash() == tipHash) {
-            for (const auto& vote : dpos::getController()->listRoundVotes()) {
+        for (const auto& vote : dpos::getController()->listRoundVotes()) {
+            if (vote.tip == tipHash) {
                 reply.emplace_back(MSG_ROUND_VOTE, vote.GetHash());
+            }
+        }
+        pfrom->PushMessage("inv", reply);
+    } else if (strCommand == "get_vice_blocks") {
+        std::vector<CInv> reply{};
+        uint256 tipHash{};
+        vRecv >> tipHash;
+
+        for (const auto& block : dpos::getController()->listViceBlocks()) {
+            if (block.hashPrevBlock == tipHash) {
+                reply.emplace_back(MSG_VICE_BLOCK, block.GetHash());
             }
         }
         pfrom->PushMessage("inv", reply);

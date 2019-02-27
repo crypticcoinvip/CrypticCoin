@@ -241,7 +241,7 @@ void CDposController::runEventLoop()
 
             for (auto&& node : getNodes()) {
                 const BlockHash tipHash{getTipHash()};
-//                node->PushMessage("get_vice_blocks", tipHash);
+                node->PushMessage("get_vice_blocks", tipHash);
                 node->PushMessage("get_round_votes", tipHash);
                 node->PushMessage("get_tx_votes", tipHash, self->getTxsFilter());
             }
