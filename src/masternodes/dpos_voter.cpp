@@ -86,8 +86,9 @@ void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
 
 void CDposVoter::updateTip(BlockHash tip)
 {
+    // tip is changed not first time. TODO filter only after N blocks. store txs to clear here
     if (this->tip != BlockHash{} && this->tip != tip)
-        filterFinishedTxs(this->txs, getCurrentRound());
+        filterFinishedTxs(this->txs, 0);
 
     this->tip = tip;
 }
@@ -103,7 +104,7 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
         return {};
     }
 
-    if (!v[tip].viceBlocks.emplace(viceBlock.GetHash(), viceBlock).second) {
+    if (!v[viceBlock.hashPrevBlock].viceBlocks.emplace(viceBlock.GetHash(), viceBlock).second) {
         LogPrintf("%s: Ignoring duplicating vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
@@ -146,6 +147,10 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
 
 CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
 {
+    if (vote.nRound == 0 || !vote.choice.isStandardDecision()) {
+        return misbehavingErr("masternode malformed tx vote");
+    }
+
     if (vote.tip != tip && !world.allowArchiving(vote.tip)) {
         LogPrintf("%s: Ignoring too old transaction vote from block %s \n", __func__, vote.tip.GetHex());
         return {};
@@ -189,6 +194,23 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
 
 CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
 {
+    if (vote.nRound == 0 || !vote.choice.isStandardDecision()) {
+        return misbehavingErr("masternode malformed round vote");
+    }
+    if (vote.choice.decision == CVoteChoice::Decision::PASS && vote.choice.subject != uint256{}) {
+        return misbehavingErr("masternode malformed vote subject");
+    }
+    if (vote.choice.decision == CVoteChoice::Decision::NO) {
+        return misbehavingErr("masternode malformed vote decision");
+    }
+
+    if (vote.nRound == 0) {
+        LogPrintf("%s: MISBEHAVING MASTERNODE! malformed vote from %s \n",
+                  __func__,
+                  vote.voter.GetHex());
+        return misbehavingErr("masternode malformed tx vote");
+    }
+
     if (vote.tip != tip && !world.allowArchiving(vote.tip)) {
         LogPrintf("%s: Ignoring too old round vote from block %s \n", __func__, vote.tip.GetHex());
         return {};
@@ -211,20 +233,6 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
         }
         LogPrintf("%s: Ignoring duplicating Round vote \n", __func__);
         return {};
-    }
-    if (vote.choice.decision == CVoteChoice::Decision::PASS && vote.choice.subject != uint256{}) {
-        LogPrintf("%s: MISBEHAVING MASTERNODE! malformed vote subject. round voting, vote for %s, from %s \n",
-                  __func__,
-                  vote.choice.subject.GetHex(),
-                  vote.voter.GetHex());
-        return misbehavingErr("malformed vote subject");
-    }
-    if (vote.choice.decision == CVoteChoice::Decision::NO) {
-        LogPrintf("%s: MISBEHAVING MASTERNODE! malformed vote decision, vote for %s, from %s \n",
-                  __func__,
-                  vote.choice.subject.GetHex(),
-                  vote.voter.GetHex());
-        return misbehavingErr("malformed vote decision");
     }
 
     roundVoting.emplace(vote.voter, vote);
@@ -606,28 +614,30 @@ CTxVotingDistribution CDposVoter::calcTxVotingStats(TxId txid, Round nRound) con
 {
     CTxVotingDistribution stats{};
 
-    // don't insert empty element if empty
-    if (v[tip].txVotes.count(nRound) == 0)
-        return stats;
-    if (v[tip].txVotes[nRound].count(txid) == 0)
-        return stats;
+    for (auto&& txRoundVoting_p : v[tip].txVotes) {
+        // don't insert empty element if empty
+        if (txRoundVoting_p.second.count(txid) == 0)
+            continue;
+        // count votes
+        for (const auto& vote_p : txRoundVoting_p.second[txid]) {
+            const auto& vote = vote_p.second;
+            // Do these sanity checks only here, no need to copy-paste them
+            assert(vote.nRound == txRoundVoting_p.first);
+            assert(vote.tip == tip);
+            assert(vote.choice.subject == txid);
 
-    for (const auto& vote_p : v[tip].txVotes[nRound][txid]) {
-        const auto& vote = vote_p.second;
-        // Do these sanity checks only here, no need to copy-paste them
-        assert(vote.nRound == nRound);
-        assert(vote.tip == tip);
-        assert(vote.choice.subject == txid);
-
-        switch (vote.choice.decision) {
-            case CVoteChoice::Decision::YES : stats.pro++;
-                break;
-            case CVoteChoice::Decision::NO : stats.contra++;
-                break;
-            case CVoteChoice::Decision::PASS : stats.abstinendi++;
-                break;
-            default: assert(false);
-                break;
+            switch (vote.choice.decision) {
+                case CVoteChoice::Decision::YES : stats.pro++;
+                    break;
+                case CVoteChoice::Decision::NO : stats.contra++;
+                    break;
+                case CVoteChoice::Decision::PASS :
+                    if (vote.nRound == nRound) // count PASS votes only from specified round
+                        stats.abstinendi++;
+                    break;
+                default: assert(false);
+                    break;
+            }
         }
     }
 
@@ -637,6 +647,10 @@ CTxVotingDistribution CDposVoter::calcTxVotingStats(TxId txid, Round nRound) con
 CRoundVotingDistribution CDposVoter::calcRoundVotingStats(Round nRound) const
 {
     CRoundVotingDistribution stats{};
+
+    // don't insert empty element if empty
+    if (v[tip].roundVotes.count(nRound) == 0)
+        return stats;
 
     for (const auto& vote_p : v[tip].roundVotes[nRound]) {
         const auto& vote = vote_p.second;
@@ -678,19 +692,14 @@ bool CDposVoter::atLeastOneViceBlockIsValid(Round nRound) const
 
 bool CDposVoter::txHasAnyVote(TxId txid) const
 {
-    bool found = false;
     for (const auto& roundVoting_p : v[tip].txVotes) {
-        for (const auto& txVoting_p : roundVoting_p.second) {
-            for (const auto& vote_p : txVoting_p.second) {
-                const auto& vote = vote_p.second;
-                if (vote.choice.subject == txid) {
-                    found = true;
-                    break;
-                }
-            }
-        }
+        const auto& txVoting_it = roundVoting_p.second.find(txid);
+        if (txVoting_it == roundVoting_p.second.end()) // voting not found
+            continue;
+        if (txVoting_it->second.size() > 0) // voting isn't empty
+            return true;
     }
-    return found;
+    return false;
 }
 
 bool CDposVoter::wasTxLost(TxId txid) const
@@ -702,11 +711,15 @@ bool CDposVoter::wasTxLost(TxId txid) const
 
 bool CDposVoter::checkRoundStalemate(const CRoundVotingDistribution& stats) const
 {
+    assert(numOfVoters > 0);
     assert(minQuorum <= numOfVoters);
     const size_t totus = stats.totus();
     const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
 
-    const auto best_it = std::max_element(stats.pro.begin(), stats.pro.end());
+    const auto best_it = std::max_element(stats.pro.begin(), stats.pro.end(),
+                                          [](const std::pair<BlockHash, size_t>& p1, const std::pair<BlockHash, size_t>& p2) {
+        return p1.second < p2.second;
+    });
     const size_t nBest = (best_it != stats.pro.end()) ? best_it->second : 0;
 
     // no winner, and no winner possible
@@ -715,6 +728,7 @@ bool CDposVoter::checkRoundStalemate(const CRoundVotingDistribution& stats) cons
 
 bool CDposVoter::checkTxNotCommittable(const CTxVotingDistribution& stats) const
 {
+    assert(numOfVoters > 0);
     assert(minQuorum <= numOfVoters);
     const size_t totus = stats.totus();
     const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
@@ -727,7 +741,9 @@ void CDposVoter::filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Ro
 {
     for (auto it = txs_f.begin(); it != txs_f.end();) {
         const TxId txid = ArithToUint256(it->first);
-        const auto stats = calcTxVotingStats(txid, nRound);
+        auto stats = calcTxVotingStats(txid, nRound);
+        if (nRound == 0)
+            stats.abstinendi = 0;
 
         const bool notCommittable = checkTxNotCommittable(stats);
         const bool committed = stats.pro >= minQuorum;
@@ -743,7 +759,9 @@ void CDposVoter::filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nR
 {
     for (auto it = txs_f.begin(); it != txs_f.end();) {
         const TxId txid = it->first;
-        const auto stats = calcTxVotingStats(txid, nRound);
+        auto stats = calcTxVotingStats(txid, nRound);
+        if (nRound == 0) // round starts with 1, so we didn't accept any votes for round 0. yes/no votes could come from any round.
+            assert(stats.abstinendi == 0);
 
         const bool notCommittable = checkTxNotCommittable(stats);
         const bool committed = stats.pro >= minQuorum;

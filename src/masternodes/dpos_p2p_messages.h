@@ -25,6 +25,10 @@ public:
     uint256 subject;
     int8_t decision;
 
+    bool isStandardDecision() const {
+        return decision == Decision::YES || decision == Decision::PASS || decision == Decision::NO;
+    }
+
     ADD_SERIALIZE_METHODS;
 
     template<typename Stream, typename Operation>

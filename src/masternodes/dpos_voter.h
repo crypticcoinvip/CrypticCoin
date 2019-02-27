@@ -160,7 +160,7 @@ public:
     bool isCommittedTx(const CTransaction& tx) const;
     bool isTxApprovedByMe(const CTransaction& tx) const;
 
-private:
+protected:
     Output misbehavingErr(const std::string& msg) const;
     Output voteForTx(const CTransaction& tx);
 
@@ -183,11 +183,12 @@ private:
     bool checkTxNotCommittable(const CTxVotingDistribution& stats) const;
 
     /**
+     * @param nRound specifies a round to calc voting stats (including abstinendi). If 0, then drop abstinendi part
      * @return false if all my txs are either committed or not committable, or if one of my txs is missing
      */
     void filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Round nRound) const;
     void filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nRound) const;
-private:
+protected:
     CMasternode::ID me;
     BlockHash tip;
     Callbacks world;
