@@ -96,12 +96,12 @@ uint256 CHeartBeatMessage::getSignHash() const
 void CHeartBeatTracker::runTickerLoop()
 {
     CHeartBeatTracker tracker{};
-    time_t lastTime{GetTimeMillis()};
+    int64_t lastTime{GetTimeMillis()};
     tracker.startupTime = lastTime;
 
     while (true) {
         boost::this_thread::interruption_point();
-        const time_t currentTime{GetTimeMillis()};
+        const int64_t currentTime{GetTimeMillis()};
 
         if (currentTime - lastTime > tracker.getMinPeriod() * 2) {
             const CKey masternodeKey{getMasternodeKey()};
@@ -284,9 +284,9 @@ std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilte
         assert(chainActive[mn.activationHeight] != nullptr);
 
         const auto it{keyMessageMap.find(mnPair.first)};
-        const time_t previousTime{(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime)};
-        const time_t previousMaxTime{std::max(previousTime, chainActive[mn.activationHeight]->GetBlockTime() * 1000)};
-        const std::int64_t elapsed{GetTimeMicros() - previousMaxTime};
+        const int64_t previousTime{(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime)};
+        const int64_t previousMaxTime{std::max(previousTime, chainActive[mn.activationHeight]->GetBlockTime() * 1000)};
+        const int64_t elapsed{GetTimeMicros() - previousMaxTime};
 
         if ((elapsed < period.first && ageFilter == RECENTLY) ||
             (elapsed > period.second && ageFilter == OUTDATED) ||

@@ -89,6 +89,7 @@ bool checkIsTeamMember(const BlockHash& tipHash, const CKeyID& operatorKey)
     }
 
     if (height > 0) {
+        LogPrintf("%s: %d ~~~~ %s\n", __func__, height, operatorKey.GetHex());
         return pmasternodesview->IsTeamMember(height, operatorKey);
     }
 
@@ -198,9 +199,9 @@ CDposController& CDposController::getInstance()
 void CDposController::runEventLoop()
 {
     Round lastRound{0};
-    time_t lastTime{GetTimeMillis()};
-    time_t roundTime{lastTime};
-    time_t ibdPassedTime{lastTime};
+    int64_t lastTime{GetTimeMillis()};
+    int64_t roundTime{lastTime};
+    int64_t ibdPassedTime{lastTime};
     bool ibdPassed{false};
     const auto self{getController()};
     const Consensus::Params& params{Params().GetConsensus()};

@@ -73,7 +73,7 @@ private:
     ~CHeartBeatTracker();
 
 private:
-    time_t startupTime;
+    int64_t startupTime;
     MessageList messageList;
     std::map<CKeyID, MessageList::const_iterator> keyMessageMap;
     std::map<uint256, MessageList::const_iterator> hashMessageMap;
