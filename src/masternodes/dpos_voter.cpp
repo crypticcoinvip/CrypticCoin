@@ -416,6 +416,9 @@ CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId)
     auto stats = calcRoundVotingStats(nCurrentRound);
 
     if (stats.pro[viceBlockId] >= minQuorum) {
+        if (v[tip].viceBlocks.count(viceBlockId) == 0) {
+            return out;
+        }
         const auto& viceBlock = v[tip].viceBlocks[viceBlockId];
         if (viceBlock.nRound != nCurrentRound) {
             return out;
@@ -551,7 +554,7 @@ bool CDposVoter::wasVotedByMe_tx(TxId txid, Round nRound) const
 
 bool CDposVoter::wasVotedByMe_round(Round nRound) const
 {
-    return v[tip].roundVotes[nRound].count(me) > 0;
+    return v[tip].roundVotes.count(nRound) > 0 && v[tip].roundVotes[nRound].count(me) > 0;
 }
 
 CDposVoter::ApprovedByMeTxsList CDposVoter::listApprovedByMe_txs() const

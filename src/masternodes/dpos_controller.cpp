@@ -19,7 +19,6 @@ namespace dpos
 {
 CCriticalSection cs_dpos{};
 CDposController* dposControllerInstance_{nullptr};
-std::array<unsigned char, 16> salt_{0x4D, 0x48, 0x7A, 0x52, 0x5D, 0x4D, 0x37, 0x78, 0x42, 0x36, 0x5B, 0x64, 0x44, 0x79, 0x59, 0x4F};
 
 int computeBlockHeight(const BlockHash& blockHash)
 {
@@ -351,8 +350,8 @@ void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
     if (!findRoundVote(vote.GetHash())) {
         LOCK(cs_dpos);
 
+        this->receivedRoundVotes.emplace(vote.GetHash(), vote); // TODO move into voter
         if (acceptRoundVote(vote)) {
-            this->receivedRoundVotes.emplace(vote.GetHash(), vote);
             storeEntity(vote, &CDposDB::WriteRoundVote, vote.tip);
             relayEntity(vote, MSG_ROUND_VOTE);
         }
