@@ -89,7 +89,6 @@ bool checkIsTeamMember(const BlockHash& tipHash, const CKeyID& operatorKey)
     }
 
     if (height > 0) {
-        LogPrintf("%s: %d ~~~~ %s\n", __func__, height, operatorKey.GetHex());
         return pmasternodesview->IsTeamMember(height, operatorKey);
     }
 
@@ -203,7 +202,6 @@ void CDposController::runEventLoop()
     int64_t roundTime{lastTime};
     int64_t ibdPassedTime{lastTime};
     bool ibdPassed{false};
-    bool ibdLatched{false};
     const auto self{getController()};
     const Consensus::Params& params{Params().GetConsensus()};
 
@@ -216,8 +214,8 @@ void CDposController::runEventLoop()
             ibdPassed = true;
         }
 
-        if (!ibdLatched && ibdPassed && (now - ibdPassedTime > params.dpos.nDelayIBD * 1000)) {
-            ibdLatched = true;
+        if (!self->ready && ibdPassed && (now - ibdPassedTime > params.dpos.nDelayIBD * 1000)) {
+            self->ready = true;
             self->onChainTipUpdated(getTipHash());
         }
 
@@ -311,17 +309,19 @@ void CDposController::initialize()
 
 void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 {
-    const auto mnId{findMasternodeId()};
-    LOCK(cs_dpos);
+    if (ready) {
+        const auto mnId{findMasternodeId()};
+        LOCK(cs_dpos);
 
-    this->voter->updateTip(tipHash);
+        this->voter->updateTip(tipHash);
 
-    if (mnId != boost::none && !this->voter->checkAmIVoter()) {
-        LogPrintf("%s: Enabling dpos voter\n", __func__);
-        this->voter->setVoting(true, mnId.get());
-    } else if (this->voter->checkAmIVoter()) {
-        LogPrintf("%s: Disabling dpos voter\n", __func__);
-        this->voter->setVoting(false, CMasternode::ID{});
+        if (mnId != boost::none && !this->voter->checkAmIVoter()) {
+            LogPrintf("%s: Enabling dpos voter\n", __func__);
+            this->voter->setVoting(true, mnId.get());
+        } else if (mnId == boost::none && this->voter->checkAmIVoter()) {
+            LogPrintf("%s: Disabling dpos voter\n", __func__);
+            this->voter->setVoting(false, CMasternode::ID{});
+        }
     }
 }
 
@@ -540,14 +540,14 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                 CBlockToSubmit blockToSubmit{out.blockToSubmit.get()};
                 CBlock* pblock{&blockToSubmit.block};
                 const Round currentRound{getCurrentVotingRound()};
-
                 BlockHash blockHash = pblock->GetHash();
 
                 for (const auto& votePair : this->receivedRoundVotes) {
                     if (votePair.second.nRound == currentRound &&
                         votePair.second.choice.decision == CVoteChoice::Decision::YES &&
-                        votePair.second.choice.subject == blockHash) {
-
+                        votePair.second.choice.subject == blockHash &&
+                        extractMasternodeId(votePair.second) != boost::none)
+                    {
                         pblock->vSig.insert(pblock->vSig.end(),
                                             votePair.second.signature.begin(),
                                             votePair.second.signature.end());
