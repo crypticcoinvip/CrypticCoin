@@ -27,7 +27,7 @@ public:
     bool isEnabled() const;
     CValidationInterface* getValidator();
     void initialize();
-    void updateChainTip();
+    void onChainTipUpdated(const BlockHash& tipHash);
 
     Round getCurrentVotingRound() const;
 
@@ -36,9 +36,9 @@ public:
     void proceedRoundVote(const CRoundVote_p2p& vote);
     void proceedTxVote(const CTxVote_p2p& vote);
 
-    bool findViceBlock(const uint256& hash, CBlock* block = nullptr) const;
-    bool findRoundVote(const uint256& hash, CRoundVote_p2p* vote = nullptr) const;
-    bool findTxVote(const uint256& hash, CTxVote_p2p* vote = nullptr) const;
+    bool findViceBlock(const BlockHash& hash, CBlock* block = nullptr) const;
+    bool findRoundVote(const BlockHash& hash, CRoundVote_p2p* vote = nullptr) const;
+    bool findTxVote(const BlockHash& hash, CTxVote_p2p* vote = nullptr) const;
 
     std::vector<CBlock> listViceBlocks() const;
     std::vector<CRoundVote_p2p> listRoundVotes() const;
