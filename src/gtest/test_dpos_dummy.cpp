@@ -5,13 +5,13 @@
 namespace
 {
 
-void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds,
+void initVoters_dummy(std::vector<CMasternode::ID>& masternodeIds,
                       std::vector<dpos::CDposVoter>& voters,
                       BlockHash tip,
                       dpos::CDposVoter::Callbacks callbacks)
 {
     for (uint64_t i = 0; i < 32; i++) {
-        masternodeIds[i] = ArithToUint256(arith_uint256{i});
+        masternodeIds.emplace_back(ArithToUint256(arith_uint256{i}));
         voters.emplace_back(callbacks);
     }
 
@@ -42,7 +42,7 @@ TEST(dPoS, DummyEmptyBlock)
     };
 
     // Init voters
-    std::array<CMasternode::ID, 32> masternodeIds;
+    std::vector<CMasternode::ID> masternodeIds;
     std::vector<dpos::CDposVoter> voters;
     BlockHash tip = uint256S("0xB101");
     initVoters_dummy(masternodeIds, voters, tip, callbacks);
@@ -134,7 +134,7 @@ TEST(dPoS, DummyCommitTx)
     };
 
     // Init voters
-    std::array<CMasternode::ID, 32> masternodeIds;
+    std::vector<CMasternode::ID> masternodeIds;
     std::vector<dpos::CDposVoter> voters;
     BlockHash tip = uint256S("0xB101");
     initVoters_dummy(masternodeIds, voters, tip, callbacks);
@@ -167,7 +167,7 @@ TEST(dPoS, DummyCommitTx)
         ASSERT_EQ(res.vTxVotes.size(), i + 1);
         ASSERT_EQ(res.vTxVotes[i], voteWant);
 
-        const auto voter0out = voters[0].applyRoundVote(res.vTxVotes[i]);
+        const auto voter0out = voters[0].applyTxVote(res.vTxVotes[i]);
         ASSERT_TRUE(voter0out.empty());
         if (i == 23 - 1) {
             // final vote
@@ -185,6 +185,16 @@ TEST(dPoS, DummyCommitTx)
             ASSERT_TRUE(empty.empty());
         }
     }
+
+    // check finished txs are erased after change of tip
+    mtx.nLockTime = 1000;
+    voters[0].applyTx(CTransaction{mtx});
+
+    ASSERT_EQ(voters[0].txs.size(), 2);
+    voters[0].updateTip(uint256S("0xB102"));
+    ASSERT_EQ(voters[0].txs.size(), 1);
+    voters[0].updateTip(uint256S("0xB103"));
+    ASSERT_EQ(voters[0].txs.size(), 1);
 }
 
 TEST(dPoS, DummyRejectTx)
@@ -204,7 +214,7 @@ TEST(dPoS, DummyRejectTx)
     };
 
     // Init voters
-    std::array<CMasternode::ID, 32> masternodeIds;
+    std::vector<CMasternode::ID> masternodeIds;
     std::vector<dpos::CDposVoter> voters;
     BlockHash tip = uint256S("0xB101");
     initVoters_dummy(masternodeIds, voters, tip, callbacks);
