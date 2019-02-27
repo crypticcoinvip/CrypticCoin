@@ -2497,6 +2497,11 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
         LogPrintf("CheckDposSigs(): TOO MUCH SIGNATURES! DOUBLESIGN IS POSSIBLE! \n");
         return false;
     }
+    
+    if (pindex->nRound == 0) {
+        LogPrintf("CheckDposSigs(): malformed round number. It's not dPoS block. \n");
+        return false;
+    }
 
     assert(pindex->pprev != nullptr);
     dpos::CRoundVote_p2p roundVote;
