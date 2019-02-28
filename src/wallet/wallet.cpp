@@ -2925,7 +2925,9 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
             if (nDepth < 0)
                 continue;
 
-            if (pmasternodesview->ExistMasternode(wtxid))
+            auto node = pmasternodesview->ExistMasternode(wtxid);
+            // check for MN exists and 'not dismissed yet' (instead of just 'active'!)
+            if (node && node->deadSinceHeight == -1)
                 continue;
 
             for (unsigned int i = 0; i < pcoin->vout.size(); i++) {

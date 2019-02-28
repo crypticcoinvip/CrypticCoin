@@ -116,7 +116,7 @@ public:
 
         READWRITE(height);
         READWRITE(minActivationHeight);
-        READWRITE(activationHeight);    //! totally unused!!!
+        READWRITE(activationHeight);
         READWRITE(deadSinceHeight);
 
         READWRITE(activationTx);

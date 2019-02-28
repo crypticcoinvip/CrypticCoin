@@ -259,7 +259,7 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     std::string const operatorAuthAddressBase58 = metaObj["operatorAuthAddress"].getValStr();
     std::string const ownerRewardAddress =        metaObj["ownerRewardAddress"].getValStr();
 
-    std::string const operatorRewardAddress =     metaObj["operatorRewardAddress"].getValStr();
+    std::string const operatorRewardAddress =     metaObj["operatorRewardAddress"].getValStr().empty() ? ownerRewardAddress : metaObj["operatorRewardAddress"].getValStr();
     int32_t     const operatorRewardRatio =       metaObj["operatorRewardRatio"].isNull() ? 0 : AmountFromValue(metaObj["operatorRewardRatio"]) * MN_BASERATIO / COIN;
     std::string       collateralAddress =         metaObj["collateralAddress"].getValStr();
 
@@ -317,9 +317,9 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "ownerRewardAddress does not refer to a P2PKH or P2SH address");
     }
-    // Optional
+    // Optional (=ownerRewardAddress if empty)
     CTxDestination operatorRewardDest = DecodeDestination(operatorRewardAddress);
-    if (!operatorRewardAddress.empty() && operatorRewardDest.which() != 1 && operatorRewardDest.which() != 2)
+    if (operatorRewardDest.which() != 1 && operatorRewardDest.which() != 2)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardAddress does not refer to a P2PKH or P2SH address");
     }
@@ -813,7 +813,7 @@ UniValue listmns(UniValue const & params, bool fHelp)
     );
     EnsureSaplingUpgrade();
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
 
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     for (auto it = mns.begin(); it != mns.end(); ++it)
@@ -830,7 +830,7 @@ UniValue listactivemns(UniValue const & params, bool fHelp)
     );
     EnsureSaplingUpgrade();
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
 
     CActiveMasternodes const & mns = pmasternodesview->GetActiveMasternodes();
     for (auto const & mn : mns)
@@ -890,13 +890,13 @@ UniValue dumpmns(UniValue const & params, bool fHelp)
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
 
-    UniValue inputs(UniValue(UniValue::VARR));
+    UniValue inputs(UniValue::VARR);
     if (params.size() > 0)
     {
         inputs = params[0].get_array();
     }
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     if (inputs.empty())
     {
@@ -972,13 +972,13 @@ UniValue getdismissvotes(UniValue const & params, bool fHelp)
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
 
-    UniValue inputs(UniValue(UniValue::VARR));
+    UniValue inputs(UniValue::VARR);
     if (params.size() > 0)
     {
         inputs = params[0].get_array();
     }
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     if (inputs.empty())
     {

@@ -404,6 +404,7 @@ bool CMasternodesView::OnMasternodeActivate(uint256 const & txid, uint256 const 
     }
 
     node.activationTx = txid;
+    node.activationHeight = height;
     activeNodes.insert(nodeId);
 
     txsUndo.insert(std::make_pair(txid, std::make_pair(nodeId, MasternodesTxType::ActivateMasternode)));
@@ -659,6 +660,8 @@ bool CMasternodesView::OnUndo(uint256 const & txid)
                 CMasternode & node = allNodes.at(id);
 
                 node.activationTx = uint256();
+                node.activationHeight = -1;
+
                 activeNodes.erase(id);
 
                 db.WriteMasternode(id, node);
