@@ -376,6 +376,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
             "  \"pooledtx\": n              (numeric) The size of the mem pool\n"
             "  \"testnet\": true|false      (boolean) If using testnet or not\n"
             "  \"chain\": \"xxxx\",         (string) current network name as defined in BIP70 (main, test, regtest)\n"
+            "  \"dpos\": true|false         (boolean) If dPoS enabled\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getmininginfo", "")
@@ -398,6 +399,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("pooledtx",         (uint64_t)mempool.size()));
     obj.push_back(Pair("testnet",          Params().TestnetToBeDeprecatedFieldRPC()));
     obj.push_back(Pair("chain",            Params().NetworkIDString()));
+    obj.push_back(Pair("dpos",             dpos::getController()->isEnabled());
 #ifdef ENABLE_MINING
     obj.push_back(Pair("generate",         getgenerate(params, false)));
 #endif
