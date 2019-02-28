@@ -63,8 +63,6 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             txs = self.nodes[n].list_instant_transactions()
             assert_equal(len(txs), 1)
             assert_equal(txs[0]["hash"], tx)
-            print("wait for input to generate next block")
-            sys.stdin.readline()
             self.nodes[reversed_idx].generate(1)
             time.sleep(1)
             self.sync_all()
@@ -79,13 +77,13 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             blockCount = self.nodes[n].getblockcount()
             reversed_idx = self.num_nodes - n - 1
             to_address = self.nodes[reversed_idx].getnewaddress()
-            rawtx = self.create_transaction(n, to_address, 25.25, True)
-            sigtx = self.nodes[n].signrawtransaction(rawtx)
-            self.nodes[n].sendrawtransaction(sigtx["hex"])
+            tx = self.create_transaction(n, to_address, 25.25, True)
             self.nodes[n].sendtoaddress(self.operators[reversed_idx], 30.3)
-            time.sleep(1)
+            time.sleep(2)
             self.sync_all()
-            assert_equal(len(node.list_instant_transactions()), 1)
+            txs = self.nodes[n].list_instant_transactions()
+            assert_equal(len(txs), 1)
+            assert_equal(txs[0]["hash"], tx)
             self.nodes[reversed_idx].generate(1)
             time.sleep(1)
             self.sync_all()
@@ -95,6 +93,16 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         for node in self.nodes:
             assert_equal(node.getblockcount(), 351)
 
+    def check_restart(self):
+        vblocks = [node.listdposviceblocks() for node in self.nodes]
+        rdvotes = [node.listdposroundvotes() for node in self.nodes]
+        txvotes = [node.listdpostxvotes() for node in self.nodes]
+        self.stop_nodes()
+        self.start_nodes()
+        assert_equal(vblocks, [node.listdposviceblocks() for node in self.nodes])
+        assert_equal(rdvotes, [node.listdposroundvotes() for node in self.nodes])
+        assert_equal(txvotes, [node.listdpostxvotes() for node in self.nodes])
+
     def run_test(self):
         super(dPoS_PositiveTest, self).run_test()
         print("Creating masternodes")
@@ -103,21 +111,18 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         print("Checking block generation with no txs")
         self.check_no_txs()
         self.check_balances(NOTXS_BALANCES)
-#        print("Checking block generation with PoW txs")
-#        self.check_pow_txs()
-#        self.check_balances(POWTXS_BALANCES)
+        print("Checking block generation with PoW txs")
+        self.check_pow_txs()
+        self.check_balances(POWTXS_BALANCES)
         print("Checking block generation with dPoS txs")
         self.check_dpos_txs()
-        self.check_balances(DPOSTXS_BALANCESv)
+        self.check_balances(DPOSTXS_BALANCES)
         print("Checking block generation with PoW and dPoS txs")
         self.check_mix_txs()
         self.check_balances(MIXTXS_BALANCES)
 
-        for node in self.nodes:
-            print(node.listdposviceblocks())
-            print(node.listdposroundvotes())
-            print(node.listdpostxvotes())
-        self.stop_nodes()
+        print("Checking restart")
+        self.check_restart()
 
 if __name__ == '__main__':
     dPoS_PositiveTest().main()

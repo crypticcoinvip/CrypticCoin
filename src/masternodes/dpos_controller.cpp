@@ -659,26 +659,26 @@ bool CDposController::checkStalemate(const Round round)
 void CDposController::removeOldVotes()
 {
     LOCK2(cs_main, cs_dpos);
-//    const auto tipHeight{computeBlockHeight(chainActive.Tip()->GetBlockHash())};
+    const auto tipHeight{computeBlockHeight(chainActive.Tip()->GetBlockHash())};
 
-//    for (const auto& pair: this->receivedRoundVotes) {
-//        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
-//            this->receivedRoundVotes.erase(pair.first);
-//            pdposdb->EraseRoundVote(pair.second.tip);
-//        }
-//    }
-//    for (const auto& pair: this->receivedTxVotes) {
-//        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
-//            this->receivedRoundVotes.erase(pair.first);
-//            pdposdb->EraseTxVote(pair.second.tip);
-//        }
-//    }
+    for (const auto& pair: this->receivedRoundVotes) {
+        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
+            this->receivedRoundVotes.erase(pair.first);
+            pdposdb->EraseRoundVote(pair.second.tip);
+        }
+    }
+    for (const auto& pair: this->receivedTxVotes) {
+        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
+            this->receivedRoundVotes.erase(pair.first);
+            pdposdb->EraseTxVote(pair.second.tip);
+        }
+    }
 
-//    for (const auto& pair: this->voter->v) {
-//        if (tipHeight - computeBlockHeight(pair.first, 100) > 100) {
-//            pdposdb->EraseViceBlock(pair.first);
-//        }
-//    }
+    for (const auto& pair: this->voter->v) {
+        if (tipHeight - computeBlockHeight(pair.first, 100) > 100) {
+            pdposdb->EraseViceBlock(pair.first);
+        }
+    }
 }
 
 std::vector<TxId> CDposController::getTxsFilter() const
