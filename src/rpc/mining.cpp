@@ -859,7 +859,7 @@ UniValue estimatefee(const UniValue& params, bool fHelp)
             "\nResult:\n"
             "n :    (numeric) estimated fee-per-kilobyte\n"
             "\n"
-            "-1.0 is returned if not enough transactions and\n"
+            "default minimum fee is returned if not enough transactions and\n"
             "blocks have been observed to make an estimate.\n"
             "\nExample:\n"
             + HelpExampleCli("estimatefee", "6")
@@ -873,9 +873,30 @@ UniValue estimatefee(const UniValue& params, bool fHelp)
 
     CFeeRate feeRate = mempool.estimateFee(nBlocks);
     if (feeRate == CFeeRate(0))
-        return -1.0;
+        feeRate = minRelayTxFee;
 
     return ValueFromAmount(feeRate.GetFeePerK());
+}
+
+UniValue instant_estimatefee(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "estimatefee nblocks\n"
+            "\nEstimates the approximate fee per kilobyte\n"
+            "needed for a instant transaction\n"
+            "\nResult:\n"
+            "n :    (numeric) estimated fee-per-kilobyte\n"
+            "\n"
+            "\nExample:\n"
+            + HelpExampleCli("instant_estimatefee", "6"));
+    }
+
+    CFeeRate feeRate = mempool.estimateFee(1);
+    if (feeRate == CFeeRate(0))
+        feeRate = minRelayTxFee;
+
+    return ValueFromAmount(feeRate.GetFeePerK() * 10);
 }
 
 UniValue estimatepriority(const UniValue& params, bool fHelp)
@@ -961,6 +982,7 @@ static const CRPCCommand commands[] =
 
     { "util",               "estimatefee",            &estimatefee,            true  },
     { "util",               "estimatepriority",       &estimatepriority,       true  },
+    { "util",               "instant_estimatefee",    &instant_estimatefee,    true  },
 };
 
 void RegisterMiningRPCCommands(CRPCTable &tableRPC)
