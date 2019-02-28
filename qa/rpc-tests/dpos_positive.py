@@ -13,55 +13,103 @@ from test_framework.util import \
     assert_equal, \
     assert_greater_than
 
-INITIAL_BALANCES = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
-POW_BALANCES = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
+INITIAL_BALANCES    = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
+NOTXS_BALANCES      = [24997, 21250, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
+POWTXS_BALANCES     = [23447, 26874, 21249, 18747, 18372, 16874, 16874, 14997, 14997, 14997]
+DPOSTXS_BALANCES    = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
+MIXTXS_BALANCES     = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
 
 class dPoS_PositiveTest(dPoS_BaseTest):
     def check_balances(self, balances):
         for n in range(self.num_nodes):
+            print(int(self.nodes[n].getbalance() * 100))
+        for n in range(self.num_nodes):
             assert_equal(int(self.nodes[n].getbalance() * 100), balances[n])
 
     def check_no_txs(self):
-        n = 0
-        for node in self.nodes:
-            print(n, node.getblockcount())
-            node.generate(1)
-            time.sleep(3)
+        for n in range(self.num_nodes):
+            blockCount = self.nodes[n].getblockcount()
+            self.nodes[n].generate(1)
+            time.sleep(1)
             self.sync_all()
-            n = n + 1
+            blockCount = blockCount + 1
+            for node in self.nodes:
+                assert_equal(node.getblockcount(), blockCount)
         for node in self.nodes:
-            assert_equal(self.getblockcount(), 321)
+            assert_equal(node.getblockcount(), 321)
 
     def check_pow_txs(self):
         for n in range(self.num_nodes):
-            reversed_idx = self.num_nodes - i - 1
-            node.sendtoaddress(self.operators[reversed_idx], 5)
+            blockCount = self.nodes[n].getblockcount()
+            reversed_idx = self.num_nodes - n - 1
+            self.nodes[n].sendtoaddress(self.operators[reversed_idx], 15.5)
             self.nodes[reversed_idx].generate(1)
+            time.sleep(2)
             self.sync_all()
+            blockCount = blockCount + 1
+            for node in self.nodes:
+                assert_equal(node.getblockcount(), blockCount)
         for node in self.nodes:
-            assert_equal(self.getblockcount(), 331)
-        for n in range(self.num_nodes):
-            print(int(self.nodes[n].getbalance() * 100))
+            assert_equal(node.getblockcount(), 331)
 
     def check_dpos_txs(self):
-        pass
+        for n in range(self.num_nodes):
+            blockCount = self.nodes[n].getblockcount()
+            reversed_idx = self.num_nodes - n - 1
+            to_address = self.nodes[reversed_idx].getnewaddress()
+            rawtx = self.create_transaction(n, to_address, 20.2, True)
+            sigtx = self.nodes[n].signrawtransaction(rawtx)
+            self.nodes[i].sendrawtransaction(sigtx["hex"])
+            time.sleep(1)
+            self.sync_all()
+            assert_equal(len(node.list_instant_transactions()), 1)
+            self.nodes[reversed_idx].generate(1)
+            time.sleep(1)
+            self.sync_all()
+            blockCount = blockCount + 1
+            for node in self.nodes:
+                assert_equal(node.getblockcount(), blockCount)
+        for node in self.nodes:
+            assert_equal(node.getblockcount(), 341)
 
     def check_mix_txs(self):
-        pass
+        for n in range(self.num_nodes):
+            blockCount = self.nodes[n].getblockcount()
+            reversed_idx = self.num_nodes - n - 1
+            to_address = self.nodes[reversed_idx].getnewaddress()
+            rawtx = self.create_transaction(n, to_address, 25.25, True)
+            sigtx = self.nodes[n].signrawtransaction(rawtx)
+            self.nodes[i].sendrawtransaction(sigtx["hex"])
+            self.nodes[n].sendtoaddress(self.operators[reversed_idx], 30.3)
+            time.sleep(1)
+            self.sync_all()
+            assert_equal(len(node.list_instant_transactions()), 1)
+            self.nodes[reversed_idx].generate(1)
+            time.sleep(1)
+            self.sync_all()
+            blockCount = blockCount + 1
+            for node in self.nodes:
+                assert_equal(node.getblockcount(), blockCount)
+        for node in self.nodes:
+            assert_equal(node.getblockcount(), 351)
 
     def run_test(self):
         super(dPoS_PositiveTest, self).run_test()
         print("Creating masternodes")
         mns = self.create_masternodes([0, 3, 4, 7, 8, 9])
-        self.check_balances(INITIAL_BALANCES)
+#        self.check_balances(INITIAL_BALANCES)
         print("Checking block generation with no txs")
         self.check_no_txs()
+        self.check_balances(NOTXS_BALANCES)
         print("Checking block generation with PoW txs")
         self.check_pow_txs()
+        self.check_balances(POWTXS_BALANCES)
         print("Checking block generation with dPoS txs")
         self.check_dpos_txs()
+        self.check_balances(DPOSTXS_BALANCESv)
         print("Checking block generation with PoW and dPoS txs")
         self.check_mix_txs()
+        self.check_balances(MIXTXS_BALANCES)
 
         for node in self.nodes:
             print(node.listdposviceblocks())

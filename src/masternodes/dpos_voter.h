@@ -96,6 +96,13 @@ public:
         std::map<Round, std::map<CMasternode::ID, CRoundVote> > roundVotes;
 
         std::map<BlockHash, CBlock> viceBlocks;
+
+        bool isNull() const
+        {
+            return txVotes.empty() &&
+                   roundVotes.empty() &&
+                   viceBlocks.empty();
+        }
     };
 
     /**
@@ -147,6 +154,7 @@ public:
      */
     Output onRoundTooLong();
 
+    const BlockHash & getTip() const;
     bool checkAmIVoter() const;
     Round getCurrentRound() const;
 

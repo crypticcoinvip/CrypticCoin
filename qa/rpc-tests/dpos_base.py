@@ -14,7 +14,8 @@ from test_framework.util import \
     stop_nodes, \
     initialize_chain, \
     connect_nodes_bi, \
-    wait_bitcoinds
+    wait_bitcoinds, \
+    gather_inputs
 
 class dPoS_BaseTest(BitcoinTestFramework):
     def add_options(self, parser):
@@ -131,6 +132,9 @@ class dPoS_BaseTest(BitcoinTestFramework):
                     "collateralAddress": collateral
                 })
             rv.append(idnode)
+        for n in range(self.num_nodes):
+            if n not in indexes:
+                assert_equal(rv[n], None)
 
         # Sending some coins for auth
         for i in indexes:
@@ -166,6 +170,12 @@ class dPoS_BaseTest(BitcoinTestFramework):
         for node in self.nodes:
             assert_equal(node.getblockcount(), 200 + 10 * self.num_nodes + self.num_nodes + 1)
         return rv
+
+    def create_transaction(self, node_idx, to_address, amount, instantly):
+        node = self.nodes[node_idx]
+        (total_in, inputs) = gather_inputs(node, amount)
+        outputs = { to_address : amount - amount * 0.0002 }
+        return node.createrawtransaction(inputs, outputs, 0, node.getblockcount() + 21, instantly)
 
     def run_test(self):
         assert_equal(self.num_nodes, 10)
