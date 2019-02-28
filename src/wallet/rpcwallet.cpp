@@ -4075,6 +4075,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     // Contextual transaction we will build on
     // (used if no Sapling addresses are involved)
     CMutableTransaction contextualTx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextBlockHeight);
+    contextualTx.fInstant = fInstant;
     bool isShielded = !fromTaddr || zaddrRecipients.size() > 0;
     if (contextualTx.nVersion == 1 && isShielded) {
         contextualTx.nVersion = 2; // Tx format should support vjoinsplits 
