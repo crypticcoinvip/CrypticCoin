@@ -260,12 +260,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
             for (auto&& tx : commitedList) {
                 assert(tx.fInstant);
-                // We don't check the committed txs here because we don't have a choice to not to include them anyway
-                // They will be checked at block connection
-                UpdateCoins(tx, view, nHeight);
-                for (const OutputDescription &outDescription : tx.vShieldedOutput) {
-                    sapling_tree.append(outDescription.cm);
-                }
 
                 ++nBlockTx;
 
@@ -282,6 +276,13 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
                 pblocktemplate->vTxFees.push_back(nTxFees);
                 pblocktemplate->vTxSigOps.push_back(nTxSigOps);
+
+                // We don't check the committed txs here because we don't have a choice to not to include them anyway
+                // They will be checked at block connection
+                UpdateCoins(tx, view, nHeight);
+                for (const OutputDescription &outDescription : tx.vShieldedOutput) {
+                    sapling_tree.append(outDescription.cm);
+                }
             }
         }
 

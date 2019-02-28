@@ -860,6 +860,7 @@ std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAm
     }
 
     CAmount const dposReward_one = ((totalBlockSubsidy * GetDposBlockSubsidyRatio()) / MN_BASERATIO) / team.size();
+    CAmount dposReward = 0;
 
     for (auto it = team.begin(); it != team.end(); ++it)
     {
@@ -880,6 +881,7 @@ std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAm
             if (!out.IsDust(::minRelayTxFee))
             {
                 result.push_back(out);
+                dposReward += ownerReward+operatorReward;
             }
         }
         else
@@ -888,11 +890,13 @@ std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAm
             if (!outOwner.IsDust(::minRelayTxFee))
             {
                 result.push_back(outOwner);
+                dposReward += ownerReward;
             }
             CTxOut outOperator(operatorReward, node.operatorRewardAddress);
             if (!outOperator.IsDust(::minRelayTxFee))
             {
                 result.push_back(outOperator);
+                dposReward += operatorReward;
             }
         }
     }
@@ -901,7 +905,7 @@ std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAm
     {
         return UintToArith256(lhs.GetHash()) < UintToArith256(rhs.GetHash());
     });
-    return {result, dposReward_one * team.size()};
+    return {result, dposReward};
 }
 
 uint32_t CMasternodesView::GetMinDismissingQuorum()
