@@ -3964,6 +3964,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     int nextBlockHeight = chainActive.Height() + 1;
     CMutableTransaction mtx;
     mtx.fOverwintered = true;
+    mtx.fInstant = fInstant;
     mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
     mtx.nVersion = SAPLING_TX_VERSION;
     unsigned int max_tx_size = MAX_TX_SIZE_AFTER_SAPLING;
