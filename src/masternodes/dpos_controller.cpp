@@ -208,7 +208,7 @@ void CDposController::runEventLoop()
     int64_t roundTime{lastTime};
     int64_t ibdPassedTime{lastTime};
     bool ibdPassed{false};
-    const auto self{getController()};
+    CDposController* self{getController()};
     const Consensus::Params& params{Params().GetConsensus()};
 
     while (true) {
@@ -228,16 +228,13 @@ void CDposController::runEventLoop()
         if (now - roundTime > params.dpos.nStalemateTimeout * 1000) {
             const Round currentRound{self->getCurrentVotingRound()};
 
-            if (lastRound > 0 && currentRound > 0 && lastRound == currentRound) {
+            if (lastRound > 0 &&
+                currentRound > 0 &&
+                lastRound == currentRound &&
+                self->checkStalemate(currentRound))
+            {
                 LOCK(cs_dpos);
-                LogPrintf("%s: check stalemate for tip %s and round %d\n",
-                          __func__,
-                          self->voter->getTip().GetHex(),
-                          currentRound);
-                const auto it{self->voter->v.find(self->voter->getTip())};
-                if (it != self->voter->v.end() && !it->second.isNull()) {
-                    self->handleVoterOutput(self->voter->onRoundTooLong());
-                }
+                self->handleVoterOutput(self->voter->onRoundTooLong());
             }
 
             roundTime = now;
@@ -276,7 +273,7 @@ CValidationInterface* CDposController::getValidator()
     return this->validator.get();
 }
 
-void CDposController::initialize()
+void CDposController::loadDB()
 {
     assert(pdposdb != nullptr);
 
@@ -629,6 +626,34 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
     }
 
     return rv;
+}
+
+bool CDposController::checkStalemate(const Round round)
+{
+//    const auto committedTxs{self->listCommittedTxs()};
+//    const std::set<TxId> committedTxHashes{committedTxs.begin(), committedTxs.end()};
+
+    LOCK(cs_dpos);
+    const auto itV{this->voter->v.find(this->voter->getTip())};
+    LogPrintf("%s: check stalemate for tip %s and round %d\n",
+              __func__,
+              this->voter->getTip().GetHex(),
+              round);
+    if (itV != this->voter->v.end() && !itV->second.isNull()) {
+        /** check that voter has some round votes for current tip */
+        return itV->second.roundVotes.find(round) != itV->second.roundVotes.end();
+//        const auto itT{itV->second.txVotes.find(round)};
+//        if (itT != itV->second.txVotes.end()) {
+//            for (const auto& pair : itT->second) {
+//                if (committedTxHashes.find(pair.first) == committedTxHashes.end()) {
+//                    /** voter has tx-votes for uncommitted transaction */
+//                    return true;
+//                }
+//            }
+//        }
+    }
+
+    return false;
 }
 
 void CDposController::removeOldVotes()

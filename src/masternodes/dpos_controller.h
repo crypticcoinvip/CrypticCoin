@@ -26,7 +26,7 @@ public:
 
     bool isEnabled() const;
     CValidationInterface* getValidator();
-    void initialize();
+    void loadDB();
     void onChainTipUpdated(const BlockHash& tipHash);
 
     Round getCurrentVotingRound() const;
@@ -58,6 +58,7 @@ private:
     bool handleVoterOutput(const CDposVoterOutput& out);
     bool acceptRoundVote(const CRoundVote_p2p& vote);
     bool acceptTxVote(const CTxVote_p2p& vote);
+    bool checkStalemate(const Round round);
 
     void removeOldVotes();
 
