@@ -106,6 +106,8 @@ void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
 
 void CDposVoter::updateTip(BlockHash tip)
 {
+    LogPrintf("%s: Change current tip from %s to %s\n", __func__, this->tip.GetHex(), tip.GetHex());
+
     // tip is changed not first time. TODO filter only after N blocks. store txs to clear here
     if (this->tip != BlockHash{} && this->tip != tip)
         filterFinishedTxs(this->txs, 0);
@@ -495,7 +497,7 @@ CDposVoter::Output CDposVoter::onRoundTooLong()
     }
     const Round nRound = getCurrentRound();
     Output out{};
-    LogPrintf("%s \n", __func__);
+    LogPrintf("%s: %d\n", __func__, nRound);
     if (!wasVotedByMe_round(nRound)) {
         CRoundVote newVote{};
         newVote.voter = me;
@@ -507,6 +509,11 @@ CDposVoter::Output CDposVoter::onRoundTooLong()
         out += applyRoundVote(newVote);
     }
     return out;
+}
+
+const BlockHash& CDposVoter::getTip() const
+{
+    return this->tip;
 }
 
 bool CDposVoter::checkAmIVoter() const
