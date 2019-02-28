@@ -498,6 +498,9 @@ CDposVoter::Output CDposVoter::onRoundTooLong()
     if (!amIvoter) {
         return {};
     }
+    if (v[tip].isNull()) {
+        return {};
+    }
     const Round nRound = getCurrentRound();
     Output out{};
     LogPrintf("%s: %d\n", __func__, nRound);

@@ -14,7 +14,6 @@
 #include "../snark/libsnark/common/utils.hpp"
 #include <mutex>
 #include <future>
-#include <boost/thread.hpp>
 
 namespace dpos
 {
@@ -229,11 +228,7 @@ void CDposController::runEventLoop()
         if (now - roundTime > params.dpos.nStalemateTimeout * 1000) {
             const Round currentRound{self->getCurrentVotingRound()};
 
-            if (lastRound > 0 &&
-                currentRound > 0 &&
-                lastRound == currentRound &&
-                self->checkStalemate(currentRound))
-            {
+            if (currentRound > 0 && lastRound == currentRound) {
                 LOCK2(cs_main, cs_dpos);
                 self->handleVoterOutput(self->voter->onRoundTooLong());
             }
@@ -649,34 +644,6 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
     }
 
     return rv;
-}
-
-bool CDposController::checkStalemate(const Round round)
-{
-//    const auto committedTxs{self->listCommittedTxs()};
-//    const std::set<TxId> committedTxHashes{committedTxs.begin(), committedTxs.end()};
-
-    LOCK(cs_dpos);
-    const auto itV{this->voter->v.find(this->voter->getTip())};
-    LogPrintf("%s: check stalemate for tip %s and round %d\n",
-              __func__,
-              this->voter->getTip().GetHex(),
-              round);
-    if (itV != this->voter->v.end() && !itV->second.isNull()) {
-        /** check that voter has some round votes for current tip */
-        return itV->second.roundVotes.find(round) != itV->second.roundVotes.end();
-//        const auto itT{itV->second.txVotes.find(round)};
-//        if (itT != itV->second.txVotes.end()) {
-//            for (const auto& pair : itT->second) {
-//                if (committedTxHashes.find(pair.first) == committedTxHashes.end()) {
-//                    /** voter has tx-votes for uncommitted transaction */
-//                    return true;
-//                }
-//            }
-//        }
-    }
-
-    return false;
 }
 
 void CDposController::removeOldVotes()
