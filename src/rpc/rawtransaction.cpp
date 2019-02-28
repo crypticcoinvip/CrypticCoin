@@ -149,7 +149,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
 {
     entry.push_back(Pair("txid", tx.GetHash().GetHex()));
     entry.push_back(Pair("overwintered", tx.fOverwintered));
-    entry.push_back(Pair("instant", tx.fInstant));
+    entry.push_back(Pair("is_instant", tx.fInstant));
     entry.push_back(Pair("version", tx.nVersion));
     if (tx.fOverwintered) {
         entry.push_back(Pair("versiongroupid", HexInt(tx.nVersionGroupId)));

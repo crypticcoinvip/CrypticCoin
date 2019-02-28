@@ -84,6 +84,7 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 {
     int confirms = wtx.GetDepthInMainChain();
     entry.push_back(Pair("confirmations", confirms));
+    entry.push_back(Pair("is_instant", wtx.fInstant));
     if (wtx.IsCoinBase())
         entry.push_back(Pair("generated", true));
     if (confirms > 0)
@@ -2418,6 +2419,7 @@ UniValue listunspent(const UniValue& params, bool fHelp)
 
         UniValue entry(UniValue::VOBJ);
         entry.push_back(Pair("txid", out.tx->GetHash().GetHex()));
+        entry.push_back(Pair("is_instant", out.tx->fInstant));
         entry.push_back(Pair("vout", out.i));
         entry.push_back(Pair("generated", out.tx->IsCoinBase()));
 
