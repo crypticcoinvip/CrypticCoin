@@ -22,9 +22,7 @@ MIXTXS_BALANCES     = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 1
 class dPoS_PositiveTest(dPoS_BaseTest):
     def check_balances(self, balances):
         for n in range(self.num_nodes):
-            print(int(self.nodes[n].getbalance() * 100))
-#        for n in range(self.num_nodes):
-#            assert_equal(int(self.nodes[n].getbalance() * 100), balances[n])
+            assert_equal(int(self.nodes[n].getbalance() * 100), balances[n])
 
     def check_no_txs(self):
         for n in range(self.num_nodes):
@@ -120,7 +118,6 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         print("Checking block generation with PoW and dPoS txs")
         self.check_mix_txs()
         self.check_balances(MIXTXS_BALANCES)
-
         print("Checking restart")
         self.check_restart()
 

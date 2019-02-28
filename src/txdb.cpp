@@ -52,6 +52,33 @@ static const char DB_DPOS_TX_VOTES = 't';
 static const char DB_DPOS_ROUND_VOTES = 'p';
 static const char DB_DPOS_VICE_BLOCKS = 'b';
 
+namespace
+{
+    template<typename Key, typename Value>
+    void dbWrite(CDBWrapper * db, Key key, Value value, CDBBatch * batch, bool fsync = false)
+    {
+        assert(db != nullptr);
+
+        if (batch == nullptr) {
+            db->Write(key, value, fsync);
+        } else {
+            batch->Write(key, value);
+        }
+    }
+
+    template<typename Key>
+    void dbErase(CDBWrapper * db, Key key, CDBBatch * batch, bool fsync = false)
+    {
+        assert(db != nullptr);
+
+        if (batch == nullptr) {
+            db->Erase(key, fsync);
+        } else {
+            batch->Erase(key);
+        }
+    }
+}
+
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
 }
 
@@ -630,41 +657,35 @@ CDposDB::CDposDB(size_t nCacheSize, bool fMemory, bool fWipe) :
 {
 }
 
-void CDposDB::WriteViceBlock(const uint256& tip, const CBlock& block)
+void CDposDB::WriteViceBlock(const uint256& tip, const CBlock& block, CDBBatch* batch)
 {
-    CDBBatch batch{*this};
-    batch.Write(make_pair(DB_DPOS_VICE_BLOCKS, tip), block);
-}
-
-void CDposDB::EraseViceBlock(const uint256& tip)
-{
-    CDBBatch batch{*this};
-    batch.Erase(make_pair(DB_DPOS_VICE_BLOCKS, tip));
+    dbWrite(this, make_pair(DB_DPOS_VICE_BLOCKS, tip), block, batch);
 }
 
 
-void CDposDB::WriteRoundVote(const uint256& tip, const dpos::CRoundVote_p2p& vote)
+void CDposDB::WriteRoundVote(const uint256& tip, const dpos::CRoundVote_p2p& vote, CDBBatch* batch)
 {
-    CDBBatch batch{*this};
-    batch.Write(make_pair(DB_DPOS_ROUND_VOTES, tip), vote);
+    dbWrite(this, make_pair(DB_DPOS_ROUND_VOTES, tip), vote, batch);
 }
 
-void CDposDB::EraseRoundVote(const uint256& tip)
+void CDposDB::WriteTxVote(const uint256& tip, const dpos::CTxVote_p2p& vote, CDBBatch* batch)
 {
-    CDBBatch batch{*this};
-    batch.Erase(make_pair(DB_DPOS_ROUND_VOTES, tip));
+    dbWrite(this, make_pair(DB_DPOS_TX_VOTES, tip), vote, batch);
 }
 
-void CDposDB::WriteTxVote(const uint256& tip, const dpos::CTxVote_p2p& vote)
+void CDposDB::EraseViceBlock(const uint256& tip, CDBBatch* batch)
 {
-    CDBBatch batch{*this};
-    batch.Write(make_pair(DB_DPOS_TX_VOTES, tip), vote);
+    dbErase(this, make_pair(DB_DPOS_VICE_BLOCKS, tip), batch);
 }
 
-void CDposDB::EraseTxVote(const uint256& tip)
+void CDposDB::EraseRoundVote(const uint256& tip, CDBBatch* batch)
 {
-    CDBBatch batch{*this};
-    batch.Erase(make_pair(DB_DPOS_TX_VOTES, tip));
+    dbErase(this, make_pair(DB_DPOS_ROUND_VOTES, tip), batch);
+}
+
+void CDposDB::EraseTxVote(const uint256& tip, CDBBatch* batch)
+{
+    dbErase(this, make_pair(DB_DPOS_TX_VOTES, tip), batch);
 }
 
 bool CDposDB::LoadViceBlocks(std::function<void (const uint256&, const CBlock&)> onViceBlock)

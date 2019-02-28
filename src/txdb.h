@@ -161,14 +161,13 @@ public:
     CDposDB& operator=(const CDposDB&) = delete;
 
 public:
-    void WriteViceBlock(const uint256& tip, const CBlock& block);
-    void EraseViceBlock(const uint256& tip);
+    void WriteViceBlock(const uint256& tip, const CBlock& block, CDBBatch* batch = nullptr);
+    void WriteRoundVote(const uint256& tip, const dpos::CRoundVote_p2p& vote, CDBBatch* batch = nullptr);
+    void WriteTxVote(const uint256& tip, const dpos::CTxVote_p2p& vote, CDBBatch* batch = nullptr);
 
-    void WriteRoundVote(const uint256& tip, const dpos::CRoundVote_p2p& vote);
-    void EraseRoundVote(const uint256& tip);
-
-    void WriteTxVote(const uint256& tip, const dpos::CTxVote_p2p& vote);
-    void EraseTxVote(const uint256& tip);
+    void EraseViceBlock(const uint256& tip, CDBBatch* batch = nullptr);
+    void EraseRoundVote(const uint256& tip, CDBBatch* batch = nullptr);
+    void EraseTxVote(const uint256& tip, CDBBatch* batch = nullptr);
 
     bool LoadViceBlocks(std::function<void(const uint256&, const CBlock&)> onViceBlock);
     bool LoadRoundVotes(std::function<void(const uint256&, const dpos::CRoundVote_p2p&)> onRoundVote);

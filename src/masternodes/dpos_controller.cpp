@@ -175,7 +175,7 @@ void relayEntity(const T& entity, int type)
 template<typename T, typename StoreMethod>
 void storeEntity(const T& entity, StoreMethod storeMethod, const BlockHash& tipHash)
 {
-    (pdposdb->*storeMethod)(tipHash, entity);
+    (pdposdb->*storeMethod)(tipHash, entity, nullptr);
 }
 
 CDposController& CDposController::getInstance()
