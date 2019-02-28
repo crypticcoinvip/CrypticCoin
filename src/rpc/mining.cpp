@@ -399,7 +399,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("pooledtx",         (uint64_t)mempool.size()));
     obj.push_back(Pair("testnet",          Params().TestnetToBeDeprecatedFieldRPC()));
     obj.push_back(Pair("chain",            Params().NetworkIDString()));
-    obj.push_back(Pair("dpos",             dpos::getController()->isEnabled());
+    obj.push_back(Pair("dpos",             dpos::getController()->isEnabled()));
 #ifdef ENABLE_MINING
     obj.push_back(Pair("generate",         getgenerate(params, false)));
 #endif
