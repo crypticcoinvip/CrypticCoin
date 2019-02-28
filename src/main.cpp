@@ -1390,13 +1390,18 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     int nextBlockHeight = chainActive.Height() + 1;
     auto consensusBranchId = CurrentEpochBranchId(nextBlockHeight, Params().GetConsensus());
 
+    // omit input checks if it's dPoS-committed or approved by me
+    const dpos::CDposController* pDpos = dpos::getController();
+    assert(pDpos != nullptr);
+    const bool forced = tx.fInstant && pDpos->isCommittedTx(tx) && pDpos->isTxApprovedByMe(tx);
+
     // Node operator can choose to reject tx by number of transparent inputs
     static_assert(std::numeric_limits<size_t>::max() >= std::numeric_limits<int64_t>::max(), "size_t too small");
     size_t limit = (size_t) GetArg("-mempooltxinputlimit", 0);
     if (NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_OVERWINTER)) {
         limit = 0;
     }
-    if (limit > 0) {
+    if (!forced && limit > 0) {
         size_t n = tx.vin.size();
         if (n > limit) {
             LogPrint("mempool", "Dropping txid %s : too many transparent inputs %zu > limit %zu\n", tx.GetHash().ToString(), n, limit );
@@ -1417,7 +1422,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     // DoS mitigation: reject transactions expiring soon
     // Note that if a valid transaction belonging to the wallet is in the mempool and the node is shutdown,
     // upon restart, CWalletTx::AcceptToMemoryPool() will be invoked which might result in rejection.
-    if (IsExpiringSoonTx(tx, nextBlockHeight)) {
+    if (!forced && IsExpiringSoonTx(tx, nextBlockHeight)) {
         return state.DoS(0, error("AcceptToMemoryPool(): transaction is expiring soon"), REJECT_INVALID, "tx-expiring-soon");
     }
 
@@ -1428,7 +1433,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
 
     // Rather not work on nonstandard transactions (unless -testnet/-regtest)
     string reason;
-    if (Params().RequireStandard() && !IsStandardTx(tx, reason, nextBlockHeight))
+    if (!forced && Params().RequireStandard() && !IsStandardTx(tx, reason, nextBlockHeight))
         return state.DoS(0,
                          error("AcceptToMemoryPool: nonstandard transaction: %s", reason),
                          REJECT_NONSTANDARD, reason);
@@ -1445,31 +1450,33 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         return false;
 
     // Check for conflicts with in-memory transactions
+    if (!forced)
     {
-    LOCK(pool.cs); // protect pool.mapNextTx
-    for (unsigned int i = 0; i < tx.vin.size(); i++)
-    {
-        COutPoint outpoint = tx.vin[i].prevout;
-        if (pool.mapNextTx.count(outpoint))
+        LOCK(pool.cs); // protect pool.mapNextTx
+        for (unsigned int i = 0; i < tx.vin.size(); i++)
         {
-            // Disable replacement feature for now
-            return false;
+            COutPoint outpoint = tx.vin[i].prevout;
+            if (pool.mapNextTx.count(outpoint))
+            {
+                // Disable replacement feature for now
+                return false;
+            }
         }
-    }
-    BOOST_FOREACH(const JSDescription &joinsplit, tx.vjoinsplit) {
-        BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
-            if (pool.nullifierExists(nf, SPROUT)) {
+        BOOST_FOREACH(const JSDescription &joinsplit, tx.vjoinsplit) {
+            BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
+                if (pool.nullifierExists(nf, SPROUT)) {
+                    return false;
+                }
+            }
+        }
+        for (const SpendDescription &spendDescription : tx.vShieldedSpend) {
+            if (pool.nullifierExists(spendDescription.nullifier, SAPLING)) {
                 return false;
             }
         }
     }
-    for (const SpendDescription &spendDescription : tx.vShieldedSpend) {
-        if (pool.nullifierExists(spendDescription.nullifier, SAPLING)) {
-            return false;
-        }
-    }
-    }
 
+    if (!forced)
     {
         CCoinsView dummy;
         CCoinsViewCache view(&dummy);
@@ -2280,7 +2287,8 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, const CO
     return fClean;
 }
 
-bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool* pfClean)
+/// @todo @mn totally review 'mnview' uses (with batches and so on) on connect and disconnect
+bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CMasternodesView& mnview, bool* pfClean)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
 
@@ -2331,7 +2339,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             const CTxUndo &txundo = blockUndo.vtxundo[i-1];
             if (txundo.vprevout.size() != tx.vin.size())
             {
-                pmasternodesview->DropBatch();
+                mnview.DropBatch();
                 return error("DisconnectBlock(): transaction and undo data inconsistent");
             }
             for (unsigned int j = tx.vin.size(); j-- > 0;) {
@@ -2342,11 +2350,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             }
         }
         // process transaction revert for masternodes.
-//         if we are kicked out from this loop (with checks above), mnview will be spoiled. but it is safe, cause it will lead to reindexing
-        if (pfClean == nullptr)
-        {
-            pmasternodesview->OnUndo(hash);
-        }
+        mnview.OnUndo(hash);
     }
 
     // set the old best Sprout anchor back
@@ -2367,14 +2371,14 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     view.SetBestBlock(pindex->pprev->GetBlockHash());
 
     // fix masternodes view state
-    if (fClean && pfClean == nullptr)
+    if (fClean)
     {
-        pmasternodesview->WriteBatch();
+        mnview.CommitBatch();
     }
-//    else
-//    {
-//        pmasternodesview->DropBatch();
-//    }
+    else
+    {
+        mnview.DropBatch();
+    }
 
     if (pfClean) {
         *pfClean = fClean;
@@ -2478,8 +2482,8 @@ void PartitionCheck(bool (*initialDownloadCheck)(), CCriticalSection& cs, const 
     }
 }
 
-static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const BlockHash& prevBlockHash, const BlockHash& blockHash, dpos::Round nRound, size_t minQuorum, size_t teamSize) {
-    const size_t ecdsaSigSize = 65;
+static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIndex* pindex, size_t minQuorum, size_t teamSize, const CMasternodesView& mnview) {
+    const size_t ecdsaSigSize = CPubKey::COMPACT_SIGNATURE_SIZE;
     if ((sigs.size() % ecdsaSigSize) != 0) {
         LogPrintf("CheckDposSigs(): malformed signatures \n");
         return false;
@@ -2493,18 +2497,43 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const BlockHas
         LogPrintf("CheckDposSigs(): TOO MUCH SIGNATURES! DOUBLESIGN IS POSSIBLE! \n");
         return false;
     }
+    
+    if (pindex->nRound == 0) {
+        LogPrintf("CheckDposSigs(): malformed round number. It's not dPoS block. \n");
+        return false;
+    }
 
+    assert(pindex->pprev != nullptr);
     dpos::CRoundVote_p2p roundVote;
-    roundVote.tip = prevBlockHash;
-    roundVote.round = nRound;
-    roundVote.choice.subject = blockHash;
+    roundVote.tip = pindex->pprev->GetBlockHash();
+    roundVote.nRound = pindex->nRound;
+    roundVote.choice.subject = pindex->GetBlockHash();
     roundVote.choice.decision = dpos::CVoteChoice::Decision::YES;
 
     const uint256 hashToSign = roundVote.GetSignatureHash();
     std::set<CKeyID> knownSigs;
 
-    for (int i = 0; i < sigsSize; i++) {
-        // TODO check sigs
+    for (size_t i = 0; i < sigsSize; i++) {
+        std::vector<unsigned char> sig;
+        sig.reserve(ecdsaSigSize);
+        sig.insert(sig.begin(), sigs.begin() + i * ecdsaSigSize, sigs.begin() + (i + 1) * ecdsaSigSize);
+
+        CPubKey pubKey{};
+        if (!pubKey.RecoverCompact(hashToSign, sig)) {
+            LogPrintf("CheckDposSigs(): RecoverCompact failed, malformed ECDSA signature \n");
+            return false;
+        }
+        CKeyID operatorAuth = pubKey.GetID();
+        if (!mnview.IsTeamMember(pindex->nHeight - 1, operatorAuth)) {
+            LogPrintf("CheckDposSigs(): signed not by a team member \n");
+            return false;
+        }
+
+        if (knownSigs.count(operatorAuth) != 0) {
+            LogPrintf("CheckDposSigs(): the same signature is written twice \n");
+            return false;
+        }
+        knownSigs.insert(pubKey.GetID());
     }
 
     return true;
@@ -2516,13 +2545,13 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck, bool calledByVerifyDB, const DposValidationRules& dvr)
+/// @todo @mn totally review 'mnview' uses (with batches and so on) on connect and disconnect
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CMasternodesView& mnview, bool fJustCheck, const DposValidationRules& dvr)
 {
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
 
-    // checks only after sapling update
-    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindex->nHeight - 1).size();
+    const size_t nCurrentTeamSize = mnview.ReadDposTeam(pindex->nHeight - 1).size();
     const bool fDposActive = nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize;
 
     bool fExpensiveChecks = true;
@@ -2570,13 +2599,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     if (dvr.fCheckDposSigs)
     {
+        // dont mark block as invalid because vSig isn't hashed in block. An attacker may send wrong signatures to convince us that block is invalid
         if (!fDposActive && !block.vSig.empty())
-            return state.DoS(100, error("ConnectBlock(): didnt expect any dPoS signatures"),
-                             REJECT_INVALID, "bad-blk-dpos-sigs");
-        if (fDposActive && !CheckDposSigs(block.vSig, hashPrevBlock, block.GetHash(), block.nRoundNumber,
-                                             chainparams.GetConsensus().dpos.nMinQuorum, chainparams.GetConsensus().dpos.nTeamSize))
-            return state.DoS(100, error("ConnectBlock(): wrong dPoS signatures"),
-                             REJECT_INVALID, "bad-blk-dpos-sigs"); // TODO dont mark block as invalid
+            return state.Error("bad-blk-dpos-sigs");
+        auto dpos = chainparams.GetConsensus().dpos;
+        if (fDposActive && !CheckDposSigs(block.vSig, pindex, dpos.nMinQuorum, dpos.nTeamSize, mnview))
+            return state.Error("bad-blk-dpos-sigs");
     }
 
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
@@ -2589,6 +2617,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     int64_t nTimeStart = GetTimeMicros();
     CAmount nFees = 0;
+    CAmount nFees_inst = 0;
     int nInputs = 0;
     unsigned int nSigOps = 0;
     unsigned int nSigOps_inst = 0;
@@ -2662,19 +2691,17 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (fDposActive)
             {
                 // check txs order
-                if (tx.IsCoinBase())
-                {
-                    if (tx.fInstant)
+                if (tx.fInstant && tx.IsCoinBase()) // instant tx too early
                         return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
                                          REJECT_INVALID, "bad-blk-order");
-                }
-                if (i >= instSectionStart && !tx.fInstant)
-                {
-                    if (instSectionEnd != 0)
-                        return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
-                                         REJECT_INVALID, "bad-blk-order");
+                if (tx.fInstant && i < instSectionStart) // instant tx too early
+                    return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                     REJECT_INVALID, "bad-blk-order");
+                if (!tx.fInstant && i >= instSectionStart && instSectionEnd == 0) // not instant tx, then instant section is passed
                     instSectionEnd = i;
-                }
+                if (tx.fInstant && instSectionEnd != 0) // instant tx, but instant section is passed
+                    return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                     REJECT_INVALID, "bad-blk-order");
 
                 // check instant txs size, sigops
                 if (tx.fInstant)
@@ -2704,6 +2731,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (!tx.IsCoinBase())
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
+            if (tx.fInstant)
+                nFees_inst += view.GetValueIn(tx)-tx.GetValueOut();
 
             std::vector<CScriptCheck> vChecks;
             if (!ContextualCheckInputs(tx, state, view, fExpensiveChecks, flags, false, txdata[i], chainparams.GetConsensus(), consensusBranchId, nScriptCheckThreads ? &vChecks : NULL))
@@ -2732,6 +2761,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
+    if (instSectionEnd == 0) { // didn't meet !tx.fInstant => all the txs are instant
+        instSectionEnd = block.vtx.size();
+    }
 
     view.PushAnchor(sprout_tree);
     view.PushAnchor(sapling_tree);
@@ -2750,25 +2782,37 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
     }
 
-    int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
-    LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
+    // check instant txs are equal to the template
+    if (dvr.instantTxsTemplate) {
+        const size_t instTxsNum = instSectionEnd - instSectionStart;
+        if (instTxsNum != dvr.instantTxsTemplate->size())
+            return state.DoS(100, error("ConnectBlock(): wrong instant txs num"),
+                             REJECT_INVALID, "bad-blk-inst-txs-num");
 
-    // Checks dPos rewards
-    if (NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING))
-    {
-        /// @todo @mn replace dPosTransactionsFee with actual value
-        CAmount dPosTransactionsFee = 0;
-        CAmount ignoreReturnValue = GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
-        std::vector<CTxOut> rewards = pmasternodesview->CalcDposTeamReward(ignoreReturnValue, dPosTransactionsFee, pindex->nHeight);
-        if (!std::equal(rewards.rbegin(), rewards.rend(), block.vtx[0].vout.rbegin()))
-        {
-            return state.DoS(100,
-                             error("ConnectBlock(): coinbase pays incorrect dPos reward"),
-                                   REJECT_INVALID, "bad-cb-amount");
+        auto matchInstTx_it = dvr.instantTxsTemplate->begin();
+        for (size_t i = instSectionStart; i < instSectionEnd; i++) {
+            if (block.vtx[i] != matchInstTx_it->second)
+                return state.DoS(100, error("ConnectBlock(): wrong instant txs"),
+                                 REJECT_INVALID, "bad-blk-inst-txs");
+            matchInstTx_it++;
         }
     }
 
-    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
+    LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
+
+    // Checks dPoS rewards
+    const CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    if (fDposActive)
+    {
+        const auto rewards_p = mnview.CalcDposTeamReward(blockReward, nFees_inst, pindex->nHeight);
+        const bool sizeCheck = block.vtx[0].vout.size() >= rewards_p.first.size();
+        if (!sizeCheck || !std::equal(rewards_p.first.rbegin(), rewards_p.first.rend(), block.vtx[0].vout.rbegin()))
+            return state.DoS(100,
+                             error("ConnectBlock(): coinbase pays incorrect dPoS reward"),
+                                   REJECT_INVALID, "bad-cb-amount");
+    }
+
     if (block.vtx[0].GetValueOut() > blockReward)
         return state.DoS(100,
                          error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
@@ -2833,10 +2877,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
 
     // If we are here - everything is OK
-    if (!calledByVerifyDB)
-    {
-        ProcessMasternodeTxsOnConnect(block, pindex->nHeight);
-    }
+    ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight);
     return true;
 }
 
@@ -3017,7 +3058,7 @@ bool static DisconnectTip(CValidationState &state, bool fBare = false) {
     int64_t nStart = GetTimeMicros();
     {
         CCoinsViewCache view(pcoinsTip);
-        if (!DisconnectBlock(block, state, pindexDelete, view))
+        if (!DisconnectBlock(block, state, pindexDelete, view, *pmasternodesview))
         {
             pmasternodesview->DropBatch();
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
@@ -3101,7 +3142,7 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
     LogPrint("bench", "  - Load block from disk: %.2fms [%.2fs]\n", (nTime2 - nTime1) * 0.001, nTimeReadFromDisk * 0.000001);
     {
         CCoinsViewCache view(pcoinsTip);
-        bool rv = ConnectBlock(*pblock, state, pindexNew, view);
+        bool rv = ConnectBlock(*pblock, state, pindexNew, view, *pmasternodesview);
         GetMainSignals().BlockChecked(*pblock, state);
         if (!rv) {
             if (state.IsInvalid())
@@ -4002,9 +4043,13 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
     assert(pindexPrev == chainActive.Tip());
 
     CCoinsViewCache viewNew(pcoinsTip);
+    // Read-only copy of masternodesview. But anyway, it runs 'ConnectBlock' with 'justCheck' here
+    CMasternodesView mnview(*pmasternodesview);
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
     indexDummy.nHeight = pindexPrev->nHeight + 1;
+    uint256 blockHash = block.GetHash();
+    indexDummy.phashBlock = &blockHash;
     // JoinSplit proofs are verified in ConnectBlock
     auto verifier = libzcash::ProofVerifier::Disabled();
 
@@ -4015,7 +4060,7 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
         return false;
     if (!ContextualCheckBlock(block, state, pindexPrev))
         return false;
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, true, false, dvr))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, mnview, true, dvr))
         return false;
     assert(state.IsValid());
 
@@ -4373,6 +4418,8 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     LogPrintf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(coinsview);
+    /// @todo @mn replace with fake mnview
+    CMasternodesView mnview(*pmasternodesview);
     CBlockIndex* pindexState = chainActive.Tip();
     CBlockIndex* pindexFailure = NULL;
     int nGoodTransactions = 0;
@@ -4404,12 +4451,8 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
         // check level 3: check for inconsistencies during memory-only disconnect of tip blocks
         if (nCheckLevel >= 3 && pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage) {
             bool fClean = true;
-            if (!DisconnectBlock(block, state, pindex, coins, &fClean))
+            if (!DisconnectBlock(block, state, pindex, coins, mnview, &fClean))
             {
-                /// @todo @mn check if it is possible to DisconnectBlock() == true, but fClean == false ???
-                /// or this is all done 'in memory' and we should not take any changes at all??? I'm disappointed :(
-                /// update: if DisconnectBlock() called with pfClean (from VerifyDB) - it always retuns 'true'. false only on hard DB errors
-//                pmasternodesview->DropBatch();
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             }
             pindexState = pindex->pprev;
@@ -4435,7 +4478,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
             CBlock block;
             if (!ReadBlockFromDisk(block, pindex))
                 return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
-            if (!ConnectBlock(block, state, pindex, coins, false, true))
+            if (!ConnectBlock(block, state, pindex, coins, mnview, false))
                 return error("VerifyDB(): *** found unconnectable block at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         }
     }
@@ -6157,10 +6200,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     }
     else if (strCommand == "get_tx_votes") {
         std::vector<CInv> reply{};
-        std::vector<uint256> interestedTxs{};
-        uint256 tipHash{};
-        vRecv >> interestedTxs >> tipHash;
-        std::set<uint256> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
+        std::vector<TxId> interestedTxs{};
+        BlockHash tipHash{};
+        vRecv >> tipHash >> interestedTxs;
+        std::set<TxId> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
         LOCK(cs_main);
 
         if (chainActive.Tip()->GetBlockHash() == tipHash) {
@@ -6676,7 +6719,7 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
 
 //////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
 
-void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
+void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int height)
 {
     if (!NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
     {
@@ -6693,7 +6736,7 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
         }
 
         // 1.
-        CheckInputsForCollateralSpent(tx, height);
+        CheckInputsForCollateralSpent(mnview, tx, height);
 
         if (tx.vout.size() == 0)
         {
@@ -6705,33 +6748,33 @@ void ProcessMasternodeTxsOnConnect(CBlock const & block, int height)
         switch (guess)
         {
             case MasternodesTxType::AnnounceMasternode:
-                CheckAnnounceMasternodeTx(tx, height, metadata);
+                CheckAnnounceMasternodeTx(mnview, tx, height, metadata);
                 break;
             case MasternodesTxType::ActivateMasternode:
-                CheckActivateMasternodeTx(tx, height, metadata);
+                CheckActivateMasternodeTx(mnview, tx, height, metadata);
                 break;
             case MasternodesTxType::SetOperatorReward:
-                CheckSetOperatorRewardTx(tx, height, metadata);
+                CheckSetOperatorRewardTx(mnview, tx, height, metadata);
                 break;
             case MasternodesTxType::DismissVote:
-                CheckDismissVoteTx(tx, height, metadata);
+                CheckDismissVoteTx(mnview, tx, height, metadata);
                 break;
             case MasternodesTxType::DismissVoteRecall:
-                CheckDismissVoteRecallTx(tx, height, metadata);
+                CheckDismissVoteRecallTx(mnview, tx, height, metadata);
                 break;
             case MasternodesTxType::FinalizeDismissVoting:
-                CheckFinalizeDismissVotingTx(tx, height, metadata);
+                CheckFinalizeDismissVotingTx(mnview, tx, height, metadata);
                 break;
             default:
                 break;
         }
 
     }
-    pmasternodesview->CalcNextDposTeam(pmasternodesview->GetActiveMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
-    pmasternodesview->WriteBatch();
+    mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
+    mnview.CommitBatch();
 }
 
-void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height)
+void ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height)
 {
     if (!NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
     {
@@ -6741,9 +6784,9 @@ void ProcessMasternodeTxsOnDisconnect(CBlock const & block, int height)
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; --i)
     {
-        pmasternodesview->OnUndo(block.vtx[i].GetHash());
+        mnview.OnUndo(block.vtx[i].GetHash());
     }
-    pmasternodesview->WriteBatch();
+    mnview.CommitBatch();
 }
 
 CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
@@ -6773,15 +6816,15 @@ CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
  * Checks all inputs for collateral. Deactivates corresponding MN if it is true.
  * Issued by: any
  */
-void CheckInputsForCollateralSpent(CTransaction const & tx, int height)
+void CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int height)
 {
     for (uint32_t i = 0; i < tx.vin.size(); ++i)
     {
         COutPoint const & prevout = tx.vin[i].prevout;
         // Checks if it was collateral output.
-        if (prevout.n == 1 && pmasternodesview->ExistMasternode(prevout.hash))
+        if (prevout.n == 1 && mnview.ExistMasternode(prevout.hash))
         {
-            pmasternodesview->OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
+            mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
         }
     }
 }
@@ -6790,11 +6833,11 @@ void CheckInputsForCollateralSpent(CTransaction const & tx, int height)
  * Checks if given tx is 'txAnnounceMasternode'. Creates new MN if all checks are passed
  * Issued by: any
  */
-bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+bool CheckAnnounceMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
     // Check quick conditions first
     if (tx.vout.size() < 2 ||
-        tx.vout[0].nValue < GetMnAnnouncementFee(GetBlockSubsidy(height, Params().GetConsensus()), height, pmasternodesview->GetActiveMasternodes().size()) ||
+        tx.vout[0].nValue < GetMnAnnouncementFee(GetBlockSubsidy(height, Params().GetConsensus()), height, mnview.GetActiveMasternodes().size()) ||
         tx.vout[1].nValue != GetMnCollateralAmount() ||
         tx.vout[1].scriptPubKey.size() > 127) // collateralAddress
     {
@@ -6808,15 +6851,15 @@ bool CheckAnnounceMasternodeTx(CTransaction const & tx, int height, std::vector<
     {
         return false;
     }
-    node.minActivationHeight = height + std::max(GetMnActivationDelay(), static_cast<int>(pmasternodesview->GetActiveMasternodes().size()));
-    return pmasternodesview->OnMasternodeAnnounce(tx.GetHash(), node);
+    node.minActivationHeight = height + std::max(GetMnActivationDelay(), static_cast<int>(mnview.GetActiveMasternodes().size()));
+    return mnview.OnMasternodeAnnounce(tx.GetHash(), node);
 }
 
 /*
  * Checks if given tx is 'txActivateMasternode', node exists and can be activated. Activates MN if all checks are passed
  * Issued by: operator
  */
-bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+bool CheckActivateMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
     // We can not access prevout.scriptPubKey cause it already spent!!! :(
     // We can access it only in main transaction validation circle. Try another way...
@@ -6825,10 +6868,10 @@ bool CheckActivateMasternodeTx(CTransaction const & tx, int height, std::vector<
 //    CDataStream ss(metadata);
     // Make it simple, until metadata consists only of masternode id (serialization mismatch?)
     uint256 nodeId(metadata);
-    return pmasternodesview->OnMasternodeActivate(tx.GetHash(), nodeId, auth, height);
+    return mnview.OnMasternodeActivate(tx.GetHash(), nodeId, auth, height);
 }
 
-bool CheckSetOperatorRewardTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+bool CheckSetOperatorRewardTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
     // We can not access prevout.scriptPubKey cause it already spent!!! :(
     // We can access it only in main transaction validation circle. Try another way...
@@ -6846,31 +6889,31 @@ bool CheckSetOperatorRewardTx(CTransaction const & tx, int height, std::vector<u
     {
         return false;
     }
-    return pmasternodesview->OnSetOperatorReward(tx.GetHash(), auth, newOperatorAuthAddress, newOperatorRewardAddress, newOperatorRewardRatio, height);
+    return mnview.OnSetOperatorReward(tx.GetHash(), auth, newOperatorAuthAddress, newOperatorRewardAddress, newOperatorRewardRatio, height);
 }
 
-bool CheckDismissVoteTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+bool CheckDismissVoteTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
     // We can not access prevout.scriptPubKey cause it already spent!!! :(
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     CDismissVote vote(tx, metadata); // note that 'from' is empty!
-    return pmasternodesview->OnDismissVote(tx.GetHash(), vote, auth);
+    return mnview.OnDismissVote(tx.GetHash(), vote, auth);
 }
 
-bool CheckDismissVoteRecallTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+bool CheckDismissVoteRecallTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
     // We can not access prevout.scriptPubKey cause it already spent!!! :(
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     uint256 against(metadata);
-    return pmasternodesview->OnDismissVoteRecall(tx.GetHash(), against, auth, height);
+    return mnview.OnDismissVoteRecall(tx.GetHash(), against, auth, height);
 }
 
-bool CheckFinalizeDismissVotingTx(CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
+bool CheckFinalizeDismissVotingTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
     uint256 against(metadata);
-    return pmasternodesview->OnFinalizeDismissVoting(tx.GetHash(), against, height);
+    return mnview.OnFinalizeDismissVoting(tx.GetHash(), against, height);
 }
 
 namespace

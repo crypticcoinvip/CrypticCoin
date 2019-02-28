@@ -34,7 +34,7 @@ public:
     std::vector<unsigned char> nSolution;
     uint256 hashReserved1;
     uint256 hashReserved2;
-    uint16_t nRoundNumber; // TODO refactor nRound
+    uint32_t nRound;
 
     CBlockHeader()
     {
@@ -57,7 +57,11 @@ public:
         if (nVersion >= SAPLING_BLOCK_VERSION) {
             READWRITE(hashReserved1);
             READWRITE(hashReserved2);
-            READWRITE(nRoundNumber);
+            READWRITE(nRound);
+        } else if (ser_action.ForRead()) {
+            hashReserved1 = uint256{};
+            hashReserved2 = uint256{};
+            nRound = 0;
         }
     }
 
@@ -73,7 +77,7 @@ public:
         nSolution.clear();
         hashReserved1.SetNull();
         hashReserved2.SetNull();
-        nRoundNumber = 0;
+        nRound = 0;
     }
 
     bool IsNull() const
@@ -117,7 +121,11 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
-        READWRITE(vSig);
+        if (nVersion >= SAPLING_BLOCK_VERSION) {
+            READWRITE(vSig);
+        }  else if (ser_action.ForRead()) {
+            vSig.clear();
+        }
     }
 
     void SetNull()
@@ -141,7 +149,7 @@ public:
         block.nSolution      = nSolution;
         block.hashReserved1  = hashReserved1;
         block.hashReserved2  = hashReserved2;
-        block.nRoundNumber   = nRoundNumber;
+        block.nRound         = nRound;
         return block;
     }
 
@@ -183,7 +191,11 @@ public:
         if (nVersion >= SAPLING_BLOCK_VERSION) {
             READWRITE(hashReserved1);
             READWRITE(hashReserved2);
-            READWRITE(nRoundNumber);
+            READWRITE(nRound);
+        } else if (ser_action.ForRead()) {
+            hashReserved1 = uint256{};
+            hashReserved2 = uint256{};
+            nRound = 0;
         }
     }
 };

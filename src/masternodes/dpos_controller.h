@@ -27,22 +27,26 @@ public:
     bool isEnabled() const;
     CValidationInterface* getValidator();
     void initialize();
-    void updateChainTip();
+    void onChainTipUpdated(const BlockHash& tipHash);
+
+    Round getCurrentVotingRound() const;
 
     void proceedViceBlock(const CBlock& viceBlock);
     void proceedTransaction(const CTransaction& tx);
     void proceedRoundVote(const CRoundVote_p2p& vote);
     void proceedTxVote(const CTxVote_p2p& vote);
 
-    bool findViceBlock(const uint256& hash, CBlock* block = nullptr) const;
-    bool findRoundVote(const uint256& hash, CRoundVote_p2p* vote = nullptr) const;
-    bool findTxVote(const uint256& hash, CTxVote_p2p* vote = nullptr) const;
+    bool findViceBlock(const BlockHash& hash, CBlock* block = nullptr) const;
+    bool findRoundVote(const BlockHash& hash, CRoundVote_p2p* vote = nullptr) const;
+    bool findTxVote(const BlockHash& hash, CTxVote_p2p* vote = nullptr) const;
 
     std::vector<CBlock> listViceBlocks() const;
     std::vector<CRoundVote_p2p> listRoundVotes() const;
     std::vector<CTxVote_p2p> listTxVotes() const;
 
-    std::vector<CTransaction> listCommittedTransactions() const;
+    std::vector<CTransaction> listCommittedTxs() const;
+    bool isCommittedTx(const CTransaction& tx) const;
+    bool isTxApprovedByMe(const CTransaction& tx) const;
 
 private:
     CDposController() = default;
@@ -55,11 +59,15 @@ private:
     bool acceptRoundVote(const CRoundVote_p2p& vote);
     bool acceptTxVote(const CTxVote_p2p& vote);
 
+    void removeOldVotes();
+
+    std::vector<TxId> getTxsFilter() const;
+
 private:
     std::shared_ptr<CDposVoter> voter;
     std::shared_ptr<Validator> validator;
-    std::map<uint256, CTxVote_p2p> recievedTxVotes;
-    std::map<uint256, CRoundVote_p2p> recievedRoundVotes;
+    std::map<uint256, CTxVote_p2p> receivedTxVotes;
+    std::map<uint256, CRoundVote_p2p> receivedRoundVotes;
 };
 
 

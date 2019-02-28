@@ -3,10 +3,9 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
-# Test dPoS consensus work
+# Test dPoS positive scenario
 #
 
-import os
 import sys
 import time
 from dpos_base import dPoS_BaseTest
@@ -14,50 +13,61 @@ from test_framework.util import \
     assert_equal, \
     assert_greater_than
 
+INITIAL_BALANCES = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
+POW_BALANCES = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
+
 class dPoS_PositiveTest(dPoS_BaseTest):
+    def check_balances(self, balances):
+        for n in range(self.num_nodes):
+            assert_equal(int(self.nodes[n].getbalance() * 100), balances[n])
+
+    def check_no_txs(self):
+        n = 0
+        for node in self.nodes:
+            print(n, node.getblockcount())
+            node.generate(1)
+            time.sleep(3)
+            self.sync_all()
+            n = n + 1
+        for node in self.nodes:
+            assert_equal(self.getblockcount(), 321)
+
+    def check_pow_txs(self):
+        for n in range(self.num_nodes):
+            reversed_idx = self.num_nodes - i - 1
+            node.sendtoaddress(self.operators[reversed_idx], 5)
+            self.nodes[reversed_idx].generate(1)
+            self.sync_all()
+        for node in self.nodes:
+            assert_equal(self.getblockcount(), 331)
+        for n in range(self.num_nodes):
+            print(int(self.nodes[n].getbalance() * 100))
+
+    def check_dpos_txs(self):
+        pass
+
+    def check_mix_txs(self):
+        pass
+
     def run_test(self):
         super(dPoS_PositiveTest, self).run_test()
+        print("Creating masternodes")
+        mns = self.create_masternodes([0, 3, 4, 7, 8, 9])
+        self.check_balances(INITIAL_BALANCES)
+        print("Checking block generation with no txs")
+        self.check_no_txs()
+        print("Checking block generation with PoW txs")
+        self.check_pow_txs()
+        print("Checking block generation with dPoS txs")
+        self.check_dpos_txs()
+        print("Checking block generation with PoW and dPoS txs")
+        self.check_mix_txs()
 
-        to_address = self.nodes[3].getnewaddress()
-        for i in range(2):
-            is_dPoS = i == 1
-            rawtx = self.create_transaction(i, to_address, 10.0, is_dPoS)
-            sigtx = self.nodes[i].signrawtransaction(rawtx)
-            self.nodes[i].sendrawtransaction(sigtx["hex"])
-            print(rawtx, sigtx)
-
-#        preblock_hashes = self.check_progenitor_blocks(predpos_hashes)
-#        pbvote_hashes = self.check_progenitor_votes(preblock_hashes)
+        for node in self.nodes:
+            print(node.listdposviceblocks())
+            print(node.listdposroundvotes())
+            print(node.listdpostxvotes())
         self.stop_nodes()
-
-    def check_progenitor_blocks(self, predpos_hashes):
-        preblock_hashes = self.mine_blocks(False, self.num_nodes)
-        assert_equal(len(predpos_hashes), self.num_nodes)
-        assert_equal(len(preblock_hashes), len(predpos_hashes) / 2)
-        time.sleep(2)
-
-        for node in self.nodes:
-            pblocks = node.listprogenitorblocks()
-            assert_equal(node.getblockcount(), self.num_nodes)
-            assert_equal(len(pblocks), len(preblock_hashes))
-            for idx, pblock in enumerate(pblocks):
-                assert_equal(pblock["hash"], preblock_hashes[idx])
-
-        return preblock_hashes
-
-    def check_progenitor_votes(self, preblock_hashes):
-        pbvote_hashes = []
-        for node in self.nodes:
-            pbvotes = node.listprogenitorvotes()
-            assert_equal(node.getblockcount(), self.num_nodes)
-            assert_equal(len(pbvotes), len(preblock_hashes) / 2)
-            for pbvote in pbvotes:
-                pbvote_hashes.append(pbvote["hash"])
-#        self.nodes[0].generate(1)
-#        time.sleep(2)
-#        for node in self.nodes:
-#            assert_equal(node.getblockcount(), self.num_nodes + 1)
-        return pbvote_hashes
 
 if __name__ == '__main__':
     dPoS_PositiveTest().main()

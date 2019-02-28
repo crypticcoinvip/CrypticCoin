@@ -478,7 +478,7 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp)
             "    }\n"
             "3. locktime              (numeric, optional, default=0) Raw locktime. Non-0 value also locktime-activates inputs\n"
             "4. expiryheight          (numeric, optional, default=nextblockheight+" + strprintf("%d", DEFAULT_TX_EXPIRY_DELTA) + ") Expiry height of transaction (if Overwinter is active)\n"
-            "5. instantly             (boolean, optional, default=false) Use instant transaction send\n"
+            "5. instantly             (boolean, optional, default=false) Create instant transaction\n"
             "\nResult:\n"
             "\"transaction\"            (string) hex string of the transaction\n"
 
@@ -568,7 +568,7 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp)
         rawTx.vout.push_back(out);
     }
 
-    rawTx.fInstant = params.size() > 4 && params[4].get_bool();
+    rawTx.fInstant = params.size() > 4 && params[4].get_bool(); // don't check that dPoS is active, because the created tx may be committed after dPoS becomes active
 
     return EncodeHexTx(rawTx);
 }

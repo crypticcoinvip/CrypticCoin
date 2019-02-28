@@ -28,7 +28,6 @@
 #include "wallet/asyncrpcoperation_mergetoaddress.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
-#include "../masternodes/heartbeat.h"
 #include "../masternodes/dpos_controller.h"
 
 #include "sodium.h"
@@ -2643,7 +2642,7 @@ UniValue instant_listunspent(const UniValue& params, bool fHelp)
     }
 
     UniValue rv{UniValue::VARR};
-    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
+    for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         for (std::size_t i{0}; i < tx.vout.size(); i++) {
             CTxDestination address{};
             UniValue entry{UniValue::VOBJ};
@@ -3355,7 +3354,7 @@ CAmount getInstantBalanceZaddr(std::string address, bool ignoreUnspendable) {
         filterAddresses.insert(DecodePaymentAddress(address));
     }
 
-    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
+    for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         LOCK2(cs_main, pwalletMain->cs_wallet);
         // Filter the transactions before checking for notes
         if (!CheckFinalTx(tx)) {
@@ -3806,9 +3805,9 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    if (fHelp || params.size() < 2 || params.size() > 4)
+    if (fHelp || params.size() < 2 || params.size() > 5)
         throw runtime_error(
-            "z_sendmany \"fromaddress\" [{\"address\":... ,\"amount\":...},...] ( minconf ) ( fee )\n"
+            "z_sendmany \"fromaddress\" [{\"address\":... ,\"amount\":...},...] ( minconf ) ( fee ) ( instantly )\n"
             "\nSend multiple times. Amounts are decimal numbers with at most 8 digits of precision."
             "\nChange generated from a taddr flows to a new taddr address, while change generated from a zaddr returns to itself."
             "\nWhen sending coinbase UTXOs to a zaddr, change is not allowed. The entire value of the UTXO(s) must be consumed."
@@ -3825,6 +3824,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
             "3. minconf               (numeric, optional, default=1) Only use funds confirmed at least this many times.\n"
             "4. fee                   (numeric, optional, default="
             + strprintf("%s", FormatMoney(ASYNC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee amount to attach to this transaction.\n"
+            "5. instantly             (boolean, optional, default=false) Create instant transaction\n"
             "\nResult:\n"
             "\"operationid\"          (string) An operationid to pass to z_getoperationstatus to get the result of the operation.\n"
             "\nExamples:\n"
@@ -3833,6 +3833,14 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
+
+
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
+    const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+    const bool fInstant = params.size() > 4 && params[4].get_bool();
+
+    if (fInstant && !fDposActive)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "dPoS isn't active, instant tx cannot be committed");
 
     // Check that the from address is valid.
     auto fromaddress = params[0].get_str();
@@ -3975,6 +3983,9 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, too many zaddr outputs");
         }
     }
+    if (mtx.fInstant) {
+        max_tx_size = MAX_INST_TX_SIZE_AFTER_SAPLING;
+    }
 
     // If Sapling is not active, do not allow sending from or sending to Sapling addresses.
     if (!NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
@@ -4097,9 +4108,9 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    if (fHelp || params.size() < 2 || params.size() > 4)
+    if (fHelp || params.size() < 2 || params.size() > 5)
         throw runtime_error(
-            "z_shieldcoinbase \"fromaddress\" \"tozaddress\" ( fee ) ( limit )\n"
+            "z_shieldcoinbase \"fromaddress\" \"tozaddress\" ( fee ) ( limit ) ( instantly )\n"
             "\nShield transparent coinbase funds by sending to a shielded zaddr.  This is an asynchronous operation and utxos"
             "\nselected for shielding will be locked.  If there is an error, they are unlocked.  The RPC call `listlockunspent`"
             "\ncan be used to return a list of locked utxos.  The number of coinbase utxos selected for shielding can be limited"
@@ -4115,6 +4126,7 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
             + strprintf("%s", FormatMoney(SHIELD_COINBASE_DEFAULT_MINERS_FEE)) + ") The fee amount to attach to this transaction.\n"
             "4. limit                 (numeric, optional, default="
             + strprintf("%d", SHIELD_COINBASE_DEFAULT_LIMIT) + ") Limit on the maximum number of utxos to shield.  Set to 0 to use node option -mempooltxinputlimit (before Overwinter), or as many as will fit in the transaction (after Overwinter).\n"
+            "5. instantly             (boolean, optional, default=false) Create instant transaction\n"
             "\nResult:\n"
             "{\n"
             "  \"remainingUTXOs\": xxx       (numeric) Number of coinbase utxos still available for shielding.\n"
@@ -4129,6 +4141,13 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
+
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
+    const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+    const bool fInstant = params.size() > 4 && params[4].get_bool();
+
+    if (fInstant && !fDposActive)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "dPoS isn't active, instant tx cannot be committed");
 
     // Validate the from address
     auto fromaddress = params[0].get_str();
@@ -4171,6 +4190,8 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
     if (!NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
         max_tx_size = MAX_TX_SIZE_BEFORE_SAPLING;
     }
+    if (fInstant)
+        max_tx_size = MAX_INST_TX_SIZE_AFTER_SAPLING;
 
     // If Sapling is not active, do not allow sending to a Sapling address.
     if (!NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
@@ -4281,6 +4302,7 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
     if (contextualTx.nVersion == 1) {
         contextualTx.nVersion = 2; // Tx format should support vjoinsplits 
     }
+    contextualTx.fInstant = fInstant;
 
     // Create operation and add to global queue
     std::shared_ptr<AsyncRPCQueue> q = getAsyncRPCQueue();
@@ -4319,9 +4341,9 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
         strDisabledMsg = experimentalDisabledHelpMsg("z_mergetoaddress", enableArg);
     }
 
-    if (fHelp || params.size() < 2 || params.size() > 6)
+    if (fHelp || params.size() < 2 || params.size() > 7)
         throw runtime_error(
-            "z_mergetoaddress [\"fromaddress\", ... ] \"toaddress\" ( fee ) ( transparent_limit ) ( shielded_limit ) ( memo )\n"
+            "z_mergetoaddress [\"fromaddress\", ... ] \"toaddress\" ( fee ) ( transparent_limit ) ( shielded_limit ) ( memo ) ( instantly )\n"
             + strDisabledMsg +
             "\nMerge multiple UTXOs and notes into a single UTXO or note.  Coinbase UTXOs are ignored; use `z_shieldcoinbase`"
             "\nto combine those into a single note."
@@ -4348,9 +4370,10 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
             + strprintf("%s", FormatMoney(MERGE_TO_ADDRESS_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee amount to attach to this transaction.\n"
             "4. transparent_limit     (numeric, optional, default="
             + strprintf("%d", MERGE_TO_ADDRESS_DEFAULT_TRANSPARENT_LIMIT) + ") Limit on the maximum number of UTXOs to merge.  Set to 0 to use node option -mempooltxinputlimit (before Overwinter), or as many as will fit in the transaction (after Overwinter).\n"
-            "4. shielded_limit        (numeric, optional, default="
+            "5. shielded_limit        (numeric, optional, default="
             + strprintf("%d Sprout or %d Sapling Notes", MERGE_TO_ADDRESS_DEFAULT_SPROUT_LIMIT, MERGE_TO_ADDRESS_DEFAULT_SAPLING_LIMIT) + ") Limit on the maximum number of notes to merge.  Set to 0 to merge as many as will fit in the transaction.\n"
-            "5. \"memo\"                (string, optional) Encoded as hex. When toaddress is a z-addr, this will be stored in the memo field of the new note.\n"
+            "6. \"memo\"              (string, optional) Encoded as hex. When toaddress is a z-addr, this will be stored in the memo field of the new note.\n"
+            "7. \"instantly\"         (boolean, optional, default=false) Create instant transaction \n"
             "\nResult:\n"
             "{\n"
             "  \"remainingUTXOs\": xxx               (numeric) Number of UTXOs still available for merging.\n"
@@ -4374,11 +4397,18 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
+    const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+
+    const bool fInstant = params.size() > 6 && params[6].get_bool();
     bool useAnyUTXO = false;
     bool useAnySprout = false;
     bool useAnySapling = false;
     std::set<CTxDestination> taddrs = {};
     std::set<libzcash::PaymentAddress> zaddrs = {};
+
+    if (fInstant && !fDposActive)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "dPoS isn't active, instant tx cannot be committed");
 
     UniValue addresses = params[0].get_array();
     if (addresses.size()==0)
@@ -4511,6 +4541,9 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
     size_t mempoolLimit = (nUTXOLimit != 0) ? nUTXOLimit : (overwinterActive ? 0 : (size_t)GetArg("-mempooltxinputlimit", 0));
 
     unsigned int max_tx_size = saplingActive ? MAX_TX_SIZE_AFTER_SAPLING : MAX_TX_SIZE_BEFORE_SAPLING;
+    if (fInstant)
+        max_tx_size = MAX_INST_TX_SIZE_AFTER_SAPLING;
+
     size_t estimatedTxSize = 200;  // tx overhead + wiggle room
     if (isToSproutZaddr) {
         estimatedTxSize += JOINSPLIT_SIZE;
@@ -4682,6 +4715,7 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
     if (contextualTx.nVersion == 1 && isSproutShielded) {
         contextualTx.nVersion = 2; // Tx format should support vjoinsplit
     }
+    contextualTx.fInstant = fInstant;
 
     // Builder (used if Sapling addresses are involved)
     boost::optional<TransactionBuilder> builder;
@@ -4757,98 +4791,6 @@ UniValue z_listoperationids(const UniValue& params, bool fHelp)
     return ret;
 }
 
-UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
-{
-    if (!EnsureWalletIsAvailable(fHelp)) {
-        return NullUniValue;
-    }
-    if (fHelp) {
-        throw runtime_error(
-            "heartbeat_send_message ( \"address\" timestamp )\n"
-            "\nSends heartbeat p2p message with provided timestamp value.\n"
-            "\nArguments:\n"
-            "1. \"address\"  (string, optional, default="") The operator authentication address. If empty then default wallet address will be used.\n"
-            "2. timestamp   (numeric, optional, default=0) The UNIX epoch time in ms of the heartbeat message. If 0 then current time will be used.\n"
-            "\nResult:\n"
-            "{\n"
-            "\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
-            "\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
-            "\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\" 1548923902519")
-            + HelpExampleRpc("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\", 1548923902519")
-        );
-    }
-
-    const std::string address{params.empty() ? std::string{} : params[0].get_str()};
-    const CTxDestination destination{(address.empty() ? GetAccountAddress("") : DecodeDestination(address))};
-
-    if (!IsValidDestination(destination)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Crypticcoin address");
-    }
-
-    std::int64_t timestamp{0};
-    if (params.size() > 1) {
-        timestamp = params[1].get_int64();
-    }
-    if (timestamp < 0) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid timestamp value");
-    }
-
-    CKey key{};
-    LOCK2(cs_main, pwalletMain->cs_wallet);
-    if (pwalletMain == nullptr || !pwalletMain->GetKey(boost::get<CKeyID>(destination), key)) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Invalid account address key");
-    }
-
-    const CHeartBeatMessage message{CHeartBeatTracker::getInstance().postMessage(key, timestamp)};
-    if(message.IsNull()) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Failed to send heartbeat message (can't create signature)");
-    }
-
-    UniValue rv{UniValue::VOBJ};
-    rv.push_back(Pair("timestamp", message.GetTimestamp()));
-    rv.push_back(Pair("signature", HexStr(message.GetSignature())));
-    rv.push_back(Pair("hash", message.GetHash().ToString()));
-    return rv;
-}
-
-UniValue heartbeat_read_messages(const UniValue &, bool fHelp)
-{
-    if (!EnsureWalletIsAvailable(fHelp)) {
-        return NullUniValue;
-    }
-    if (fHelp) {
-        throw runtime_error(
-            "heartbeat_read_messages\n"
-            "\nReads heartbeat p2p messages.\n"
-            "\nArguments:\n"
-            "\nResult:\n"
-            "[\n"
-            "\t{\n"
-            "\t\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
-            "\t\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
-            "\t\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
-            "\t},...\n"
-            "]\n"
-            "\nExamples:\n"
-            + HelpExampleCli("heartbeat_read_messages", "")
-            + HelpExampleRpc("heartbeat_read_messages", "")
-        );
-    }
-
-    UniValue rv{UniValue::VARR};
-    for (const auto& message : CHeartBeatTracker::getInstance().getReceivedMessages()) {
-        UniValue msg{UniValue::VOBJ};
-        msg.push_back(Pair("timestamp", message.GetTimestamp()));
-        msg.push_back(Pair("signature", HexStr(message.GetSignature())));
-        msg.push_back(Pair("hash", message.GetHash().ToString()));
-        rv.push_back(msg);
-    }
-    return rv;
-}
-
 extern UniValue dumpprivkey(const UniValue& params, bool fHelp); // in rpcdump.cpp
 extern UniValue importprivkey(const UniValue& params, bool fHelp);
 extern UniValue importaddress(const UniValue& params, bool fHelp);
@@ -4869,8 +4811,6 @@ static const CRPCCommand commands[] =
     //  --------------------- ------------------------    -----------------------    ----------
     { "rawtransactions",    "fundrawtransaction",       &fundrawtransaction,       false },
     { "hidden",             "resendwallettransactions", &resendwallettransactions, true  },
-    { "hidden",             "heartbeat_send_message",   &heartbeat_send_message,   true  },
-    { "hidden",             "heartbeat_read_messages",  &heartbeat_read_messages,  true  },
     { "wallet",             "addmultisigaddress",       &addmultisigaddress,       true  },
     { "wallet",             "backupwallet",             &backupwallet,             true  },
     { "wallet",             "dumpprivkey",              &dumpprivkey,              true  },
