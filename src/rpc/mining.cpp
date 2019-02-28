@@ -208,7 +208,7 @@ UniValue generate(const UniValue& params, bool fHelp)
         nHeightEnd = nHeightStart+nGenerate;
     }
 
-    if (nGenerate > 1 && dpos::getController()->isEnabled()) {
+    if (nGenerate > 1 && dpos::getController()->isEnabled(nHeight)) {
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, "dPoS is active, can't mine more than 1 block at once");
     }
 
@@ -281,7 +281,7 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
-        if (dpos::getController()->isEnabled()) {
+        if (dpos::getController()->isEnabled(nHeight)) {
             LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
             dpos::getController()->proceedViceBlock(*pblock);
         } else {
@@ -399,7 +399,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("pooledtx",         (uint64_t)mempool.size()));
     obj.push_back(Pair("testnet",          Params().TestnetToBeDeprecatedFieldRPC()));
     obj.push_back(Pair("chain",            Params().NetworkIDString()));
-    obj.push_back(Pair("dpos",             dpos::getController()->isEnabled()));
+    obj.push_back(Pair("dpos",             dpos::getController()->isEnabled(chainActive.Height())));
 #ifdef ENABLE_MINING
     obj.push_back(Pair("generate",         getgenerate(params, false)));
 #endif

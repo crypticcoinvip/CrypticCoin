@@ -543,7 +543,7 @@ static bool ProcessBlockFound(CBlock* pblock)
 //        wallet.mapRequestCount[pblock->GetHash()] = 0;
 //    }
 #endif
-    if (dpos::getController()->isEnabled()) {
+    if (dpos::getController()->isEnabled(pblock->hashPrevBlock)) {
         LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
             dpos::getController()->proceedViceBlock(*pblock);
     } else {

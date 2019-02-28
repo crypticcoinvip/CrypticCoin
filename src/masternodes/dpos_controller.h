@@ -24,7 +24,9 @@ public:
     static CDposController& getInstance();
     static void runEventLoop();
 
-    bool isEnabled() const;
+    bool isEnabled(int tipHeight = -1) const;
+    bool isEnabled(const BlockHash& tipHash) const;
+
     CValidationInterface* getValidator();
     void loadDB();
     void onChainTipUpdated(const BlockHash& tipHash);

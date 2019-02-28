@@ -46,6 +46,7 @@ int computeBlockHeight(const BlockHash& blockHash, int maxDeep = -1)
 BlockHash getTipHash()
 {
     LOCK(cs_main);
+    assert(chainActive.Tip() != nullptr);
     return chainActive.Tip()->GetBlockHash();
 }
 
@@ -57,7 +58,6 @@ std::size_t getActiveMasternodeCount()
 
 std::size_t getTeamSizeCount(int height)
 {
-    LOCK(cs_main);
     return pmasternodesview->ReadDposTeam(height).size();
 }
 
@@ -257,15 +257,28 @@ void CDposController::runEventLoop()
     }
 }
 
-bool CDposController::isEnabled() const
+bool CDposController::isEnabled(int tipHeight) const
 {
     const Consensus::Params& params{Params().GetConsensus()};
-    LOCK(cs_main);
-    assert(chainActive.Tip() != nullptr);
-    const int tipHeight{computeBlockHeight(chainActive.Tip()->GetBlockHash())};
+    if (tipHeight < 0) {
+        LOCK(cs_main);
+        tipHeight = chainActive.Height();
+    }
     const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
     return NetworkUpgradeActive(tipHeight, params, Consensus::UPGRADE_SAPLING) &&
            nCurrentTeamSize == params.dpos.nTeamSize;
+}
+
+bool CDposController::isEnabled(const BlockHash& tipHash) const
+{
+    int height{-1};
+
+    if (!tipHash.IsNull()) {
+        LOCK(cs_main);
+        height = computeBlockHeight(tipHash);
+    }
+
+    return isEnabled(height);
 }
 
 CValidationInterface* CDposController::getValidator()
@@ -322,7 +335,7 @@ void CDposController::loadDB()
 
 void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 {
-    if (ready && isEnabled()) {
+    if (ready && isEnabled(tipHash)) {
         const auto mnId{findMasternodeId()};
         LOCK(cs_dpos);
 
@@ -340,8 +353,11 @@ void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 
 Round CDposController::getCurrentVotingRound() const
 {
-    LOCK(cs_dpos);
-    return isEnabled() ? voter->getCurrentRound() : 0;
+    if (ready && isEnabled()) {
+        LOCK(cs_dpos);
+        return voter->getCurrentRound();
+    }
+    return 0;
 }
 
 void CDposController::proceedViceBlock(const CBlock& viceBlock)
