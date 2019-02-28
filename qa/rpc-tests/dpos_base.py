@@ -15,7 +15,8 @@ from test_framework.util import \
     initialize_chain, \
     connect_nodes_bi, \
     wait_bitcoinds, \
-    gather_inputs
+    gather_inputs, \
+    time
 
 class dPoS_BaseTest(BitcoinTestFramework):
     def add_options(self, parser):
@@ -173,9 +174,11 @@ class dPoS_BaseTest(BitcoinTestFramework):
 
     def create_transaction(self, node_idx, to_address, amount, instantly):
         node = self.nodes[node_idx]
-        (total_in, inputs) = gather_inputs(node, amount)
-        outputs = { to_address : amount - amount * 0.0002 }
-        return node.createrawtransaction(inputs, outputs, 0, node.getblockcount() + 21, instantly)
+        outputs = { to_address : int((amount - amount * 0.000001) * 100000) / 100000.0 }
+        rawtx = node.createrawtransaction([], outputs, 0, node.getblockcount() + 21, instantly)
+        fundtx = node.fundrawtransaction(rawtx)
+        sigtx = node.signrawtransaction(fundtx["hex"])
+        return node.sendrawtransaction(sigtx["hex"])
 
     def run_test(self):
         assert_equal(self.num_nodes, 10)
