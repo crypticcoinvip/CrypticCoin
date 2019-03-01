@@ -332,7 +332,7 @@ void CMasternodesView::DeactivateVotesFor(uint256 const & nodeId, uint256 const 
     assert (node.counterVotesAgainst == 0);
 }
 
-bool CMasternodesView::OnCollateralSpent(uint256 const & nodeId, uint256 const & txid, uint input, int height)
+bool CMasternodesView::OnCollateralSpent(uint256 const & nodeId, uint256 const & txid, uint32_t input, int height)
 {
     // Assumed, that node exists
     CMasternode & node = allNodes.at(nodeId);

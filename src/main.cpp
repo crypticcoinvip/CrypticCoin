@@ -1391,9 +1391,9 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     auto consensusBranchId = CurrentEpochBranchId(nextBlockHeight, Params().GetConsensus());
 
     // omit input checks if it's dPoS-committed or approved by me
-    const dpos::CDposController* pDpos = dpos::getController();
-    assert(pDpos != nullptr);
-    const bool forced = tx.fInstant && pDpos->isCommittedTx(tx) && pDpos->isTxApprovedByMe(tx);
+    const dpos::CDposController* pDposController = dpos::getController();
+    assert(pDposController != nullptr);
+    const bool forced = tx.fInstant && (pDposController->isCommittedTx(tx) || pDposController->isTxApprovedByMe(tx));
 
     // Node operator can choose to reject tx by number of transparent inputs
     static_assert(std::numeric_limits<size_t>::max() >= std::numeric_limits<int64_t>::max(), "size_t too small");
