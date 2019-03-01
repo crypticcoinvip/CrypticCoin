@@ -149,7 +149,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
 {
     entry.push_back(Pair("txid", tx.GetHash().GetHex()));
     entry.push_back(Pair("overwintered", tx.fOverwintered));
-    entry.push_back(Pair("is_instant", tx.fInstant));
+    entry.push_back(Pair("dpos_instant", tx.fInstant));
     entry.push_back(Pair("version", tx.nVersion));
     if (tx.fOverwintered) {
         entry.push_back(Pair("versiongroupid", HexInt(tx.nVersionGroupId)));
@@ -587,7 +587,7 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp)
             "{\n"
             "  \"txid\" : \"id\",        (string) The transaction id\n"
             "  \"overwintered\" : bool   (boolean) The Overwintered flag\n"
-            "  \"instant\" : bool        (boolean) The Instant flag\n"
+            "  \"dpos_instant\" : bool   (boolean) The Instant flag\n"
             "  \"version\" : n,          (numeric) The version\n"
             "  \"versiongroupid\": \"hex\"   (string, optional) The version group id (Overwintered txs)\n"
             "  \"locktime\" : ttt,       (numeric) The lock time\n"
