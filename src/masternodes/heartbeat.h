@@ -17,6 +17,9 @@ class CHeartBeatMessage
     using Signature = std::vector<unsigned char>;
 
 public:
+    static const int32_t CURRENT_VERSION = 1;
+    int32_t nVersion = CURRENT_VERSION;
+    
     explicit CHeartBeatMessage(const std::int64_t timestamp = 0);
 
     std::int64_t GetTimestamp() const;
@@ -27,6 +30,7 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
+         READWRITE(nVersion);
          READWRITE(timestamp);
          READWRITE(signature);
     }

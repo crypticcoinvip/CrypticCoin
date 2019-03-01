@@ -63,6 +63,7 @@ uint256 CHeartBeatMessage::GetHash() const
 
 void CHeartBeatMessage::SetNull()
 {
+    nVersion = CURRENT_VERSION;
     timestamp = 0;
     signature.clear();
 }
@@ -89,7 +90,7 @@ bool CHeartBeatMessage::GetPubKey(CPubKey& pubKey) const
 uint256 CHeartBeatMessage::getSignHash() const
 {
     CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
-    ss << timestamp << salt_;
+    ss << nVersion << timestamp << salt_;
     return Hash(ss.begin(), ss.end());
 }
 

@@ -25,7 +25,8 @@ public:
     uint256 subject;
     int8_t decision;
 
-    bool isStandardDecision() const {
+    bool isStandardDecision() const
+    {
         return decision == Decision::YES || decision == Decision::PASS || decision == Decision::NO;
     }
 
@@ -42,6 +43,8 @@ public:
 class CTxVote_p2p
 {
 public:
+    static const int32_t CURRENT_VERSION = 1;
+    int32_t nVersion = CURRENT_VERSION;
     uint256 tip;
     Round nRound;
     std::vector<CVoteChoice> choices;
@@ -57,6 +60,7 @@ public:
     template<typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
+        READWRITE(nVersion);
         READWRITE(tip);
         READWRITE(nRound);
         READWRITE(choices);
@@ -75,6 +79,8 @@ public:
 class CRoundVote_p2p
 {
 public:
+    static const int32_t CURRENT_VERSION = 1;
+    int32_t nVersion = CURRENT_VERSION;
     uint256 tip;
     Round nRound;
     CVoteChoice choice;
