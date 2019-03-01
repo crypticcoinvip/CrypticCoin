@@ -117,6 +117,9 @@ void CDposVoter::updateTip(BlockHash tip)
 
 CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
 {
+    if (viceBlock.nRound <= 0 || !viceBlock.vSig.empty() || !viceBlock.hashReserved1.IsNull() || !viceBlock.hashReserved2.IsNull()) {
+        return misbehavingErr("vice-block is malformed");
+    }
     if (!world.validateBlock(viceBlock, {}, false)) {
         return misbehavingErr("vice-block validation failed");
     }
@@ -169,7 +172,7 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
 
 CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
 {
-    if (vote.nRound == 0 || !vote.choice.isStandardDecision()) {
+    if (vote.nRound <= 0 || !vote.choice.isStandardDecision()) {
         return misbehavingErr("masternode malformed tx vote");
     }
 
@@ -216,7 +219,7 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
 
 CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
 {
-    if (vote.nRound == 0 || !vote.choice.isStandardDecision()) {
+    if (vote.nRound <= 0 || !vote.choice.isStandardDecision()) {
         return misbehavingErr("masternode malformed round vote");
     }
     if (vote.choice.decision == CVoteChoice::Decision::PASS && vote.choice.subject != uint256{}) {
@@ -226,7 +229,7 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
         return misbehavingErr("masternode malformed vote decision");
     }
 
-    if (vote.nRound == 0) {
+    if (vote.nRound <= 0) {
         LogPrintf("%s: MISBEHAVING MASTERNODE! malformed vote from %s \n",
                   __func__,
                   vote.voter.GetHex());
@@ -768,7 +771,7 @@ void CDposVoter::filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Ro
     for (auto it = txs_f.begin(); it != txs_f.end();) {
         const TxId txid = ArithToUint256(it->first);
         auto stats = calcTxVotingStats(txid, nRound);
-        if (nRound == 0)
+        if (nRound <= 0)
             stats.abstinendi = 0;
 
         const bool notCommittable = checkTxNotCommittable(stats);
