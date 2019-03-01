@@ -404,6 +404,7 @@ bool CMasternodesView::OnMasternodeActivate(uint256 const & txid, uint256 const 
     }
 
     node.activationTx = txid;
+    node.activationHeight = height;
     activeNodes.insert(nodeId);
 
     txsUndo.insert(std::make_pair(txid, std::make_pair(nodeId, MasternodesTxType::ActivateMasternode)));
@@ -659,6 +660,8 @@ bool CMasternodesView::OnUndo(uint256 const & txid)
                 CMasternode & node = allNodes.at(id);
 
                 node.activationTx = uint256();
+                node.activationHeight = -1;
+
                 activeNodes.erase(id);
 
                 db.WriteMasternode(id, node);
@@ -740,12 +743,15 @@ bool CMasternodesView::OnUndo(uint256 const & txid)
     return true;
 }
 
-bool CMasternodesView::IsTeamMember(int height, const CKeyID & operatorAuth) const
+bool CMasternodesView::IsTeamMember(int height, CKeyID const & operatorAuth) const
 {
     CTeam team = ReadDposTeam(height);
-    auto const & it = ExistMasternode(AuthIndex::ByOperator, operatorAuth);
-    // Note, that we should not check on IsActive() here, cause IsTeamMember() may be called for previous blocks (with lost info about 'active' status of mn)
-    return it && team.find((*it)->second) != team.end();
+    for (auto const & member : team)
+    {
+        if (member.second.second == operatorAuth)
+            return true;
+    }
+    return false;
 }
 
 struct KeyLess
@@ -769,7 +775,7 @@ struct KeyLess
     }
 };
 
-CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height)
+CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes, CMasternodes const & allNodes, uint256 const & blockHash, int height)
 {
     CTeam team = ReadDposTeam(height);
     size_t const dPosTeamSize = Params().GetConsensus().dpos.nTeamSize;
@@ -825,7 +831,7 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
 
     for (size_t i = 0; i < toJoin; ++i)
     {
-        team.insert(std::make_pair(mayJoin[i], height));
+        team.insert(std::make_pair(mayJoin[i], std::make_pair(height, allNodes.at(mayJoin[i]).operatorAuthAddress)));
     }
 
     if (!db.WriteTeam(height+1, team))

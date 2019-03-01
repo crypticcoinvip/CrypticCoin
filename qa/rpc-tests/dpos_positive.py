@@ -16,11 +16,13 @@ from test_framework.util import \
 INITIAL_BALANCES    = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
 NOTXS_BALANCES      = [24997, 21250, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
 POWTXS_BALANCES     = [23447, 26874, 21249, 18747, 18372, 16874, 16874, 14997, 14997, 14997]
-DPOSTXS_BALANCES    = [19997, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
-MIXTXS_BALANCES     = [19372, 20625, 20625, 18747, 18372, 16875, 16875, 14997, 14997, 14997]
+DPOSTXS_BALANCES    = [24997, 26874, 26874, 19372, 18372, 16874, 16874, 14997, 14997, 14997]
+MIXTXS_BALANCES     = [24997, 26874, 26874, 24997, 18997, 16874, 16874, 14997, 14997, 14997]
 
 class dPoS_PositiveTest(dPoS_BaseTest):
     def check_balances(self, balances):
+        for n in range(self.num_nodes):
+            print(int(self.nodes[n].getbalance() * 100))
         for n in range(self.num_nodes):
             assert_equal(int(self.nodes[n].getbalance() * 100), balances[n])
 
@@ -62,7 +64,7 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             assert_equal(len(txs), 1)
             assert_equal(txs[0]["hash"], tx)
             self.nodes[reversed_idx].generate(1)
-            time.sleep(1)
+            time.sleep(3)
             self.sync_all()
             blockCount = blockCount + 1
             for node in self.nodes:
@@ -74,16 +76,22 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         for n in range(self.num_nodes):
             blockCount = self.nodes[n].getblockcount()
             reversed_idx = self.num_nodes - n - 1
-            to_address = self.nodes[reversed_idx].getnewaddress()
-            tx = self.create_transaction(n, to_address, 25.25, True)
+            toaddr1 = self.nodes[reversed_idx].getnewaddress()
+            toaddr2 = self.nodes[reversed_idx].getnewaddress()
+            zdst = [{ "address": toaddr1, "amount": 1.2 }, { "address": toaddr2, "amount": 2.1 }]
+            tx1 = self.create_transaction(n, toaddr1, 25.25, True)
             self.nodes[n].sendtoaddress(self.operators[reversed_idx], 30.3)
+            tx2 = self.create_transaction(n, toaddr2, 25.25, True)
+            self.nodes[n].sendtoaddress(self.operators[reversed_idx], 30.3)
+#            ztx = self.nodes[n].z_sendmany(self.operators[n], zdst, 1, 0.01, True)
             time.sleep(2)
             self.sync_all()
-            txs = self.nodes[n].list_instant_transactions()
-            assert_equal(len(txs), 1)
-            assert_equal(txs[0]["hash"], tx)
+#            print(self.nodes[n].z_getoperationstatus([ztx]))
+            txs = {tx["hash"] for tx in self.nodes[n].list_instant_transactions()}
+            assert_equal(len(txs), 2)
+            assert_equal(txs, {tx1,tx2})
             self.nodes[reversed_idx].generate(1)
-            time.sleep(1)
+            time.sleep(5)
             self.sync_all()
             blockCount = blockCount + 1
             for node in self.nodes:

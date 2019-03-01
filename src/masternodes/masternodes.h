@@ -116,7 +116,7 @@ public:
 
         READWRITE(height);
         READWRITE(minActivationHeight);
-        READWRITE(activationHeight);    //! totally unused!!!
+        READWRITE(activationHeight);
         READWRITE(deadSinceHeight);
 
         READWRITE(activationTx);
@@ -190,7 +190,7 @@ typedef std::map<uint256, CMasternode> CMasternodes;  // nodeId -> masternode ob
 typedef std::set<uint256> CActiveMasternodes;         // just nodeId's,
 typedef std::map<CKeyID, uint256> CMasternodesByAuth; // for two indexes, owner->nodeId, operator->nodeId
 
-typedef std::map<uint256, int32_t> CTeam;             // nodeId -> joinHeight - masternodes' team
+typedef std::map<uint256, std::pair<int32_t, CKeyID> > CTeam;   // nodeId -> <joinHeight, operatorId> - masternodes' team
 
 typedef std::map<uint256, CDismissVote> CDismissVotes;
 typedef std::multimap<uint256, uint256> CDismissVotesIndex; // just index, from->against or against->from
@@ -317,7 +317,7 @@ public:
     bool OnUndo(uint256 const & txid);
 
     bool IsTeamMember(int height, CKeyID const & operatorAuth) const;
-    CTeam CalcNextDposTeam(CActiveMasternodes const & activeNodes, uint256 const & blockHash, int height);
+    CTeam CalcNextDposTeam(CActiveMasternodes const & activeNodes, CMasternodes const & allNodes, uint256 const & blockHash, int height);
     CTeam ReadDposTeam(int height) const;
 
     //! Calculate rewards to masternodes' team to include it into coinbase

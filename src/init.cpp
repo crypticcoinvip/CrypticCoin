@@ -1584,7 +1584,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pdposdb = new CDposDB(nMinDbCache << 20, false, fReindex);
 
                 pmasternodesview->Load();
-                dpos::getController()->loadDB();
 
                 if (fReindex) {
                     pblocktree->WriteReindexing(true);
@@ -1640,6 +1639,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     strLoadError = _("Corrupted block database detected");
                     break;
                 }
+
+                dpos::getController()->loadDB();
             } catch (const std::exception& e) {
                 if (fDebug) LogPrintf("%s\n", e.what());
                 strLoadError = _("Error opening block database");

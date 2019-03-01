@@ -2,13 +2,12 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include "dpos_voter.h"
-#include <boost/range/numeric.hpp>
 #include <boost/range/adaptor/map.hpp>
 #include <boost/range/algorithm/copy.hpp>
+#include <boost/range/numeric.hpp>
 
 namespace dpos
 {
-
 bool operator==(const CDposVote& l, const CDposVote& r)
 {
     if (l.voter != r.voter)
@@ -163,8 +162,7 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
     if (wasLost) {
         out += doTxsVoting();
         out += doRoundVoting();
-    }
-    else {
+    } else {
         out += voteForTx(tx);
     }
     return out;
@@ -339,8 +337,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
     }
 
     // sort the vice-blocks by number of votes, vice-block Hash (decreasing)
-    std::sort(sortedViceBlocks.begin(), sortedViceBlocks.end(), [](const BlockVotes& l, const BlockVotes& r)
-    {
+    std::sort(sortedViceBlocks.begin(), sortedViceBlocks.end(), [](const BlockVotes& l, const BlockVotes& r) {
         if (l.first == r.first)
             return l.second < r.second;
         return l.first < r.first;
@@ -374,8 +371,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         out.vRoundVotes.push_back(newVote);
 
         out += applyRoundVote(newVote);
-    }
-    else {
+    } else {
         LogPrintf("%s: Suitable vice block wasn't found at round %d, candidates=%d \n", __func__, nRound, sortedViceBlocks.size());
     }
 
@@ -413,8 +409,7 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
     myTxs.txs.emplace(UintToArith256(txid), tx);
     if (!world.validateTxs(myTxs.txs)) { // check against my list
         decision = CVoteChoice::Decision::NO;
-    }
-    else {
+    } else {
         // check against committed list. Strictly we need to to check only against my list,
         // but checking against committed txs will speed up the consensus.
         // committed list may be not full, which is fine
@@ -436,7 +431,7 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
     newVote.voter = me;
     newVote.nRound = nRound;
     newVote.tip = tip;
-    newVote.choice = CVoteChoice{txid, decision};
+    newVote.choice = CVoteChoice{txid, static_cast<int8_t>(decision)};
     out.vTxVotes.push_back(newVote);
 
     out += applyTxVote(newVote);
@@ -496,6 +491,9 @@ CDposVoter::Output CDposVoter::doTxsVoting()
 CDposVoter::Output CDposVoter::onRoundTooLong()
 {
     if (!amIvoter) {
+        return {};
+    }
+    if (v[tip].isNull()) {
         return {};
     }
     const Round nRound = getCurrentRound();
@@ -584,7 +582,7 @@ bool CDposVoter::wasVotedByMe_tx(TxId txid, Round nRound) const
     }
 
     // check Yes and No votes on other rounds. Such votes are active for all the rounds.
-    for (auto&& txRoundVoting_p: v[tip].txVotes) {
+    for (auto&& txRoundVoting_p : v[tip].txVotes) {
         if (txRoundVoting_p.second.count(txid) == 0)
             continue;
 
@@ -654,16 +652,19 @@ CTxVotingDistribution CDposVoter::calcTxVotingStats(TxId txid, Round nRound) con
             assert(vote.choice.subject == txid);
 
             switch (vote.choice.decision) {
-                case CVoteChoice::Decision::YES : stats.pro++;
-                    break;
-                case CVoteChoice::Decision::NO : stats.contra++;
-                    break;
-                case CVoteChoice::Decision::PASS :
-                    if (vote.nRound == nRound) // count PASS votes only from specified round
-                        stats.abstinendi++;
-                    break;
-                default: assert(false);
-                    break;
+            case CVoteChoice::Decision::YES:
+                stats.pro++;
+                break;
+            case CVoteChoice::Decision::NO:
+                stats.contra++;
+                break;
+            case CVoteChoice::Decision::PASS:
+                if (vote.nRound == nRound) // count PASS votes only from specified round
+                    stats.abstinendi++;
+                break;
+            default:
+                assert(false);
+                break;
             }
         }
     }
@@ -687,13 +688,16 @@ CRoundVotingDistribution CDposVoter::calcRoundVotingStats(Round nRound) const
         assert(vote.choice.decision != CVoteChoice::Decision::NO);
 
         switch (vote.choice.decision) {
-            case CVoteChoice::Decision::YES : stats.pro[vote.choice.subject]++;
-                break;
-            case CVoteChoice::Decision::PASS : stats.abstinendi++;
-                assert(vote.choice.subject == uint256{});
-                break;
-            default: assert(false);
-                break;
+        case CVoteChoice::Decision::YES:
+            stats.pro[vote.choice.subject]++;
+            break;
+        case CVoteChoice::Decision::PASS:
+            stats.abstinendi++;
+            assert(vote.choice.subject == uint256{});
+            break;
+        default:
+            assert(false);
+            break;
         }
     }
 
@@ -745,8 +749,7 @@ bool CDposVoter::checkRoundStalemate(const CRoundVotingDistribution& stats) cons
 
     const auto best_it = std::max_element(stats.pro.begin(), stats.pro.end(),
                                           [](const std::pair<BlockHash, size_t>& p1,
-                                             const std::pair<BlockHash, size_t>& p2)
-                                          {
+                                             const std::pair<BlockHash, size_t>& p2) {
                                               return p1.second < p2.second;
                                           });
     const size_t nBest = (best_it != stats.pro.end()) ? best_it->second : 0;
@@ -789,8 +792,7 @@ void CDposVoter::filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nR
     for (auto it = txs_f.begin(); it != txs_f.end();) {
         const TxId txid = it->first;
         auto stats = calcTxVotingStats(txid, nRound);
-        if (nRound
-            == 0) // round starts with 1, so we didn't accept any votes for round 0. yes/no votes could come from any round.
+        if (nRound == 0) // round starts with 1, so we didn't accept any votes for round 0. yes/no votes could come from any round.
             assert(stats.abstinendi == 0);
 
         const bool notCommittable = checkTxNotCommittable(stats);

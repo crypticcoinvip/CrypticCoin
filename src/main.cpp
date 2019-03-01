@@ -6781,7 +6781,7 @@ void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & blo
         }
 
     }
-    mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
+    mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
     mnview.CommitBatch();
 }
 
