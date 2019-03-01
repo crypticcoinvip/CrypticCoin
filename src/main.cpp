@@ -2600,6 +2600,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     if (dvr.fCheckDposSigs)
     {
         // dont mark block as invalid because vSig isn't hashed in block. An attacker may send wrong signatures to convince us that block is invalid
+        if (!fDposActive && block.nRound != 0)
+            return state.Error("bad-blk-round");
         if (!fDposActive && !block.vSig.empty())
             return state.Error("bad-blk-dpos-sigs");
         auto dpos = chainparams.GetConsensus().dpos;
