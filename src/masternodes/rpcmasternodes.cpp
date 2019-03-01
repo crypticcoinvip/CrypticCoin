@@ -54,8 +54,8 @@ UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = C
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
     }
     CMutableTransaction tx(origTx);
-
     int voutsSize = tx.vout.size();
+    int const vinsSize = tx.vin.size();
     CAmount nFee;
     std::string strFailReason;
     int nChangePos = -1;
@@ -69,10 +69,41 @@ UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = C
         auto it = tx.vout.begin() + nChangePos;
         std::rotate(it, it + 1, tx.vout.end());
     }
-    // Pick 'autocreated' change for our changeAddress, if any
-    if (changeAddress != CKeyID() && nChangePos != -1)
+    // If it is 'auth' tx
+    if (changeAddress != CKeyID())
     {
-        tx.vout.back().scriptPubKey = GetScriptForDestination(changeAddress);
+        // If there is no autocreated change or fund was with extra inputs, we need refund with exact auth change (to avoid obtaining of unexpected amounts is second case)
+        if (nChangePos == -1 || tx.vin.size() != vinsSize)
+        {
+            // Refund with DustTrashold amount in the changeAddress
+            tx = CMutableTransaction(origTx);
+            // Calc minimum amount
+            CTxOut authOut(CAmount(1), GetScriptForDestination(changeAddress));
+            CAmount dustThreshold = authOut.GetDustThreshold(::minRelayTxFee);
+            authOut.nValue = dustThreshold;
+            tx.vout.push_back(authOut);
+            ++voutsSize;
+
+            CAmount nFee;
+            std::string strFailReason;
+            int nChangePos = -1;
+            if(!pwalletMain->FundTransaction(tx, nFee, nChangePos, strFailReason))
+            {
+                throw JSONRPCError(RPC_INTERNAL_ERROR, strFailReason);
+            }
+            // After that we don't care about autocreated change, except its position
+            // Rearrange autocreated change position if it exists and not at the end
+            if (nChangePos != -1 && nChangePos != voutsSize)
+            {
+                auto it = tx.vout.begin() + nChangePos;
+                std::rotate(it, it + 1, tx.vout.end());
+            }
+        }
+        else
+        {
+            // Pick 'autocreated' change for our changeAddress (we have change, and it is totally ours)
+            tx.vout.back().scriptPubKey = GetScriptForDestination(changeAddress);
+        }
     }
 
 // 3. Sign
@@ -176,7 +207,6 @@ void ProvideAuthOfFirstInput(CKeyID const & auth, UniValue & inputs)
 
         BOOST_FOREACH(const COutput& out, vecOutputs)
         {
-
             CTxDestination address;
             CScript const & scriptPubKey = out.tx->vout[out.i].scriptPubKey;
             bool fValidAddress = ExtractDestination(scriptPubKey, address);
