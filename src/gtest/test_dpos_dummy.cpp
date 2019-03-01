@@ -54,8 +54,8 @@ TEST(dPoS, DummyEmptyBlock)
 
     dpos::CDposVoter::Output res;
     for (uint64_t i = 0; i < 23; i++) {
-        { // wrong round check
-            viceBlock.nRound = static_cast<dpos::Round>(i * 2);
+        { // future round check
+            viceBlock.nRound = static_cast<dpos::Round>(i + 2);
             const auto empty = voters[i].applyViceBlock(viceBlock);
             ASSERT_TRUE(empty.vTxVotes.empty());
             ASSERT_TRUE(!empty.blockToSubmit);
