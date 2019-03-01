@@ -20,29 +20,6 @@ namespace dpos
 CCriticalSection cs_dpos{};
 CDposController* dposControllerInstance_{nullptr};
 
-int computeBlockHeight(const BlockHash& blockHash, int maxDeep = -1)
-{
-    int rv{-1};
-
-    if (blockHash == chainActive.Tip()->GetBlockHash()) {
-        rv = chainActive.Height();
-    } else {
-        for (CBlockIndex* index{chainActive.Tip()}; index != nullptr; index = index->pprev) {
-            if (blockHash == index->GetBlockHash()) {
-                rv = index->nHeight;
-                break;
-            }
-            if (maxDeep > 0) {
-                maxDeep--;
-            }
-            if (maxDeep == 0) {
-                break;
-            }
-        }
-    }
-    return rv;
-}
-
 BlockHash getTipHash()
 {
     LOCK(cs_main);
@@ -82,25 +59,6 @@ CKey getMasternodeKey()
     return rv;
 }
 
-bool checkIsTeamMember(const BlockHash& tipHash, const CKeyID& operatorKey)
-{
-    int height{-100};
-    LOCK(cs_main);
-
-    for (CBlockIndex* index{chainActive.Tip()}; index != nullptr && height < 0; index = index->pprev, height++) {
-        if (index->GetBlockHash() == tipHash) {
-            height = index->nHeight;
-            break;
-        }
-    }
-
-    if (height > 0) {
-        return pmasternodesview->IsTeamMember(height, operatorKey);
-    }
-
-    return false;
-}
-
 boost::optional<CMasternode::ID> findMasternodeId(const CKeyID& operatorKeyId = CKeyID{})
 {
     CKeyID keyId{operatorKeyId};
@@ -124,28 +82,17 @@ boost::optional<CMasternode::ID> findMasternodeId(const CKeyID& operatorKeyId = 
     return boost::none;
 }
 
-boost::optional<CMasternode::ID> extractMasternodeId(const CRoundVote_p2p& vote)
+template<typename Vote>
+boost::optional<CMasternode::ID> extractMasternodeId(const Vote& vote, const bool checkTeam)
 {
     CPubKey pubKey{};
-    if (pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature) &&
-        checkIsTeamMember(vote.tip, pubKey.GetID()))
+    if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature) ||
+        (checkTeam && !CDposController::checkIsTeamMember(vote.tip, pubKey.GetID())))
     {
-        return findMasternodeId(pubKey.GetID());
+        return boost::none;
     }
-    return boost::none;
+    return findMasternodeId(pubKey.GetID());
 }
-
-boost::optional<CMasternode::ID> extractMasternodeId(const CTxVote_p2p& vote)
-{
-    CPubKey pubKey{};
-    if (pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature) &&
-        checkIsTeamMember(vote.tip, pubKey.GetID()))
-    {
-        return findMasternodeId(pubKey.GetID());
-    }
-    return boost::none;
-}
-
 
 template<typename T>
 void relayEntity(const T& entity, int type)
@@ -271,7 +218,7 @@ bool CDposController::isEnabled(const BlockHash& tipHash) const
 
     if (!tipHash.IsNull()) {
         LOCK(cs_main);
-        height = computeBlockHeight(tipHash);
+        height = Validator::computeBlockHeight(tipHash);
     }
 
     return isEnabled(height);
@@ -285,18 +232,18 @@ CValidationInterface* CDposController::getValidator()
 void CDposController::loadDB()
 {
     assert(pdposdb != nullptr);
+    assert(!this->voter->checkAmIVoter());
+    assert(!this->ready);
 
     voter->minQuorum = Params().GetConsensus().dpos.nMinQuorum;
     voter->numOfVoters = Params().GetConsensus().dpos.nTeamSize;
 
     pdposdb->LoadViceBlocks([this](const BlockHash& tip, const CBlock& block) {
-        assert(!this->voter->checkAmIVoter());
         assert(block.hashPrevBlock == tip);
         this->voter->v[tip].viceBlocks.emplace(block.GetHash(), block);
     });
     pdposdb->LoadRoundVotes([this](const BlockHash& tip, const CRoundVote_p2p& vote) {
-        assert(!this->voter->checkAmIVoter());
-        const auto mnId{extractMasternodeId(vote)};
+        const auto mnId{extractMasternodeId(vote, false)};
         if (mnId != boost::none) {
             CRoundVote roundVote{};
             roundVote.tip = vote.tip;
@@ -310,9 +257,7 @@ void CDposController::loadDB()
         }
     });
     pdposdb->LoadTxVotes([this](const BlockHash& tip, const CTxVote_p2p& vote) {
-        assert(!this->voter->checkAmIVoter());
-        const auto mnId{extractMasternodeId(vote)};
-
+        const auto mnId{extractMasternodeId(vote, false)};
         if (mnId != boost::none) {
             for (const auto& choice : vote.choices) {
                 CTxVote txVote{};
@@ -525,6 +470,13 @@ bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
     return this->voter->isTxApprovedByMe(tx);
 }
 
+bool CDposController::checkIsTeamMember(const BlockHash& blockHash, const CKeyID& operatorKey)
+{
+    LOCK(cs_main);
+    const int height{Validator::computeBlockHeight(blockHash, MIN_BLOCKS_TO_KEEP)};
+    return height > 0 && pmasternodesview->IsTeamMember(height, operatorKey);
+}
+
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 {
     if (!out.vErrors.empty()) {
@@ -578,7 +530,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                     if (votePair.second.nRound == currentRound &&
                         votePair.second.choice.decision == CVoteChoice::Decision::YES &&
                         votePair.second.choice.subject == blockHash &&
-                        extractMasternodeId(votePair.second) != boost::none)
+                        extractMasternodeId(votePair.second, true) != boost::none)
                     {
                         pblock->vSig.insert(pblock->vSig.end(),
                                             votePair.second.signature.begin(),
@@ -603,7 +555,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 {
     bool rv{true};
-    const auto mnId{extractMasternodeId(vote)};
+    const auto mnId{extractMasternodeId(vote, true)};
 
     if (mnId == boost::none) {
         rv = false;
@@ -623,7 +575,7 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
 {
     bool rv{true};
-    const auto mnId{extractMasternodeId(vote)};
+    const auto mnId{extractMasternodeId(vote, true)};
 
     if (mnId == boost::none) {
         rv = false;
@@ -648,27 +600,27 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
 
 void CDposController::removeOldVotes()
 {
-    LOCK2(cs_main, cs_dpos);
-    const auto tipHeight{computeBlockHeight(chainActive.Tip()->GetBlockHash())};
+//    LOCK2(cs_main, cs_dpos);
+//    const auto tipHeight{chainActive.Height()};
 
-    for (const auto& pair: this->receivedRoundVotes) {
-        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
-            this->receivedRoundVotes.erase(pair.first);
-            pdposdb->EraseRoundVote(pair.second.tip);
-        }
-    }
-    for (const auto& pair: this->receivedTxVotes) {
-        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
-            this->receivedRoundVotes.erase(pair.first);
-            pdposdb->EraseTxVote(pair.second.tip);
-        }
-    }
+//    for (const auto& pair: this->receivedRoundVotes) {
+//        if (tipHeight - computeBlockHeight(pair.second.tip, MIN_BLOCKS_TO_KEEP) > MIN_BLOCKS_TO_KEEP) {
+//            this->receivedRoundVotes.erase(pair.first);
+//            pdposdb->EraseRoundVote(pair.second.tip);
+//        }
+//    }
+//    for (const auto& pair: this->receivedTxVotes) {
+//        if (tipHeight - computeBlockHeight(pair.second.tip, MIN_BLOCKS_TO_KEEP) > MIN_BLOCKS_TO_KEEP) {
+//            this->receivedRoundVotes.erase(pair.first);
+//            pdposdb->EraseTxVote(pair.second.tip);
+//        }
+//    }
 
-    for (const auto& pair: this->voter->v) {
-        if (tipHeight - computeBlockHeight(pair.first, 100) > 100) {
-            pdposdb->EraseViceBlock(pair.first);
-        }
-    }
+//    for (const auto& pair: this->voter->v) {
+//        if (tipHeight - computeBlockHeight(pair.first, MIN_BLOCKS_TO_KEEP) > MIN_BLOCKS_TO_KEEP) {
+//            pdposdb->EraseViceBlock(pair.first);
+//        }
+//    }
 }
 
 std::vector<TxId> CDposController::getTxsFilter() const
@@ -676,6 +628,5 @@ std::vector<TxId> CDposController::getTxsFilter() const
     std::vector<TxId> rv{};
     return rv;
 }
-
 
 } //namespace dpos

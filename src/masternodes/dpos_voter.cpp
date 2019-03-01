@@ -691,6 +691,7 @@ CRoundVotingDistribution CDposVoter::calcRoundVotingStats(Round nRound) const
 
         switch (vote.choice.decision) {
             case CVoteChoice::Decision::YES : stats.pro[vote.choice.subject]++;
+                assert(vote.choice.subject != uint256{});
                 break;
             case CVoteChoice::Decision::PASS : stats.abstinendi++;
                 assert(vote.choice.subject == uint256{});

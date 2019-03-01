@@ -26,10 +26,34 @@ bool CDposController::Validator::validateBlock(const CBlock& block, const std::m
     return CheckBlockHeader(block, state, true);
 }
 
-bool CDposController::Validator::allowArchiving(BlockHash blockHash)
+bool CDposController::Validator::allowArchiving(const BlockHash& blockHash)
 {
-    AssertLockHeld(cs_main);
-    return true;
+    assert(chainActive.Tip() != nullptr);
+    return chainActive.Height() - computeBlockHeight(blockHash, MIN_BLOCKS_TO_KEEP) < MIN_BLOCKS_TO_KEEP;
+}
+
+int CDposController::Validator::computeBlockHeight(const BlockHash& blockHash, int maxDeep)
+{
+    int rv{-1};
+    assert(chainActive.Tip() != nullptr);
+
+    if (blockHash == chainActive.Tip()->GetBlockHash()) {
+        rv = chainActive.Height();
+    } else {
+        for (CBlockIndex* index{chainActive.Tip()}; index != nullptr; index = index->pprev) {
+            if (blockHash == index->GetBlockHash()) {
+                rv = index->nHeight;
+                break;
+            }
+            if (maxDeep > 0) {
+                maxDeep--;
+            }
+            if (maxDeep == 0) {
+                break;
+            }
+        }
+    }
+    return rv;
 }
 
 void CDposController::Validator::UpdatedBlockTip(const CBlockIndex* pindex)
