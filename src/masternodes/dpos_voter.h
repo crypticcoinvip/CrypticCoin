@@ -173,6 +173,9 @@ public:
     bool isCommittedTx(const CTransaction& tx) const;
     bool isTxApprovedByMe(const CTransaction& tx) const;
 
+    CTxVotingDistribution calcTxVotingStats(TxId txid, Round nRound) const;
+    CRoundVotingDistribution calcRoundVotingStats(Round nRound) const;
+
 protected:
     Output misbehavingErr(const std::string& msg) const;
     Output voteForTx(const CTransaction& tx);
@@ -182,9 +185,6 @@ protected:
      */
     bool wasVotedByMe_tx(TxId txid, Round nRound) const;
     bool wasVotedByMe_round(Round nRound) const;
-
-    CTxVotingDistribution calcTxVotingStats(TxId txid, Round nRound) const;
-    CRoundVotingDistribution calcRoundVotingStats(Round nRound) const;
 
     bool atLeastOneViceBlockIsValid(Round nRound) const;
     bool txHasAnyVote(TxId txid) const;

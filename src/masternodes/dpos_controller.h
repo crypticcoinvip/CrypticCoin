@@ -5,6 +5,7 @@
 #define MASTERNODES_DPOS_CONTROLLER_H
 
 #include "dpos_p2p_messages.h"
+#include "dpos_voter.h"
 #include "../primitives/block.h"
 #include <map>
 #include <memory>
@@ -49,6 +50,7 @@ public:
     std::vector<CTransaction> listCommittedTxs() const;
     bool isCommittedTx(const CTransaction& tx) const;
     bool isTxApprovedByMe(const CTransaction& tx) const;
+    CTxVotingDistribution calcTxVotingStats(TxId txid) const;
 
 private:
     CDposController() = default;

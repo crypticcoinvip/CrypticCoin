@@ -517,6 +517,12 @@ bool CDposController::isCommittedTx(const CTransaction& tx) const
     return this->voter->isCommittedTx(tx);
 }
 
+CTxVotingDistribution CDposController::calcTxVotingStats(TxId txid) const
+{
+    LOCK(cs_dpos);
+    return this->voter->calcTxVotingStats(txid, this->voter->getCurrentRound());
+}
+
 bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
 {
     LOCK(cs_dpos);
