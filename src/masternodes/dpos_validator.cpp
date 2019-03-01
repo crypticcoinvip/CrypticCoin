@@ -11,7 +11,7 @@ namespace dpos
 bool CDposController::Validator::validateTx(const std::map<TxIdSorted, CTransaction>& txMap)
 {
     AssertLockHeld(cs_main);
-    // NOT SUPPOSED TO BE USED AN ACTUAL VOTER! Only by relaying node.
+    // NOT SUPPOSED TO BE USED BY AN ACTUAL VOTER! Only by relaying node.
 
     return true;
 }
@@ -19,7 +19,7 @@ bool CDposController::Validator::validateTx(const std::map<TxIdSorted, CTransact
 bool CDposController::Validator::validateBlock(const CBlock& block, const std::map<TxIdSorted, CTransaction>& txMap, bool flag)
 {
     AssertLockHeld(cs_main);
-    // NOT SUPPOSED TO BE USED AN ACTUAL VOTER! Only by relaying node.
+    // NOT SUPPOSED TO BE USED BY AN ACTUAL VOTER! Only by relaying node.
 
     ScopedNoLogging noLogging;
     CValidationState state;
