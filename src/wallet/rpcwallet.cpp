@@ -83,8 +83,10 @@ void EnsureWalletIsUnlocked()
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 {
     int confirms = wtx.GetDepthInMainChain();
+    const bool dposCommitted = wtx.fInstant && (confirms > 0 || dpos::getController()->isCommittedTx(static_cast<const CTransaction&>(wtx)));
     entry.push_back(Pair("confirmations", confirms));
     entry.push_back(Pair("dpos_instant", wtx.fInstant));
+    entry.push_back(Pair("dpos_committed", dposCommitted));
     if (wtx.IsCoinBase())
         entry.push_back(Pair("generated", true));
     if (confirms > 0)
@@ -2417,9 +2419,12 @@ UniValue listunspent(const UniValue& params, bool fHelp)
         if (destinations.size() && (!fValidAddress || !destinations.count(address)))
             continue;
 
+        const bool dposCommitted = out.tx->fInstant && (out.nDepth > 0 || dpos::getController()->isCommittedTx(static_cast<const CTransaction&>(*out.tx)));
+
         UniValue entry(UniValue::VOBJ);
         entry.push_back(Pair("txid", out.tx->GetHash().GetHex()));
         entry.push_back(Pair("dpos_instant", out.tx->fInstant));
+        entry.push_back(Pair("dpos_committed", dposCommitted));
         entry.push_back(Pair("vout", out.i));
         entry.push_back(Pair("generated", out.tx->IsCoinBase()));
 
