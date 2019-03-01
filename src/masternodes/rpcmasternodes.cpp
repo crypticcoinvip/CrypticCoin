@@ -54,8 +54,8 @@ UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = C
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
     }
     CMutableTransaction tx(origTx);
-
     int voutsSize = tx.vout.size();
+    int const vinsSize = tx.vin.size();
     CAmount nFee;
     std::string strFailReason;
     int nChangePos = -1;
@@ -69,10 +69,41 @@ UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = C
         auto it = tx.vout.begin() + nChangePos;
         std::rotate(it, it + 1, tx.vout.end());
     }
-    // Pick 'autocreated' change for our changeAddress, if any
-    if (changeAddress != CKeyID() && nChangePos != -1)
+    // If it is 'auth' tx
+    if (changeAddress != CKeyID())
     {
-        tx.vout.back().scriptPubKey = GetScriptForDestination(changeAddress);
+        // If there is no autocreated change or fund was with extra inputs, we need refund with exact auth change (to avoid obtaining of unexpected amounts is second case)
+        if (nChangePos == -1 || tx.vin.size() != vinsSize)
+        {
+            // Refund with DustTrashold amount in the changeAddress
+            tx = CMutableTransaction(origTx);
+            // Calc minimum amount
+            CTxOut authOut(CAmount(1), GetScriptForDestination(changeAddress));
+            CAmount dustThreshold = authOut.GetDustThreshold(::minRelayTxFee);
+            authOut.nValue = dustThreshold;
+            tx.vout.push_back(authOut);
+            ++voutsSize;
+
+            CAmount nFee;
+            std::string strFailReason;
+            int nChangePos = -1;
+            if(!pwalletMain->FundTransaction(tx, nFee, nChangePos, strFailReason))
+            {
+                throw JSONRPCError(RPC_INTERNAL_ERROR, strFailReason);
+            }
+            // After that we don't care about autocreated change, except its position
+            // Rearrange autocreated change position if it exists and not at the end
+            if (nChangePos != -1 && nChangePos != voutsSize)
+            {
+                auto it = tx.vout.begin() + nChangePos;
+                std::rotate(it, it + 1, tx.vout.end());
+            }
+        }
+        else
+        {
+            // Pick 'autocreated' change for our changeAddress (we have change, and it is totally ours)
+            tx.vout.back().scriptPubKey = GetScriptForDestination(changeAddress);
+        }
     }
 
 // 3. Sign
@@ -176,7 +207,6 @@ void ProvideAuthOfFirstInput(CKeyID const & auth, UniValue & inputs)
 
         BOOST_FOREACH(const COutput& out, vecOutputs)
         {
-
             CTxDestination address;
             CScript const & scriptPubKey = out.tx->vout[out.i].scriptPubKey;
             bool fValidAddress = ExtractDestination(scriptPubKey, address);
@@ -259,7 +289,7 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     std::string const operatorAuthAddressBase58 = metaObj["operatorAuthAddress"].getValStr();
     std::string const ownerRewardAddress =        metaObj["ownerRewardAddress"].getValStr();
 
-    std::string const operatorRewardAddress =     metaObj["operatorRewardAddress"].getValStr();
+    std::string const operatorRewardAddress =     metaObj["operatorRewardAddress"].getValStr().empty() ? ownerRewardAddress : metaObj["operatorRewardAddress"].getValStr();
     int32_t     const operatorRewardRatio =       metaObj["operatorRewardRatio"].isNull() ? 0 : AmountFromValue(metaObj["operatorRewardRatio"]) * MN_BASERATIO / COIN;
     std::string       collateralAddress =         metaObj["collateralAddress"].getValStr();
 
@@ -317,9 +347,9 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "ownerRewardAddress does not refer to a P2PKH or P2SH address");
     }
-    // Optional
+    // Optional (=ownerRewardAddress if empty)
     CTxDestination operatorRewardDest = DecodeDestination(operatorRewardAddress);
-    if (!operatorRewardAddress.empty() && operatorRewardDest.which() != 1 && operatorRewardDest.which() != 2)
+    if (operatorRewardDest.which() != 1 && operatorRewardDest.which() != 2)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "operatorRewardAddress does not refer to a P2PKH or P2SH address");
     }
@@ -813,7 +843,7 @@ UniValue listmns(UniValue const & params, bool fHelp)
     );
     EnsureSaplingUpgrade();
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
 
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     for (auto it = mns.begin(); it != mns.end(); ++it)
@@ -830,7 +860,7 @@ UniValue listactivemns(UniValue const & params, bool fHelp)
     );
     EnsureSaplingUpgrade();
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
 
     CActiveMasternodes const & mns = pmasternodesview->GetActiveMasternodes();
     for (auto const & mn : mns)
@@ -890,13 +920,13 @@ UniValue dumpmns(UniValue const & params, bool fHelp)
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
 
-    UniValue inputs(UniValue(UniValue::VARR));
+    UniValue inputs(UniValue::VARR);
     if (params.size() > 0)
     {
         inputs = params[0].get_array();
     }
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     if (inputs.empty())
     {
@@ -972,13 +1002,13 @@ UniValue getdismissvotes(UniValue const & params, bool fHelp)
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
 
-    UniValue inputs(UniValue(UniValue::VARR));
+    UniValue inputs(UniValue::VARR);
     if (params.size() > 0)
     {
         inputs = params[0].get_array();
     }
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     if (inputs.empty())
     {

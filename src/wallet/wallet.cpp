@@ -2924,11 +2924,12 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
             if (nDepth < 0)
                 continue;
 
-            if (pmasternodesview->ExistMasternode(wtxid))
-                continue;
-
+            auto const node = pmasternodesview->ExistMasternode(wtxid);
             for (unsigned int i = 0; i < pcoin->vout.size(); i++) {
                 isminetype mine = IsMine(pcoin->vout[i]);
+                // Lock for MN's collateral: check for MN exists and 'not dismissed yet' (instead of just 'active'!)
+                if (i == 1 && node && node->deadSinceHeight == -1)
+                    continue;
                 if (!(IsSpent(wtxid, i)) && mine != ISMINE_NO &&
                     !IsLockedCoin((*it).first, i) && (pcoin->vout[i].nValue > 0 || fIncludeZeroValue) &&
                     (!coinControl || !coinControl->HasSelected() || coinControl->fAllowOtherInputs || coinControl->IsSelected((*it).first, i)))
