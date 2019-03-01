@@ -233,7 +233,7 @@ void CDposController::runEventLoop()
                 lastRound == currentRound &&
                 self->checkStalemate(currentRound))
             {
-                LOCK(cs_dpos);
+                LOCK2(cs_main, cs_dpos);
                 self->handleVoterOutput(self->voter->onRoundTooLong());
             }
 
@@ -363,7 +363,7 @@ Round CDposController::getCurrentVotingRound() const
 void CDposController::proceedViceBlock(const CBlock& viceBlock)
 {
     if (!findViceBlock(viceBlock.GetHash())) {
-        LOCK(cs_dpos);
+        LOCK2(cs_main, cs_dpos);
         const CDposVoterOutput out{voter->applyViceBlock(viceBlock)};
 
         storeEntity(viceBlock, &CDposDB::WriteViceBlock, viceBlock.hashPrevBlock); // TODO move into voter
@@ -375,14 +375,14 @@ void CDposController::proceedViceBlock(const CBlock& viceBlock)
 
 void CDposController::proceedTransaction(const CTransaction& tx)
 {
-    LOCK(cs_dpos);
+    LOCK2(cs_main, cs_dpos);
     handleVoterOutput(voter->applyTx(tx));
 }
 
 void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
 {
     if (!findRoundVote(vote.GetHash())) {
-        LOCK(cs_dpos);
+        LOCK2(cs_main, cs_dpos);
 
         this->receivedRoundVotes.emplace(vote.GetHash(), vote); // TODO move into voter
         if (acceptRoundVote(vote)) {
@@ -395,7 +395,7 @@ void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
 void CDposController::proceedTxVote(const CTxVote_p2p& vote)
 {
     if (!findTxVote(vote.GetHash())) {
-        LOCK(cs_dpos);
+        LOCK2(cs_main, cs_dpos);
 
         if (acceptTxVote(vote)) {
             this->receivedTxVotes.emplace(vote.GetHash(), vote);
