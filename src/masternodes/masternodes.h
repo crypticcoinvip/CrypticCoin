@@ -303,7 +303,7 @@ public:
     void Load();
 
     //! Process event of spending collateral. It is assumed that the node exists
-    bool OnCollateralSpent(uint256 const & nodeId, uint256 const & txid, uint input, int height);
+    bool OnCollateralSpent(uint256 const & nodeId, uint256 const & txid, uint32_t input, int height);
 
     bool OnMasternodeAnnounce(uint256 const & nodeId, CMasternode const & node);
     bool OnMasternodeActivate(uint256 const & txid, uint256 const & nodeId, CKeyID const & operatorId, int height);
