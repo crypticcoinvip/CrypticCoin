@@ -813,7 +813,7 @@ UniValue listmns(UniValue const & params, bool fHelp)
     );
     EnsureSaplingUpgrade();
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
 
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     for (auto it = mns.begin(); it != mns.end(); ++it)
@@ -830,7 +830,7 @@ UniValue listactivemns(UniValue const & params, bool fHelp)
     );
     EnsureSaplingUpgrade();
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
 
     CActiveMasternodes const & mns = pmasternodesview->GetActiveMasternodes();
     for (auto const & mn : mns)
@@ -890,13 +890,13 @@ UniValue dumpmns(UniValue const & params, bool fHelp)
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
 
-    UniValue inputs(UniValue(UniValue::VARR));
+    UniValue inputs(UniValue::VARR);
     if (params.size() > 0)
     {
         inputs = params[0].get_array();
     }
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     if (inputs.empty())
     {
@@ -972,13 +972,13 @@ UniValue getdismissvotes(UniValue const & params, bool fHelp)
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
 
-    UniValue inputs(UniValue(UniValue::VARR));
+    UniValue inputs(UniValue::VARR);
     if (params.size() > 0)
     {
         inputs = params[0].get_array();
     }
 
-    UniValue ret(UniValue(UniValue::VARR));
+    UniValue ret(UniValue::VARR);
     CMasternodes const & mns = pmasternodesview->GetMasternodes();
     if (inputs.empty())
     {

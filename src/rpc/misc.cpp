@@ -720,8 +720,8 @@ UniValue list_instant_transactions(const UniValue& params, bool fHelp)
     for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         UniValue entry{UniValue::VOBJ};
         entry.push_back(Pair("hash", tx.GetHash().GetHex()));
-        entry.push_back(Pair("vin", tx.vin.size()));
-        entry.push_back(Pair("vout", tx.vout.size()));
+        entry.push_back(Pair("vin", static_cast<int>(tx.vin.size())));
+        entry.push_back(Pair("vout", static_cast<int>(tx.vout.size())));
         rv.push_back(entry);
     }
     return rv;
