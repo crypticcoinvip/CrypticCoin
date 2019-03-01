@@ -59,41 +59,6 @@ CKey getMasternodeKey()
     return rv;
 }
 
-boost::optional<CMasternode::ID> findMasternodeId(const CKeyID& operatorKeyId = CKeyID{})
-{
-    CKeyID keyId{operatorKeyId};
-
-    if (operatorKeyId.IsNull()) {
-        const CKey key{getMasternodeKey()};
-        if (key.IsValid()) {
-            keyId = key.GetPubKey().GetID();
-        }
-    }
-
-    if (!keyId.IsNull()) {
-        LOCK(cs_main);
-        const auto authIndex{CMasternodesView::AuthIndex::ByOperator};
-        const auto mnIt{pmasternodesview->ExistMasternode(authIndex, keyId)};
-        if (mnIt != boost::none) {
-            return mnIt.get()->second;
-        }
-    }
-
-    return boost::none;
-}
-
-template<typename Vote>
-boost::optional<CMasternode::ID> extractMasternodeId(const Vote& vote, const bool checkTeam)
-{
-    CPubKey pubKey{};
-    if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature) ||
-        (checkTeam && !CDposController::checkIsTeamMember(vote.tip, pubKey.GetID())))
-    {
-        return boost::none;
-    }
-    return findMasternodeId(pubKey.GetID());
-}
-
 template<typename T>
 void relayEntity(const T& entity, int type)
 {
@@ -244,7 +209,7 @@ void CDposController::loadDB()
         this->voter->v[tip].viceBlocks.emplace(block.GetHash(), block);
     });
     pdposdb->LoadRoundVotes([this](const BlockHash& tip, const CRoundVote_p2p& vote) {
-        const auto mnId{extractMasternodeId(vote, false)};
+        const auto mnId{authenticateMsg(vote)};
         if (mnId != boost::none) {
             CRoundVote roundVote{};
             roundVote.tip = vote.tip;
@@ -258,7 +223,7 @@ void CDposController::loadDB()
         }
     });
     pdposdb->LoadTxVotes([this](const BlockHash& tip, const CTxVote_p2p& vote) {
-        const auto mnId{extractMasternodeId(vote, false)};
+        const auto mnId{authenticateMsg(vote)};
         if (mnId != boost::none) {
             for (const auto& choice : vote.choices) {
                 CTxVote txVote{};
@@ -278,7 +243,7 @@ void CDposController::loadDB()
 void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 {
     if (ready && isEnabled(tipHash)) {
-        const auto mnId{findMasternodeId()};
+        const auto mnId{findMyMasternodeId()};
         LOCK(cs_main);
 
         if (mnId != boost::none && !this->voter->checkAmIVoter()) {
@@ -483,13 +448,6 @@ bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
     return this->voter->isTxApprovedByMe(tx);
 }
 
-bool CDposController::checkIsTeamMember(const BlockHash& blockHash, const CKeyID& operatorKey)
-{
-    LOCK(cs_main);
-    const int height{Validator::computeBlockHeight(blockHash, MIN_BLOCKS_TO_KEEP)};
-    return height > 0 && pmasternodesview->IsTeamMember(height, operatorKey);
-}
-
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 {
     if (!out.vErrors.empty()) {
@@ -543,7 +501,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                     if (votePair.second.nRound == currentRound &&
                         votePair.second.choice.decision == CVoteChoice::Decision::YES &&
                         votePair.second.choice.subject == blockHash &&
-                        extractMasternodeId(votePair.second, true) != boost::none)
+                        authenticateMsg(votePair.second) != boost::none)
                     {
                         pblock->vSig.insert(pblock->vSig.end(),
                                             votePair.second.signature.begin(),
@@ -568,7 +526,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 {
     bool rv{true};
-    const auto mnId{extractMasternodeId(vote, true)};
+    const auto mnId{authenticateMsg(vote)};
 
     if (mnId == boost::none) {
         rv = false;
@@ -588,7 +546,7 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
 {
     bool rv{true};
-    const auto mnId{extractMasternodeId(vote, true)};
+    const auto mnId{authenticateMsg(vote)};
 
     if (mnId == boost::none) {
         rv = false;
@@ -609,6 +567,50 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
     }
 
     return rv;
+}
+
+boost::optional<CMasternode::ID> CDposController::findMyMasternodeId()
+{
+    LOCK(cs_main);
+    const auto mnIds = pmasternodesview->AmIActiveOperator();
+    if (mnIds == boost::none) {
+        return boost::none;
+    }
+
+    return getIdOfTeamMember(getTipHash(), mnIds->operatorAuthAddress);
+}
+
+boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth)
+{
+    LOCK(cs_main);
+    const int height{Validator::computeBlockHeight(blockHash, MIN_BLOCKS_TO_KEEP)};
+    const CTeam team = pmasternodesview->ReadDposTeam(height);
+    for (auto&& member : team)
+    {
+        if (member.second.second == operatorAuth)
+            return {member.first};
+    }
+    return boost::none;
+}
+
+boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CTxVote_p2p& vote)
+{
+    CPubKey pubKey{};
+    if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature))
+    {
+        return boost::none;
+    }
+    return getIdOfTeamMember(vote.tip, pubKey.GetID());
+}
+
+boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CRoundVote_p2p& vote)
+{
+    CPubKey pubKey{};
+    if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature))
+    {
+        return boost::none;
+    }
+    return getIdOfTeamMember(vote.tip, pubKey.GetID());
 }
 
 void CDposController::removeOldVotes()

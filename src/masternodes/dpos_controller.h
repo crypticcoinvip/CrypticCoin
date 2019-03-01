@@ -53,9 +53,13 @@ public:
     bool isTxApprovedByMe(const CTransaction& tx) const;
     CTxVotingDistribution calcTxVotingStats(TxId txid) const;
 
-    static bool checkIsTeamMember(const BlockHash& blockHash, const CKeyID& operatorKey);
-
 private:
+    static boost::optional<CMasternode::ID> findMyMasternodeId();
+    static boost::optional<CMasternode::ID> getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth);
+
+    static boost::optional<CMasternode::ID> authenticateMsg(const CTxVote_p2p& vote);
+    static boost::optional<CMasternode::ID> authenticateMsg(const CRoundVote_p2p& vote);
+
     CDposController() = default;
     ~CDposController() = default;
     CDposController(const CDposController&) = delete;
