@@ -122,6 +122,7 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         self.dismissvote_mn(3, 0)
 
         self.sync_all()
+        time.sleep(2)
         self.nodes[0].generate(1)
         time.sleep(5)
         assert_equal(self.nodes[0].getblockcount(), 212)
