@@ -144,6 +144,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     CAmount nFees = 0;
     CAmount nFees_inst = 0;
 
+    const std::vector<CTransaction> commitedList = dpos::getController()->listCommittedTxs();
+    pblock->nRound = dpos::getController()->getCurrentVotingRound();
     {
         LOCK2(cs_main, mempool.cs);
         CBlockIndex* pindexPrev = chainActive.Tip();
@@ -256,8 +258,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
         // Insert instant tranasctions
         {
-            const std::vector<CTransaction> commitedList = dpos::getController()->listCommittedTxs();
-
             for (auto&& tx : commitedList) {
                 assert(tx.fInstant);
 
@@ -636,7 +636,6 @@ void static BitcoinMiner()
                 return;
             }
             CBlock *pblock = &pblocktemplate->block;
-            pblock->nRound = dpos::getController()->getCurrentVotingRound();
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
             LogPrintf("Running CrypticcoinMiner with %u transactions in block (%u bytes)\n", pblock->vtx.size(),

@@ -226,7 +226,6 @@ UniValue generate(const UniValue& params, bool fHelp)
         if (!pblocktemplate.get())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Wallet keypool empty");
         CBlock *pblock = &pblocktemplate->block;
-        pblock->nRound = dpos::getController()->getCurrentVotingRound();
         {
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
