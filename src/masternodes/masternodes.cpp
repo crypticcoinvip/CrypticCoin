@@ -41,7 +41,7 @@ int GetMnActivationDelay()
 
 CAmount GetMnCollateralAmount()
 {
-    static const CAmount MN_COLLATERAL_AMOUNT = 1000 * COIN;
+    static const CAmount MN_COLLATERAL_AMOUNT = 1000000 * COIN;
 
     if (Params().NetworkIDString() == "regtest")
     {
