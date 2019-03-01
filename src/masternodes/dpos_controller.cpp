@@ -126,39 +126,41 @@ void CDposController::runEventLoop()
 
     while (true) {
         boost::this_thread::interruption_point();
-        const auto now{GetTimeMillis()};
 
-        if (!ibdPassed && !IsInitialBlockDownload()) {
-            ibdPassedTime = now;
-            ibdPassed = true;
-        }
-
-        if (!self->ready && ibdPassed && (now - ibdPassedTime > params.dpos.nDelayIBD * 1000)) {
-            self->ready = true;
-            self->onChainTipUpdated(getTipHash());
-        }
-
-        if (now - roundTime > params.dpos.nStalemateTimeout * 1000) {
-            const Round currentRound{self->getCurrentVotingRound()};
-
-            if (currentRound > 0 && lastRound == currentRound) {
-                LOCK(cs_main);
-                self->handleVoterOutput(self->voter->onRoundTooLong());
+        const BlockHash tipHash{getTipHash()};
+        if (self->isEnabled(tipHash)) {
+            const auto now{GetTimeMillis()};
+            if (!ibdPassed && !IsInitialBlockDownload()) {
+                ibdPassedTime = now;
+                ibdPassed = true;
             }
 
-            roundTime = now;
-            lastRound = currentRound;
-        }
+            if (!self->ready && ibdPassed && ((now - ibdPassedTime) > params.dpos.nDelayIBD * 1000)) {
+                self->ready = true;
+                self->onChainTipUpdated(getTipHash());
+            }
 
-        if (now - lastTime > params.dpos.nPollingPeriod * 1000) {
-            lastTime = now;
-            self->removeOldVotes();
+            if ((now - roundTime) > (params.dpos.nStalemateTimeout * 1000)) {
+                const Round currentRound{self->getCurrentVotingRound()};
 
-            const BlockHash tipHash{getTipHash()};
-            for (auto&& node : getNodes()) {
-                node->PushMessage("get_vice_blocks", tipHash);
-                node->PushMessage("get_round_votes", tipHash);
-                node->PushMessage("get_tx_votes", tipHash, self->getTxsFilter());
+                if (currentRound > 0 && lastRound == currentRound) {
+                    LOCK(cs_main);
+                    self->handleVoterOutput(self->voter->onRoundTooLong());
+                }
+
+                roundTime = now;
+                lastRound = currentRound;
+            }
+
+            if ((now - lastTime) > (params.dpos.nPollingPeriod * 1000)) {
+                lastTime = now;
+                self->removeOldVotes();
+
+                for (auto&& node : getNodes()) {
+                    node->PushMessage("get_vice_blocks", tipHash);
+                    node->PushMessage("get_round_votes", tipHash);
+                    node->PushMessage("get_tx_votes", tipHash, self->getTxsFilter());
+                }
             }
         }
 
