@@ -98,13 +98,13 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 
     auto&& dpos_params = Params().GetConsensus().dpos;
     dpos::CTxVotingDistribution stats{};
-    if (wtx.fInstant && confirms == 0)
+    if (wtx.fInstant && confirms <= 0)
         stats = dpos::getController()->calcTxVotingStats(wtx.GetHash());
 
     std::string dposStatus = "";
     if (confirms > 0 || stats.pro >= dpos_params.nMinQuorum)
         dposStatus = "committed";
-    if (confirms == 0)
+    if (confirms <= 0)
     {
         if (checkInstTxNotCommittable(stats, dpos_params.nMinQuorum, dpos_params.nTeamSize))
             dposStatus = "deffered";
@@ -120,7 +120,7 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
     entry.push_back(Pair("dpos_instant", wtx.fInstant));
     if (wtx.fInstant)
         entry.push_back(Pair("dpos_status", dposStatus));
-    if (wtx.fInstant && confirms == 0)
+    if (wtx.fInstant && confirms <= 0)
     {
         entry.push_back(Pair("dpos_yes_votes", stats.pro));
         entry.push_back(Pair("dpos_no_votes", stats.contra));
@@ -2448,7 +2448,7 @@ UniValue listunspent(const UniValue& params, bool fHelp)
     LOCK2(cs_main, pwalletMain->cs_wallet);
     pwalletMain->AvailableCoins(vecOutputs, false, NULL, true);
     BOOST_FOREACH(const COutput& out, vecOutputs) {
-        if (out.nDepth < nMinDepth || out.nDepth > nMaxDepth)
+        if (out.nDepth < nMinDepth || out.nDepth > nMaxDepth) // @todo @egorl if !out.tx->fInstant
             continue;
 
         CTxDestination address;
@@ -2460,13 +2460,13 @@ UniValue listunspent(const UniValue& params, bool fHelp)
 
         auto&& dpos_params = Params().GetConsensus().dpos;
         dpos::CTxVotingDistribution stats{};
-        if (out.nDepth == 0 && out.tx->fInstant)
+        if (out.nDepth <= 0 && out.tx->fInstant)
             stats = dpos::getController()->calcTxVotingStats(out.tx->GetHash());
 
         std::string dposStatus = "";
         if (out.nDepth > 0 || stats.pro >= dpos_params.nMinQuorum)
             dposStatus = "committed";
-        if (out.nDepth == 0)
+        if (out.nDepth <= 0)
         {
             if (checkInstTxNotCommittable(stats, dpos_params.nMinQuorum, dpos_params.nTeamSize))
                 dposStatus = "deffered";
@@ -2483,7 +2483,7 @@ UniValue listunspent(const UniValue& params, bool fHelp)
         entry.push_back(Pair("dpos_instant", out.tx->fInstant));
         if (out.tx->fInstant)
             entry.push_back(Pair("dpos_status", dposStatus));
-        if (out.nDepth == 0 && out.tx->fInstant)
+        if (out.nDepth <= 0 && out.tx->fInstant)
         {
             entry.push_back(Pair("dpos_yes_votes", stats.pro));
             entry.push_back(Pair("dpos_no_votes", stats.contra));
