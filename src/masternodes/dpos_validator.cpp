@@ -10,23 +10,26 @@ namespace dpos
 
 bool CDposController::Validator::validateTx(const std::map<TxIdSorted, CTransaction>& txMap)
 {
+    AssertLockHeld(cs_main);
     return true;
 }
 
 bool CDposController::Validator::validateBlock(const CBlock& block, const std::map<TxIdSorted, CTransaction>& txMap, bool flag)
 {
+    AssertLockHeld(cs_main);
     return true;
 }
 
 bool CDposController::Validator::allowArchiving(BlockHash blockHash)
 {
+    AssertLockHeld(cs_main);
     return true;
 }
 
 void CDposController::Validator::UpdatedBlockTip(const CBlockIndex* pindex)
 {
-    libsnark::UNUSED(pindex);
-    getController()->updateChainTip();
+    assert(pindex != nullptr);
+    getController()->onChainTipUpdated(pindex->GetBlockHash());
 }
 
 void CDposController::Validator::SyncTransaction(const CTransaction& tx, const CBlock* pblock)

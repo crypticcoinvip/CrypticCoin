@@ -5,6 +5,7 @@
 #define MASTERNODES_DPOS_CONTROLLER_H
 
 #include "dpos_p2p_messages.h"
+#include "dpos_voter.h"
 #include "../primitives/block.h"
 #include <map>
 #include <memory>
@@ -24,21 +25,23 @@ public:
     static CDposController& getInstance();
     static void runEventLoop();
 
-    bool isEnabled() const;
-    CValidationInterface* getValidator();
-    void initialize();
-    void updateChainTip();
+    bool isEnabled(int tipHeight = -1) const;
+    bool isEnabled(const BlockHash& tipHash) const;
 
-    int getCurrentVotingRound() const;
+    CValidationInterface* getValidator();
+    void loadDB();
+    void onChainTipUpdated(const BlockHash& tipHash);
+
+    Round getCurrentVotingRound() const;
 
     void proceedViceBlock(const CBlock& viceBlock);
     void proceedTransaction(const CTransaction& tx);
     void proceedRoundVote(const CRoundVote_p2p& vote);
     void proceedTxVote(const CTxVote_p2p& vote);
 
-    bool findViceBlock(const uint256& hash, CBlock* block = nullptr) const;
-    bool findRoundVote(const uint256& hash, CRoundVote_p2p* vote = nullptr) const;
-    bool findTxVote(const uint256& hash, CTxVote_p2p* vote = nullptr) const;
+    bool findViceBlock(const BlockHash& hash, CBlock* block = nullptr) const;
+    bool findRoundVote(const BlockHash& hash, CRoundVote_p2p* vote = nullptr) const;
+    bool findTxVote(const BlockHash& hash, CTxVote_p2p* vote = nullptr) const;
 
     std::vector<CBlock> listViceBlocks() const;
     std::vector<CRoundVote_p2p> listRoundVotes() const;
@@ -47,6 +50,7 @@ public:
     std::vector<CTransaction> listCommittedTxs() const;
     bool isCommittedTx(const CTransaction& tx) const;
     bool isTxApprovedByMe(const CTransaction& tx) const;
+    CTxVotingDistribution calcTxVotingStats(TxId txid) const;
 
 private:
     CDposController() = default;
@@ -58,10 +62,14 @@ private:
     bool handleVoterOutput(const CDposVoterOutput& out);
     bool acceptRoundVote(const CRoundVote_p2p& vote);
     bool acceptTxVote(const CTxVote_p2p& vote);
+    bool checkStalemate(const Round round);
 
     void removeOldVotes();
 
+    std::vector<TxId> getTxsFilter() const;
+
 private:
+    bool ready = false;
     std::shared_ptr<CDposVoter> voter;
     std::shared_ptr<Validator> validator;
     std::map<uint256, CTxVote_p2p> receivedTxVotes;

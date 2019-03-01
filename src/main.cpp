@@ -2483,7 +2483,7 @@ void PartitionCheck(bool (*initialDownloadCheck)(), CCriticalSection& cs, const 
 }
 
 static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIndex* pindex, size_t minQuorum, size_t teamSize, const CMasternodesView& mnview) {
-    const size_t ecdsaSigSize = 65;
+    const size_t ecdsaSigSize = CPubKey::COMPACT_SIGNATURE_SIZE;
     if ((sigs.size() % ecdsaSigSize) != 0) {
         LogPrintf("CheckDposSigs(): malformed signatures \n");
         return false;
@@ -2495,6 +2495,11 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
     }
     if (sigsSize > teamSize) {
         LogPrintf("CheckDposSigs(): TOO MUCH SIGNATURES! DOUBLESIGN IS POSSIBLE! \n");
+        return false;
+    }
+    
+    if (pindex->nRound == 0) {
+        LogPrintf("CheckDposSigs(): malformed round number. It's not dPoS block. \n");
         return false;
     }
 
@@ -2519,7 +2524,7 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
             return false;
         }
         CKeyID operatorAuth = pubKey.GetID();
-        if (!mnview.IsTeamMember(pindex->nHeight, operatorAuth)) {
+        if (!mnview.IsTeamMember(pindex->nHeight - 1, operatorAuth)) {
             LogPrintf("CheckDposSigs(): signed not by a team member \n");
             return false;
         }
@@ -2595,6 +2600,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     if (dvr.fCheckDposSigs)
     {
         // dont mark block as invalid because vSig isn't hashed in block. An attacker may send wrong signatures to convince us that block is invalid
+        if (!fDposActive && block.nRound != 0)
+            return state.Error("bad-blk-round");
         if (!fDposActive && !block.vSig.empty())
             return state.Error("bad-blk-dpos-sigs");
         auto dpos = chainparams.GetConsensus().dpos;
@@ -2801,7 +2808,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     if (fDposActive)
     {
         const auto rewards_p = mnview.CalcDposTeamReward(blockReward, nFees_inst, pindex->nHeight);
-        const bool sizeCheck = block.vtx[0].vout.size() < rewards_p.first.size();
+        const bool sizeCheck = block.vtx[0].vout.size() >= rewards_p.first.size();
         if (!sizeCheck || !std::equal(rewards_p.first.rbegin(), rewards_p.first.rend(), block.vtx[0].vout.rbegin()))
             return state.DoS(100,
                              error("ConnectBlock(): coinbase pays incorrect dPoS reward"),
@@ -6195,14 +6202,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     }
     else if (strCommand == "get_tx_votes") {
         std::vector<CInv> reply{};
-        std::vector<uint256> interestedTxs{};
-        uint256 tipHash{};
-        vRecv >> interestedTxs >> tipHash;
-        std::set<uint256> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
-        LOCK(cs_main);
+        std::vector<TxId> interestedTxs{};
+        BlockHash tipHash{};
+        vRecv >> tipHash >> interestedTxs;
+        std::set<TxId> setOfInterestedTxs{interestedTxs.begin(), interestedTxs.end()};
 
-        if (chainActive.Tip()->GetBlockHash() == tipHash) {
-            for (const auto& vote : dpos::getController()->listTxVotes()) {
+        for (const auto& vote : dpos::getController()->listTxVotes()) {
+            if (vote.tip == tipHash) {
                 for (const auto& choice : vote.choices) {
                     if (setOfInterestedTxs.empty() || setOfInterestedTxs.count(choice.subject)) {
                         reply.emplace_back(MSG_TX_VOTE, vote.GetHash());
@@ -6215,11 +6221,21 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         std::vector<CInv> reply{};
         uint256 tipHash{};
         vRecv >> tipHash;
-        LOCK(cs_main);
 
-        if (chainActive.Tip()->GetBlockHash() == tipHash) {
-            for (const auto& vote : dpos::getController()->listRoundVotes()) {
+        for (const auto& vote : dpos::getController()->listRoundVotes()) {
+            if (vote.tip == tipHash) {
                 reply.emplace_back(MSG_ROUND_VOTE, vote.GetHash());
+            }
+        }
+        pfrom->PushMessage("inv", reply);
+    } else if (strCommand == "get_vice_blocks") {
+        std::vector<CInv> reply{};
+        uint256 tipHash{};
+        vRecv >> tipHash;
+
+        for (const auto& block : dpos::getController()->listViceBlocks()) {
+            if (block.hashPrevBlock == tipHash) {
+                reply.emplace_back(MSG_VICE_BLOCK, block.GetHash());
             }
         }
         pfrom->PushMessage("inv", reply);

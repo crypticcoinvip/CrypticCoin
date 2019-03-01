@@ -20,6 +20,11 @@ SpendDescriptionInfo::SpendDescriptionInfo(
     librustzcash_sapling_generate_r(alpha.begin());
 }
 
+
+void TransactionBuilder::SetInstant(bool fInstant) {
+    mtx.fInstant = fInstant;
+}
+
 TransactionBuilder::TransactionBuilder(
     const Consensus::Params& consensusParams,
     int nHeight,

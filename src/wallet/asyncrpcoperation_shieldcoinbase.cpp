@@ -253,6 +253,9 @@ extern UniValue sendrawtransaction(const UniValue& params, bool fHelp);
 bool ShieldToAddress::operator()(const libzcash::SaplingPaymentAddress &zaddr) const {
     m_op->builder_.SetFee(m_op->fee_);
 
+    // Set instant flag
+    m_op->builder_.SetInstant(m_op->tx_.fInstant);
+
     // Sending from a t-address, which we don't have an ovk for. Instead,
     // generate a common one from the HD seed. This ensures the data is
     // recoverable, while keeping it logically separate from the ZIP 32
@@ -295,6 +298,7 @@ bool ShieldToAddress::operator()(const libzcash::SaplingPaymentAddress &zaddr) c
 
         UniValue o(UniValue::VOBJ);
         o.push_back(Pair("txid", txid));
+        o.push_back(Pair("instant_tx", m_op->tx_.fInstant));
         m_op->set_result(o);
     } else {
         // Test mode does not send the transaction to the network.
@@ -302,6 +306,7 @@ bool ShieldToAddress::operator()(const libzcash::SaplingPaymentAddress &zaddr) c
         o.push_back(Pair("test", 1));
         o.push_back(Pair("txid", m_op->tx_.GetHash().ToString()));
         o.push_back(Pair("hex", signedtxn));
+        o.push_back(Pair("instant_tx", m_op->tx_.fInstant));
         m_op->set_result(o);
     }
 
@@ -357,6 +362,7 @@ void AsyncRPCOperation_shieldcoinbase::sign_send_raw_transaction(UniValue obj)
 
         UniValue o(UniValue::VOBJ);
         o.push_back(Pair("txid", txid));
+        o.push_back(Pair("instant_tx", tx_.fInstant));
         set_result(o);
     } else {
         // Test mode does not send the transaction to the network.
@@ -369,6 +375,7 @@ void AsyncRPCOperation_shieldcoinbase::sign_send_raw_transaction(UniValue obj)
         o.push_back(Pair("test", 1));
         o.push_back(Pair("txid", tx.GetHash().ToString()));
         o.push_back(Pair("hex", signedtxn));
+        o.push_back(Pair("instant_tx", tx_.fInstant));
         set_result(o);
     }
 

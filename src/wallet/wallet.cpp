@@ -2773,10 +2773,12 @@ CAmount CWallet::GetBalance() const
     CAmount nTotal = 0;
     {
         LOCK2(cs_main, cs_wallet);
+        auto pDposController = dpos::getController();
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if (pcoin->IsTrusted())
+            // don't include instant txs. They should be included in GetInstantBalance() only
+            if (pcoin->IsTrusted() && !pDposController->isCommittedTx(static_cast<const CTransaction&>(*pcoin)))
                 nTotal += pcoin->GetAvailableCredit();
         }
     }
@@ -2833,11 +2835,8 @@ CAmount CWallet::GetInstantBalance() const
 {
     CAmount rv{0};
 
-    for (const auto& tx : dpos::getController()->listCommittedTxs()) {
-        if (!CheckFinalTx(tx) || tx.vin.empty()) {
-            continue;
-        }
-
+    const auto instantTxs = dpos::getController()->listCommittedTxs();
+    for (const auto& tx : instantTxs) {
         for (unsigned int i = 0; i < tx.vout.size(); i++) {
             const CTxOut &txout = tx.vout[i];
             rv += GetCredit(txout, ISMINE_SPENDABLE);
@@ -3560,7 +3559,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
         LogPrintf("CommitTransaction:\n%s", wtxNew.ToString());
 
         {
-            const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindexBestHeader->nHeight).size();
+            const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
             const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
             if (wtxNew.fInstant && !fDposActive) {
                 LogPrintf("CommitTransaction(): Error: dPoS isn't active, instant tx cannot be committed \n");

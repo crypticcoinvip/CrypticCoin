@@ -28,6 +28,7 @@ bool CTxVote_p2p::IsNull() const
 
 void CTxVote_p2p::SetNull()
 {
+    nVersion = CURRENT_VERSION;
     tip.SetNull();
     nRound = 0;
     choices.clear();
@@ -42,7 +43,8 @@ uint256 CTxVote_p2p::GetHash() const
 uint256 CTxVote_p2p::GetSignatureHash() const
 {
     CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
-    ss << tip
+    ss << nVersion
+       << tip
        << nRound
        << choices
        << TX_VOTE_SALT;
@@ -67,6 +69,7 @@ bool CRoundVote_p2p::IsNull() const
 
 void CRoundVote_p2p::SetNull()
 {
+    nVersion = CURRENT_VERSION;
     tip.SetNull();
     nRound = 0;
     choice.subject.SetNull();
@@ -81,7 +84,8 @@ uint256 CRoundVote_p2p::GetHash() const
 uint256 CRoundVote_p2p::GetSignatureHash() const
 {
     CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
-    ss << tip
+    ss << nVersion
+       << tip
        << nRound
        << choice
        << ROUND_VOTE_SALT;

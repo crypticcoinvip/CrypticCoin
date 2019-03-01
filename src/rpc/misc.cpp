@@ -16,6 +16,8 @@
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 #endif
+#include "../masternodes/heartbeat.h"
+#include "../masternodes/dpos_controller.h"
 
 #include <stdint.h>
 
@@ -26,6 +28,8 @@
 #include "crypticcoin/Address.hpp"
 
 using namespace std;
+
+extern CTxDestination GetAccountAddress(std::string strAccount, bool bForceNew=false);
 
 /**
  * @note Do not add or change anything in the information returned by this
@@ -120,6 +124,7 @@ UniValue getinfo(const UniValue& params, bool fHelp)
 #endif
     obj.push_back(Pair("relayfee",      ValueFromAmount(::minRelayTxFee.GetFeePerK())));
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
+    obj.push_back(Pair("dpos",          dpos::getController()->isEnabled(chainActive.Height())));
     return obj;
 }
 
@@ -555,6 +560,172 @@ UniValue p2p_get_round_votes(const UniValue& params, bool fHelp)
 }
 
 
+UniValue heartbeat_send_message(const UniValue& params, bool fHelp)
+{
+    if (pwalletMain == nullptr) {
+        if (!fHelp) {
+            throw JSONRPCError(RPC_METHOD_NOT_FOUND, "The wallet has been disabled");
+        }
+        return NullUniValue;
+    }
+    if (fHelp) {
+        throw runtime_error(
+            "heartbeat_send_message ( \"address\" timestamp )\n"
+            "\nSends heartbeat p2p message with provided timestamp value.\n"
+            "\nArguments:\n"
+            "1. \"address\"  (string, optional, default="") The operator authentication address. If empty then default wallet address will be used.\n"
+            "2. timestamp   (numeric, optional, default=0) The UNIX epoch time in ms of the heartbeat message. If 0 then current time will be used.\n"
+            "\nResult:\n"
+            "{\n"
+            "\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
+            "\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
+            "\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\" 1548923902519")
+            + HelpExampleRpc("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\", 1548923902519")
+        );
+    }
+
+    const std::string address{params.empty() ? std::string{} : params[0].get_str()};
+    const CTxDestination destination{(address.empty() ? GetAccountAddress("") : DecodeDestination(address))};
+
+    if (!IsValidDestination(destination)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Crypticcoin address");
+    }
+
+    std::int64_t timestamp{0};
+    if (params.size() > 1) {
+        timestamp = params[1].get_int64();
+    }
+    if (timestamp < 0) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid timestamp value");
+    }
+
+    CKey key{};
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+    if (pwalletMain == nullptr || !pwalletMain->GetKey(boost::get<CKeyID>(destination), key)) {
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Invalid account address key");
+    }
+
+    const CHeartBeatMessage message{CHeartBeatTracker::getInstance().postMessage(key, timestamp)};
+    if(message.IsNull()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Failed to send heartbeat message (can't create signature)");
+    }
+
+    UniValue rv{UniValue::VOBJ};
+    rv.push_back(Pair("timestamp", message.GetTimestamp()));
+    rv.push_back(Pair("signature", HexStr(message.GetSignature())));
+    rv.push_back(Pair("hash", message.GetHash().ToString()));
+    return rv;
+}
+
+UniValue heartbeat_read_messages(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "heartbeat_read_messages\n"
+            "\nReads heartbeat p2p messages.\n"
+            "\nResult:\n"
+            "[\n"
+            "\t{\n"
+            "\t\ttimestamp: xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
+            "\t\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
+            "\t\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
+            "\t},...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("heartbeat_read_messages", "")
+            + HelpExampleRpc("heartbeat_read_messages", "")
+        );
+    }
+
+    UniValue rv{UniValue::VARR};
+    for (const auto& message : CHeartBeatTracker::getInstance().getReceivedMessages()) {
+        UniValue msg{UniValue::VOBJ};
+        msg.push_back(Pair("timestamp", message.GetTimestamp()));
+        msg.push_back(Pair("signature", HexStr(message.GetSignature())));
+        msg.push_back(Pair("hash", message.GetHash().ToString()));
+        rv.push_back(msg);
+    }
+    return rv;
+}
+
+
+UniValue heartbeat_filter_masternodes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1) {
+        throw runtime_error(
+            "heartbeat_filter_masternodes \"filter_name\"\n"
+            "\nFilters masternodes by theirs heartbeat statistics.\n"
+            "\nArguments:\n"
+            "1. \"filter_name\"  (string, required) The filter name. Can be one of the following values: recently, stale, outdated.\n"
+            "\nResult:\n"
+            "[\n"
+            "\t{\n"
+            "\t\t\"name\": xxx    (string) The masternode name\n"
+            "\t\t\"owner\": xxx    (string) The masternode owner auth address\n"
+            "\t\t\"operator\": xxx    (string) The masternode operator auth address\n"
+            "\t},...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("heartbeat_filter_masternodes", "\"outdated\"")
+            + HelpExampleRpc("heartbeat_filter_masternodes", "\"outdated\"")
+        );
+    }
+
+    UniValue rv{UniValue::VARR};
+    const std::string filterName{params[0].get_str()};
+    CHeartBeatTracker::AgeFilter ageFilter{CHeartBeatTracker::RECENTLY};
+
+    if (filterName == "stale") {
+        ageFilter = CHeartBeatTracker::STALE;
+    } else if (filterName == "outdated") {
+        ageFilter = CHeartBeatTracker::OUTDATED;
+    } else if (filterName != "recently") {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid filter_name argument");
+    }
+
+    for (const auto& masternode : CHeartBeatTracker::getInstance().filterMasternodes(ageFilter)) {
+        UniValue mn{UniValue::VOBJ};
+        mn.push_back(Pair("name", masternode.name));
+        mn.push_back(Pair("owner", masternode.ownerAuthAddress.ToString()));
+        mn.push_back(Pair("operator", masternode.operatorAuthAddress.ToString()));
+        rv.push_back(mn);
+    }
+    return rv;
+}
+
+UniValue list_instant_transactions(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "list_instant_transactions\n"
+            "\nLists committed instant transactions.\n"
+            "\nResult:\n"
+            "[\n"
+            "\t{\n"
+            "\t\t\"hash\": xxx         (string) The hash of the instant transaction\n"
+            "\t\tvin: xxx              (numeric) The inputs count\n"
+            "\t\tvout: xxx              (numeric) The outputs count\n"
+            "\t},...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("list_instant_transactions", "")
+            + HelpExampleRpc("list_instant_transactions", "")
+        );
+    }
+
+    UniValue rv{UniValue::VARR};
+    for (const auto& tx : dpos::getController()->listCommittedTxs()) {
+        UniValue entry{UniValue::VOBJ};
+        entry.push_back(Pair("hash", tx.GetHash().GetHex()));
+        entry.push_back(Pair("vin", tx.vin.size()));
+        entry.push_back(Pair("vout", tx.vout.size()));
+        rv.push_back(entry);
+    }
+    return rv;
+}
 
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
@@ -569,6 +740,12 @@ static const CRPCCommand commands[] =
     { "hidden",             "setmocktime",            &setmocktime,            true  },
     { "hidden",             "p2p_get_tx_votes",       &p2p_get_tx_votes,       true  },
     { "hidden",             "p2p_get_round_votes",    &p2p_get_round_votes,    true  },
+    /* heartbeat */
+    { "hidden",     "heartbeat_send_message",       &heartbeat_send_message,        true  },
+    { "hidden",     "heartbeat_read_messages",      &heartbeat_read_messages,       true  },
+    { "hidden",     "heartbeat_filter_masternodes", &heartbeat_filter_masternodes,  true  },
+    /* dPoS */
+    { "hidden",     "list_instant_transactions",    &list_instant_transactions,     true  },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &tableRPC)

@@ -28,7 +28,6 @@
 #include "wallet/asyncrpcoperation_mergetoaddress.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
-#include "../masternodes/heartbeat.h"
 #include "../masternodes/dpos_controller.h"
 
 #include "sodium.h"
@@ -81,10 +80,52 @@ void EnsureWalletIsUnlocked()
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 }
 
+/// copy-pasted from dpos_voter.cpp. Refactor
+static bool checkInstTxNotCommittable(const dpos::CTxVotingDistribution& stats, size_t minQuorum, size_t numOfVoters)
+{
+    assert(numOfVoters > 0);
+    assert(minQuorum <= numOfVoters);
+    const size_t totus = stats.totus();
+    const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
+
+    // not committed, and not possible to commit
+    return (stats.pro + notKnown) < minQuorum;
+}
+
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 {
     int confirms = wtx.GetDepthInMainChain();
+
+    auto&& dpos_params = Params().GetConsensus().dpos;
+    dpos::CTxVotingDistribution stats{};
+    if (wtx.fInstant && confirms == 0)
+        stats = dpos::getController()->calcTxVotingStats(wtx.GetHash());
+
+    std::string dposStatus = "";
+    if (confirms > 0 || stats.pro >= dpos_params.nMinQuorum)
+        dposStatus = "committed";
+    if (confirms == 0)
+    {
+        if (checkInstTxNotCommittable(stats, dpos_params.nMinQuorum, dpos_params.nTeamSize))
+            dposStatus = "deffered";
+        if (stats.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
+            dposStatus = "rejected";
+        if (dposStatus.empty())
+            dposStatus = "voting";
+        if (stats.totus() == 0)
+            dposStatus = "not_voted";
+    }
+
     entry.push_back(Pair("confirmations", confirms));
+    entry.push_back(Pair("dpos_instant", wtx.fInstant));
+    if (wtx.fInstant)
+        entry.push_back(Pair("dpos_status", dposStatus));
+    if (wtx.fInstant && confirms == 0)
+    {
+        entry.push_back(Pair("dpos_yes_votes", stats.pro));
+        entry.push_back(Pair("dpos_no_votes", stats.contra));
+        entry.push_back(Pair("dpos_pass_votes", stats.abstinendi));
+    }
     if (wtx.IsCoinBase())
         entry.push_back(Pair("generated", true));
     if (confirms > 0)
@@ -2417,8 +2458,37 @@ UniValue listunspent(const UniValue& params, bool fHelp)
         if (destinations.size() && (!fValidAddress || !destinations.count(address)))
             continue;
 
+        auto&& dpos_params = Params().GetConsensus().dpos;
+        dpos::CTxVotingDistribution stats{};
+        if (out.nDepth == 0 && out.tx->fInstant)
+            stats = dpos::getController()->calcTxVotingStats(out.tx->GetHash());
+
+        std::string dposStatus = "";
+        if (out.nDepth > 0 || stats.pro >= dpos_params.nMinQuorum)
+            dposStatus = "committed";
+        if (out.nDepth == 0)
+        {
+            if (checkInstTxNotCommittable(stats, dpos_params.nMinQuorum, dpos_params.nTeamSize))
+                dposStatus = "deffered";
+            if (stats.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
+                dposStatus = "rejected";
+            if (dposStatus.empty())
+                dposStatus = "voting";
+            if (stats.totus() == 0)
+                dposStatus = "not_voted";
+        }
+
         UniValue entry(UniValue::VOBJ);
         entry.push_back(Pair("txid", out.tx->GetHash().GetHex()));
+        entry.push_back(Pair("dpos_instant", out.tx->fInstant));
+        if (out.tx->fInstant)
+            entry.push_back(Pair("dpos_status", dposStatus));
+        if (out.nDepth == 0 && out.tx->fInstant)
+        {
+            entry.push_back(Pair("dpos_yes_votes", stats.pro));
+            entry.push_back(Pair("dpos_no_votes", stats.contra));
+            entry.push_back(Pair("dpos_pass_votes", stats.abstinendi));
+        }
         entry.push_back(Pair("vout", out.i));
         entry.push_back(Pair("generated", out.tx->IsCoinBase()));
 
@@ -3836,7 +3906,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
 
-    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindexBestHeader->nHeight).size();
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
     const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
     const bool fInstant = params.size() > 4 && params[4].get_bool();
 
@@ -3965,6 +4035,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     int nextBlockHeight = chainActive.Height() + 1;
     CMutableTransaction mtx;
     mtx.fOverwintered = true;
+    mtx.fInstant = fInstant;
     mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
     mtx.nVersion = SAPLING_TX_VERSION;
     unsigned int max_tx_size = MAX_TX_SIZE_AFTER_SAPLING;
@@ -4075,6 +4146,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     // Contextual transaction we will build on
     // (used if no Sapling addresses are involved)
     CMutableTransaction contextualTx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), nextBlockHeight);
+    contextualTx.fInstant = fInstant;
     bool isShielded = !fromTaddr || zaddrRecipients.size() > 0;
     if (contextualTx.nVersion == 1 && isShielded) {
         contextualTx.nVersion = 2; // Tx format should support vjoinsplits 
@@ -4143,7 +4215,7 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindexBestHeader->nHeight).size();
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
     const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
     const bool fInstant = params.size() > 4 && params[4].get_bool();
 
@@ -4398,7 +4470,7 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(pindexBestHeader->nHeight).size();
+    const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
     const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
 
     const bool fInstant = params.size() > 6 && params[6].get_bool();
@@ -4792,98 +4864,6 @@ UniValue z_listoperationids(const UniValue& params, bool fHelp)
     return ret;
 }
 
-UniValue heartbeat_send_message(const UniValue &params, bool fHelp)
-{
-    if (!EnsureWalletIsAvailable(fHelp)) {
-        return NullUniValue;
-    }
-    if (fHelp) {
-        throw runtime_error(
-            "heartbeat_send_message ( \"address\" timestamp )\n"
-            "\nSends heartbeat p2p message with provided timestamp value.\n"
-            "\nArguments:\n"
-            "1. \"address\"  (string, optional, default="") The operator authentication address. If empty then default wallet address will be used.\n"
-            "2. timestamp   (numeric, optional, default=0) The UNIX epoch time in ms of the heartbeat message. If 0 then current time will be used.\n"
-            "\nResult:\n"
-            "{\n"
-            "\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
-            "\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
-            "\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\" 1548923902519")
-            + HelpExampleRpc("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\", 1548923902519")
-        );
-    }
-
-    const std::string address{params.empty() ? std::string{} : params[0].get_str()};
-    const CTxDestination destination{(address.empty() ? GetAccountAddress("") : DecodeDestination(address))};
-
-    if (!IsValidDestination(destination)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Crypticcoin address");
-    }
-
-    std::int64_t timestamp{0};
-    if (params.size() > 1) {
-        timestamp = params[1].get_int64();
-    }
-    if (timestamp < 0) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid timestamp value");
-    }
-
-    CKey key{};
-    LOCK2(cs_main, pwalletMain->cs_wallet);
-    if (pwalletMain == nullptr || !pwalletMain->GetKey(boost::get<CKeyID>(destination), key)) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Invalid account address key");
-    }
-
-    const CHeartBeatMessage message{CHeartBeatTracker::getInstance().postMessage(key, timestamp)};
-    if(message.IsNull()) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Failed to send heartbeat message (can't create signature)");
-    }
-
-    UniValue rv{UniValue::VOBJ};
-    rv.push_back(Pair("timestamp", message.GetTimestamp()));
-    rv.push_back(Pair("signature", HexStr(message.GetSignature())));
-    rv.push_back(Pair("hash", message.GetHash().ToString()));
-    return rv;
-}
-
-UniValue heartbeat_read_messages(const UniValue &, bool fHelp)
-{
-    if (!EnsureWalletIsAvailable(fHelp)) {
-        return NullUniValue;
-    }
-    if (fHelp) {
-        throw runtime_error(
-            "heartbeat_read_messages\n"
-            "\nReads heartbeat p2p messages.\n"
-            "\nArguments:\n"
-            "\nResult:\n"
-            "[\n"
-            "\t{\n"
-            "\t\t\"timestamp\": xxx    (numeric) The UNIX epoch time in ms of the heartbeat message was created\n"
-            "\t\t\"signature\": xxx    (string) The signature of the heartbeat message\n"
-            "\t\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
-            "\t},...\n"
-            "]\n"
-            "\nExamples:\n"
-            + HelpExampleCli("heartbeat_read_messages", "")
-            + HelpExampleRpc("heartbeat_read_messages", "")
-        );
-    }
-
-    UniValue rv{UniValue::VARR};
-    for (const auto& message : CHeartBeatTracker::getInstance().getReceivedMessages()) {
-        UniValue msg{UniValue::VOBJ};
-        msg.push_back(Pair("timestamp", message.GetTimestamp()));
-        msg.push_back(Pair("signature", HexStr(message.GetSignature())));
-        msg.push_back(Pair("hash", message.GetHash().ToString()));
-        rv.push_back(msg);
-    }
-    return rv;
-}
-
 extern UniValue dumpprivkey(const UniValue& params, bool fHelp); // in rpcdump.cpp
 extern UniValue importprivkey(const UniValue& params, bool fHelp);
 extern UniValue importaddress(const UniValue& params, bool fHelp);
@@ -4904,8 +4884,6 @@ static const CRPCCommand commands[] =
     //  --------------------- ------------------------    -----------------------    ----------
     { "rawtransactions",    "fundrawtransaction",       &fundrawtransaction,       false },
     { "hidden",             "resendwallettransactions", &resendwallettransactions, true  },
-    { "hidden",             "heartbeat_send_message",   &heartbeat_send_message,   true  },
-    { "hidden",             "heartbeat_read_messages",  &heartbeat_read_messages,  true  },
     { "wallet",             "addmultisigaddress",       &addmultisigaddress,       true  },
     { "wallet",             "backupwallet",             &backupwallet,             true  },
     { "wallet",             "dumpprivkey",              &dumpprivkey,              true  },
