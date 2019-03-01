@@ -12,11 +12,14 @@ from test_framework.util import \
     assert_greater_than, \
     start_nodes, \
     stop_nodes, \
+    sync_blocks, \
+    sync_mempools, \
     initialize_chain, \
     connect_nodes_bi, \
-    wait_bitcoinds, \
-    gather_inputs, \
-    time
+    wait_bitcoinds
+
+
+INITIAL_BLOCK_COUNT = 200
 
 class dPoS_BaseTest(BitcoinTestFramework):
     def add_options(self, parser):
@@ -64,8 +67,20 @@ class dPoS_BaseTest(BitcoinTestFramework):
                 '-nuparams=5ba81b19:201', # Overwinter
                 '-nuparams=76b809bb:201'  # Suppling
             ]
-
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
+
+    def stop_nodes(self):
+        stop_nodes(self.nodes)
+        wait_bitcoinds()
+
+    def sync_nodes(self, first, last):
+        sync_blocks(self.nodes[first:last])
+        sync_mempools(self.nodes[first:last])
+
+    def check_nodes_block_count(self, blockCount):
+        [assert_equal(node.getblockcount(), blockCount) for node in self.nodes]
+
+    def connect_nodes(self):
         if self.options.node_garaph_layout == "1":
             print("                      *-*-*")
             print("Nodes graph layout *<-*-*-*")
@@ -112,10 +127,7 @@ class dPoS_BaseTest(BitcoinTestFramework):
             connect_nodes_bi(self.nodes, 9, 0)
         else:
             raise ValueError("Invalid argument --node_garaph_layout")
-
-    def stop_nodes(self):
-        stop_nodes(self.nodes)
-        wait_bitcoinds()
+        self.sync_all()
 
     def create_masternodes(self, indexes={0,1,2,3,4,5}):
         # Announce nodes
@@ -139,7 +151,8 @@ class dPoS_BaseTest(BitcoinTestFramework):
 
         # Sending some coins for auth
         for i in indexes:
-            self.nodes[i].sendtoaddress(self.operators[i], 5)
+            self.nodes[i].sendtoaddress(self.operators[i], 10)
+
         self.sync_all()
         for node in self.nodes:
             node.generate(1)
@@ -151,11 +164,11 @@ class dPoS_BaseTest(BitcoinTestFramework):
                     assert_equal(node.dumpmns([idnode])[0]['status'], "announced")
 
         # Generate blocks for activation height
-        for node in self.nodes:
-            node.generate(10)
+        for n in range(self.num_nodes):
+            self.nodes[n].sendtoaddress(self.operators[self.num_nodes - n - 1], 50)
+            self.nodes[n].generate(10)
             self.sync_all()
-        for node in self.nodes:
-            assert_equal(node.getblockcount(), 200 + 10 * self.num_nodes + self.num_nodes)
+        self.check_nodes_block_count(INITIAL_BLOCK_COUNT + 10 * self.num_nodes + self.num_nodes)
 
         # Activate nodes
         for i in indexes:
@@ -167,9 +180,7 @@ class dPoS_BaseTest(BitcoinTestFramework):
             for idnode in rv:
                 if idnode:
                     assert_equal(node.dumpmns([idnode])[0]['status'], "active")
-        # Check total block count
-        for node in self.nodes:
-            assert_equal(node.getblockcount(), 200 + 10 * self.num_nodes + self.num_nodes + 1)
+        self.check_nodes_block_count(INITIAL_BLOCK_COUNT + 10 * self.num_nodes + self.num_nodes + 1)
         return rv
 
     def create_transaction(self, node_idx, to_address, amount, instantly):
@@ -180,12 +191,19 @@ class dPoS_BaseTest(BitcoinTestFramework):
         sigtx = node.signrawtransaction(fundtx["hex"])
         return node.sendrawtransaction(sigtx["hex"])
 
+    def start_masternodes(self, args=[]):
+        extra_args = [["-masternode_operator="+oper] for oper in self.operators]
+        for i in range(min(len(args), len(extra_args))):
+            extra_args[i] = extra_args[i] + args[i]
+        self.start_nodes(extra_args)
+
     def run_test(self):
         assert_equal(self.num_nodes, 10)
-        self.start_nodes([["-masternode_operator="+oper] for oper in self.operators])
+        self.start_masternodes()
+        self.connect_nodes()
         assert_equal(len(self.nodes), self.num_nodes)
         for node in self.nodes:
-            assert_equal(node.getblockcount(), 200)
+            assert_equal(node.getblockcount(), INITIAL_BLOCK_COUNT)
             assert_equal(node.getbalance(), 100.0)
 
 assert(__name__ != '__main__')

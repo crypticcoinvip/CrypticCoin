@@ -189,12 +189,12 @@ void CDposController::runEventLoop()
             lastTime = now;
             self->removeOldVotes();
 
-//            const BlockHash tipHash{getTipHash()};
-//            for (auto&& node : getNodes()) {
-//                node->PushMessage("get_vice_blocks", tipHash);
-//                node->PushMessage("get_round_votes", tipHash);
-//                node->PushMessage("get_tx_votes", tipHash, self->getTxsFilter());
-//            }
+            const BlockHash tipHash{getTipHash()};
+            for (auto&& node : getNodes()) {
+                node->PushMessage("get_vice_blocks", tipHash);
+                node->PushMessage("get_round_votes", tipHash);
+                node->PushMessage("get_tx_votes", tipHash, self->getTxsFilter());
+            }
         }
 
         MilliSleep(500);
