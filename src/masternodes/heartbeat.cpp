@@ -8,6 +8,7 @@
 #include "../init.h"
 #include "../wallet/wallet.h"
 #include "../snark/libsnark/common/utils.hpp"
+#include <boost/thread.hpp>
 
 namespace
 {
