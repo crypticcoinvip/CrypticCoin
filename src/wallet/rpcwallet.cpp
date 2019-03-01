@@ -106,10 +106,13 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
             dposStatus = "deffered";
         if (stats.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
             dposStatus = "rejected";
-        if (dposStatus.empty())
-            dposStatus = "voting";
         if (stats.totus() == 0)
             dposStatus = "not_voted";
+        if (dposStatus.empty())
+            dposStatus = "voting";
+    }
+    if (confirms < 0 && dposStatus == "not_voted") {
+        dposStatus = "orphan";
     }
 
     entry.push_back(Pair("confirmations", confirms));
@@ -2346,10 +2349,13 @@ UniValue listunspent(const UniValue& params, bool fHelp)
                 dposStatus = "deffered";
             if (stats.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
                 dposStatus = "rejected";
-            if (dposStatus.empty())
-                dposStatus = "voting";
             if (stats.totus() == 0)
                 dposStatus = "not_voted";
+            if (dposStatus.empty())
+                dposStatus = "voting";
+        }
+        if (out.nDepth < 0 && dposStatus == "not_voted") {
+            dposStatus = "orphan";
         }
 
         UniValue entry(UniValue::VOBJ);
