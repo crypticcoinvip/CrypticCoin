@@ -14,6 +14,7 @@
 #include "../snark/libsnark/common/utils.hpp"
 #include <mutex>
 #include <future>
+#include <boost/thread.hpp>
 
 namespace dpos
 {
