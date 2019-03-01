@@ -31,7 +31,7 @@ Delegated Proof Of Stake
 Instant transactions are based on an unique interpretation of Delegated Proof Of Stake consensus, where each block is confirmed by both PoW and dPoS.
 Masternodes take part in p2p voting as dPoS validators, ensuring consistency and finality of instant transaction.
 
-The team of dPoS validatetors has a limited size, and every block one masternode (the oldest one) leaves the team, and a new (random one) joins the team.
+The team of dPoS validators has a limited size, and every block one masternode (the oldest one) leaves the team, and a new (random one) joins the team.
 
 Doublesign is mitigated as the p2p protocol allows to find and reject doublesign vote (doublesign votes have very strict definition). All the nodes do validate all the p2p votes, and doublesign votes get rejected by the network, and misbehaving masternodes get dismissed.
 
