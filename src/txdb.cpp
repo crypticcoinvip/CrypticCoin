@@ -491,10 +491,10 @@ bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team) const
         std::pair<std::pair<char, int>, uint256> key;
         if (pcursor->GetKey(key) && key.first.first == DB_TEAM && key.first.second == blockHeight)
         {
-            int32_t joinedAtBlock;
-            if (pcursor->GetValue(joinedAtBlock))
+            std::pair<int32_t, CKeyID> value;
+            if (pcursor->GetValue(value))
             {
-                team.insert(make_pair(key.second, joinedAtBlock));
+                team.insert(make_pair(key.second, value));
             }
             else
             {

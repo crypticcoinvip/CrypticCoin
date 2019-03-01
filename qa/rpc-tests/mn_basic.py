@@ -5,7 +5,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, assert_greater_than, \
+from test_framework.util import assert_equal, assert_true, assert_greater_than, \
     initialize_chain, initialize_chain_clean, start_nodes, start_node, connect_nodes_bi, \
     stop_nodes, sync_blocks, sync_mempools, wait_and_assert_operationid_status, \
     wait_bitcoinds
@@ -48,6 +48,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
             "collateralAddress": collateral0
         })
 
+
         # Announce node1
         owner1 = self.nodes[1].getnewaddress()
         operator1 = self.nodes[1].getnewaddress()
@@ -63,13 +64,22 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
 
 
         # Sending some coins for auth
-        self.nodes[0].sendtoaddress(operator0, 5)
+        self.nodes[0].sendtoaddress(operator0, 0.000001)
         self.nodes[1].sendtoaddress(operator1, 5)
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
         assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "announced")
         assert_equal(self.nodes[0].dumpmns([idnode1])[0]['status'], "announced")
+
+        # Check locked collateral:
+        # (total-11) is Ok, but (total-10) should fail! (cause locked collateral)
+        self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(), self.nodes[0].getbalance() - 11)
+        try:
+            self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(), self.nodes[0].getbalance() - 10)
+        except JSONRPCException,e:
+            errorString = e.error['message']
+        assert("Insufficient funds" in errorString)
 
 
         # Generate blocks for activation height
@@ -83,13 +93,27 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
 
 
         # Activate nodes
-        self.nodes[0].createraw_mn_activate([])
-        self.nodes[1].createraw_mn_activate([])
+        act0id = self.nodes[0].createraw_mn_activate([])
+        act1id = self.nodes[1].createraw_mn_activate([])
+
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
         assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "active")
         assert_equal(self.nodes[0].dumpmns([idnode1])[0]['status'], "active")
+
+        # Check for correct auth change
+        act0 = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(act0id))
+        assert_equal(len(act0['vin']), 2)
+        assert_equal(len(act0['vout']), 3)
+        assert_equal(act0['vout'][1]['scriptPubKey']['addresses'], [ operator0 ])
+        assert_true(act0['vout'][1]['valueZat'] < 100)
+
+        act1 = self.nodes[1].decoderawtransaction(self.nodes[1].getrawtransaction(act1id))
+        assert_equal(len(act1['vin']), 1)
+        assert_equal(len(act1['vout']), 2)
+        assert_equal(act1['vout'][1]['scriptPubKey']['addresses'], [ operator1 ])
+        assert_true(act1['vout'][1]['value'] > 4.99)
 
 
         # Voting against each other

@@ -10,6 +10,7 @@
 #include <map>
 #include <memory>
 
+class CKeyID;
 class CValidationInterface;
 
 namespace dpos
@@ -52,6 +53,8 @@ public:
     bool isTxApprovedByMe(const CTransaction& tx) const;
     CTxVotingDistribution calcTxVotingStats(TxId txid) const;
 
+    static bool checkIsTeamMember(const BlockHash& blockHash, const CKeyID& operatorKey);
+
 private:
     CDposController() = default;
     ~CDposController() = default;
@@ -62,7 +65,6 @@ private:
     bool handleVoterOutput(const CDposVoterOutput& out);
     bool acceptRoundVote(const CRoundVote_p2p& vote);
     bool acceptTxVote(const CTxVote_p2p& vote);
-    bool checkStalemate(const Round round);
 
     void removeOldVotes();
 
