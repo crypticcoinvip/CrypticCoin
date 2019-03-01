@@ -11,13 +11,19 @@ namespace dpos
 bool CDposController::Validator::validateTx(const std::map<TxIdSorted, CTransaction>& txMap)
 {
     AssertLockHeld(cs_main);
+    // NOT SUPPOSED TO BE USED AN ACTUAL VOTER! Only by relaying node.
+
     return true;
 }
 
 bool CDposController::Validator::validateBlock(const CBlock& block, const std::map<TxIdSorted, CTransaction>& txMap, bool flag)
 {
     AssertLockHeld(cs_main);
-    return true;
+    // NOT SUPPOSED TO BE USED AN ACTUAL VOTER! Only by relaying node.
+
+    ScopedNoLogging noLogging;
+    CValidationState state;
+    return CheckBlockHeader(block, state, true);
 }
 
 bool CDposController::Validator::allowArchiving(BlockHash blockHash)
