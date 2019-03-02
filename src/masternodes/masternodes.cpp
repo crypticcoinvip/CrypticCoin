@@ -836,7 +836,7 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
 
     if (!db.WriteTeam(height+1, team))
     {
-        throw std::runtime_error("Masternodes database is corrupted! Please restart with -reindex to recover.");
+        throw std::runtime_error("Masternodes database is corrupted (writing dPoS team)! Please restart with -reindex to recover.");
     }
     return team;
 }
@@ -846,7 +846,7 @@ CTeam CMasternodesView::ReadDposTeam(int height) const
     CTeam team;
     if (!db.ReadTeam(height, team))
     {
-        throw std::runtime_error("Masternodes database is corrupted! Please restart with -reindex to recover.");
+        throw std::runtime_error("Masternodes database is corrupted (reading dPoS team)! Please restart with -reindex to recover.");
     }
     return team;
 }

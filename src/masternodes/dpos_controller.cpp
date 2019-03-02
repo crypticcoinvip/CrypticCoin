@@ -207,11 +207,18 @@ void CDposController::loadDB()
     voter->minQuorum = Params().GetConsensus().dpos.nMinQuorum;
     voter->numOfVoters = Params().GetConsensus().dpos.nTeamSize;
 
-    pdposdb->LoadViceBlocks([this](const BlockHash& tip, const CBlock& block) {
-        assert(block.hashPrevBlock == tip);
+
+    bool success = false;
+
+    success = pdposdb->LoadViceBlocks([this](const BlockHash& tip, const CBlock& block) {
+        if (block.hashPrevBlock != tip)
+            throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
         this->voter->v[tip].viceBlocks.emplace(block.GetHash(), block);
     });
-    pdposdb->LoadRoundVotes([this](const BlockHash& tip, const CRoundVote_p2p& vote) {
+    if (!success)
+        throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
+
+    success = pdposdb->LoadRoundVotes([this](const BlockHash& tip, const CRoundVote_p2p& vote) {
         const auto mnId{authenticateMsg(vote)};
         if (mnId != boost::none) {
             CRoundVote roundVote{};
@@ -219,13 +226,17 @@ void CDposController::loadDB()
             roundVote.voter = mnId.get();
             roundVote.nRound = vote.nRound;
             roundVote.choice = vote.choice;
-            assert(roundVote.tip == tip);
+            if (roundVote.tip != tip)
+                throw std::runtime_error("dPoS database is corrupted (reading round votes)! Please restart with -reindex to recover.");
 
             this->receivedRoundVotes.emplace(vote.GetHash(), vote);
             this->voter->v[tip].roundVotes[roundVote.nRound].emplace(roundVote.voter, roundVote);
         }
     });
-    pdposdb->LoadTxVotes([this](const BlockHash& tip, const CTxVote_p2p& vote) {
+    if (!success)
+        throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
+
+    success = pdposdb->LoadTxVotes([this](const BlockHash& tip, const CTxVote_p2p& vote) {
         const auto mnId{authenticateMsg(vote)};
         if (mnId != boost::none) {
             for (const auto& choice : vote.choices) {
@@ -234,13 +245,16 @@ void CDposController::loadDB()
                 txVote.voter = mnId.get();
                 txVote.nRound = vote.nRound;
                 txVote.choice = choice;
-                assert(txVote.tip == tip);
+                if (txVote.tip != tip)
+                    throw std::runtime_error("dPoS database is corrupted (reading tx votes)! Please restart with -reindex to recover.");
 
                 this->voter->v[tip].txVotes[txVote.nRound][choice.subject].emplace(txVote.voter, txVote);
             }
             this->receivedTxVotes.emplace(vote.GetHash(), vote);
         }
     });
+    if (!success)
+        throw std::runtime_error("dPoS database is corrupted (reading tx votes)! Please restart with -reindex to recover.");
 }
 
 void CDposController::onChainTipUpdated(const BlockHash& tipHash)
