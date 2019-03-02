@@ -19,7 +19,7 @@ blockchain has reached a significant size.
 Masternodes
 -----------------
 
-Masternodes list is deterministic and can altered only by special transactions. To become a masternode, users sends special transaction, which locks 1M CRYP and burns an announcment fee.
+Masternodes list is deterministic and can be altered only by special transactions. To become a masternode, user sends special transaction, which locks 1M CRYP and burns an announcment fee.
 
 Masternode reward is determistic, and doesn't depend on p2p voting. If a masternode does misbehave, it gets dismissed in the process of dismissal voting.
 
@@ -29,11 +29,11 @@ Delegated Proof Of Stake
 -----------------
 
 Instant transactions are based on an unique interpretation of Delegated Proof Of Stake consensus, where each block is confirmed by both PoW and dPoS.
-Masternodes take part in p2p voting as dPoS validators, ensuring consistency and finality of instant transaction.
+Masternodes take part in p2p voting as dPoS validators, ensuring consistency and finality of instant transactions.
 
-The team of dPoS validators has a limited size, and every block one masternode (the oldest one) leaves the team, and a new (random one) joins the team.
+The team of dPoS validators has a limited size, and every block one masternode (the oldest one) leaves the team, and a random one (according to PoW hash) joins the team.
 
-Doublesign is mitigated as the p2p protocol allows to find and reject doublesign vote (doublesign votes have very strict definition). All the nodes do validate all the p2p votes, and doublesign votes get rejected by the network, and misbehaving masternodes get dismissed.
+Doublesign is mitigated as the p2p protocol allows to find and reject doublesign votes. All the nodes do validate all the p2p votes, and doublesign votes get rejected by the network, and misbehaving masternodes get dismissed.
 
 Security Warnings
 -----------------
