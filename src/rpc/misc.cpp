@@ -524,7 +524,7 @@ UniValue p2p_get_tx_votes(const UniValue& params, bool fHelp)
                     + HelpExampleRpc("p2p_get_tx_votes", ""));
     }
 
-    std::vector<uint256> intersectedTxs{};
+    std::vector<uint256> interestedTxs{};
     if (!params.empty()) {
         UniValue txids{params[0].get_array()};
         for (size_t idx{0}; idx < txids.size(); idx++) {
@@ -532,12 +532,12 @@ UniValue p2p_get_tx_votes(const UniValue& params, bool fHelp)
             if (txid.get_str().length() != 64 || !IsHex(txid.get_str())) {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid txid ")+txid.get_str());
             }
-            intersectedTxs.push_back(uint256S(txid.get_str()));
+            interestedTxs.push_back(uint256S(txid.get_str()));
         }
     }
     LOCK(cs_vNodes);
     for(const auto& node : vNodes) {
-        node->PushMessage("get_tx_votes", intersectedTxs);
+        node->PushMessage("gettxvotes", interestedTxs);
     }
     return NullUniValue;
 }
@@ -554,7 +554,7 @@ UniValue p2p_get_round_votes(const UniValue& params, bool fHelp)
     }
     LOCK(cs_vNodes);
     for(const auto& node : vNodes) {
-        node->PushMessage("get_tx_votes");
+        node->PushMessage("gettxvotes");
     }
     return NullUniValue;
 }

@@ -118,7 +118,7 @@ struct Params {
         size_t nMinQuorum;
         int64_t nDelayIBD;
         int64_t nPollingPeriod;
-        int64_t nStalemateTimeout;
+        int64_t nRoundTooLong;
     };
     dPoS dpos;
     /** dPOS announcement fee */

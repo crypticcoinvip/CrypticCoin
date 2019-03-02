@@ -127,7 +127,7 @@ public:
         consensus.dpos.nMinQuorum = 23;
         consensus.dpos.nDelayIBD = 60 * 60;
         consensus.dpos.nPollingPeriod = 3 * 60;
-        consensus.dpos.nStalemateTimeout = 2 * 60;
+        consensus.dpos.nRoundTooLong = 2 * 60;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -255,7 +255,7 @@ public:
         consensus.dpos.nMinQuorum = 23;
         consensus.dpos.nDelayIBD = 60 * 60;
         consensus.dpos.nPollingPeriod = 3 * 60;
-        consensus.dpos.nStalemateTimeout = 2 * 60;
+        consensus.dpos.nRoundTooLong = 2 * 60;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -373,9 +373,9 @@ public:
         // dPoS
         consensus.dpos.nTeamSize = 4;
         consensus.dpos.nMinQuorum = 3;
-        consensus.dpos.nDelayIBD = 2;
-        consensus.dpos.nPollingPeriod = 6;
-        consensus.dpos.nStalemateTimeout = 30;
+        consensus.dpos.nDelayIBD = 1;
+        consensus.dpos.nPollingPeriod = 2;
+        consensus.dpos.nRoundTooLong = 10 * 60;
         consensus.nDposMinPeriodOfIncome = (1 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
