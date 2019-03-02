@@ -75,7 +75,7 @@ private:
     std::vector<TxId> getTxsFilter() const;
 
 private:
-    bool ready = false;
+    bool initialVotesDownload = true;
     std::shared_ptr<CDposVoter> voter;
     std::shared_ptr<Validator> validator;
     std::map<uint256, CTxVote_p2p> receivedTxVotes;

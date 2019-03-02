@@ -120,8 +120,7 @@ void CDposController::runEventLoop()
     Round lastRound{0};
     int64_t lastTime{GetTimeMillis()};
     int64_t roundTime{lastTime};
-    int64_t ibdPassedTime{lastTime};
-    bool ibdPassed{false};
+    int64_t initialBlocksDownloadPassedTime{0};
     CDposController* self{getController()};
     const Consensus::Params& params{Params().GetConsensus()};
 
@@ -131,13 +130,12 @@ void CDposController::runEventLoop()
         const BlockHash tipHash{getTipHash()};
         if (self->isEnabled(tipHash)) {
             const auto now{GetTimeMillis()};
-            if (!ibdPassed && !IsInitialBlockDownload()) {
-                ibdPassedTime = now;
-                ibdPassed = true;
+            if (initialBlocksDownloadPassedTime == 0 && !IsInitialBlockDownload()) {
+                initialBlocksDownloadPassedTime = now;
             }
 
-            if (!self->ready && ibdPassed && ((now - ibdPassedTime) > params.dpos.nDelayIBD * 1000)) {
-                self->ready = true;
+            if (self->initialVotesDownload && initialBlocksDownloadPassedTime > 0 && ((now - initialBlocksDownloadPassedTime) > params.dpos.nDelayIBD * 1000)) {
+                self->initialVotesDownload = false;
                 self->onChainTipUpdated(getTipHash());
             }
 
@@ -202,7 +200,7 @@ void CDposController::loadDB()
 {
     assert(pdposdb != nullptr);
     assert(!this->voter->checkAmIVoter());
-    assert(!this->ready);
+    assert(this->initialVotesDownload);
 
     voter->minQuorum = Params().GetConsensus().dpos.nMinQuorum;
     voter->numOfVoters = Params().GetConsensus().dpos.nTeamSize;
@@ -259,7 +257,7 @@ void CDposController::loadDB()
 
 void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 {
-    if (ready && isEnabled(tipHash)) {
+    if (!initialVotesDownload && isEnabled(tipHash)) {
         const auto mnId{findMyMasternodeId()};
         LOCK(cs_main);
 
@@ -277,7 +275,7 @@ void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 
 Round CDposController::getCurrentVotingRound() const
 {
-    if (ready && isEnabled()) {
+    if (isEnabled()) {
         LOCK(cs_main);
         return voter->getCurrentRound();
     }
