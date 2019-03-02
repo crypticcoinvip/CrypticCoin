@@ -289,12 +289,12 @@ void CDposController::proceedViceBlock(const CBlock& viceBlock)
         LOCK(cs_main);
         const CDposVoterOutput out{voter->applyViceBlock(viceBlock)};
 
-        storeEntity(viceBlock, &CDposDB::WriteViceBlock, viceBlock.hashPrevBlock); // TODO move into voter
         if (handleVoterOutput(out)) {
             success = true;
         }
     }
     if (success) {
+        storeEntity(viceBlock, &CDposDB::WriteViceBlock, viceBlock.hashPrevBlock);
         relayEntity(viceBlock, MSG_VICE_BLOCK);
     }
 }
@@ -311,9 +311,11 @@ void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
     if (!findRoundVote(vote.GetHash())) {
         LOCK(cs_main);
 
-        this->receivedRoundVotes.emplace(vote.GetHash(), vote); // TODO move into voter
+        this->receivedRoundVotes.emplace(vote.GetHash(), vote); // emplace before to be able to find signature to submit block
         if (acceptRoundVote(vote)) {
             success = true;
+        } else {
+            this->receivedRoundVotes.erase(vote.GetHash());
         }
     }
     if (success) {
@@ -476,6 +478,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
         const CKey masternodeKey{getMasternodeKey()};
 
         if (masternodeKey.IsValid()) {
+            // process before blockToSubmit, to be able to find signatures
             for (const auto& roundVote : out.vRoundVotes) {
                 CRoundVote_p2p vote{};
                 vote.tip = roundVote.tip;
@@ -509,11 +512,10 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                 CValidationState state{};
                 CBlockToSubmit blockToSubmit{out.blockToSubmit.get()};
                 CBlock* pblock{&blockToSubmit.block};
-                const Round currentRound{getCurrentVotingRound()};
                 BlockHash blockHash = pblock->GetHash();
 
                 for (const auto& votePair : this->receivedRoundVotes) {
-                    if (votePair.second.nRound == currentRound &&
+                    if (votePair.second.nRound == pblock->nRound &&
                         votePair.second.choice.decision == CVoteChoice::Decision::YES &&
                         votePair.second.choice.subject == blockHash &&
                         authenticateMsg(votePair.second) != boost::none)

@@ -275,7 +275,7 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
     }
     out += doRoundVoting();
     if (vote.choice.decision == CVoteChoice::Decision::YES) {
-        out += tryToSubmitBlock(vote.choice.subject);
+        out += tryToSubmitBlock(vote.choice.subject, vote.nRound);
     }
 
     return out;
@@ -439,24 +439,17 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
     return out;
 }
 
-CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId)
+CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId, Round nRound)
 {
     Output out{};
-    const Round nCurrentRound = getCurrentRound();
-    auto stats = calcRoundVotingStats(nCurrentRound);
+    auto stats = calcRoundVotingStats(nRound);
 
     if (stats.pro[viceBlockId] >= minQuorum) {
         if (v[tip].viceBlocks.count(viceBlockId) == 0) {
             return out;
         }
         const auto& viceBlock = v[tip].viceBlocks[viceBlockId];
-        if (viceBlock.nRound != nCurrentRound) {
-            return out;
-        }
-        // committed list may be not full, which is fine
-        if (!world.validateBlock(viceBlock, listCommittedTxs(), true)) {
-            return out;
-        }
+        assert(viceBlock.nRound == nRound);
 
         LogPrintf("%s: Submit block, num of votes = %d, minQuorum = %d \n",
                   __func__,
@@ -464,10 +457,12 @@ CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId)
                   minQuorum);
         CBlockToSubmit blockToSubmit;
         blockToSubmit.block = viceBlock;
-        const auto& approvedBy_m = v[tip].roundVotes[nCurrentRound];
-        // Retrieve all keys
-        boost::copy(approvedBy_m | boost::adaptors::map_keys,
-                    std::back_inserter(blockToSubmit.vApprovedBy)); // TODO filter pass votes
+
+        const auto& votedBy_m = v[tip].roundVotes[nRound];
+        for (const auto& vote_p : votedBy_m) {
+            if (vote_p.second.choice.decision == CVoteChoice::Decision::YES)
+                blockToSubmit.vApprovedBy.push_back(vote_p.second.voter);
+        }
 
         out.blockToSubmit = {blockToSubmit};
     }

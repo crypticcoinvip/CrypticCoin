@@ -146,7 +146,7 @@ public:
     /**
      * Submit if valid vice-block with enough votes
      */
-    Output tryToSubmitBlock(BlockHash viceBlockId);
+    Output tryToSubmitBlock(BlockHash viceBlockId, Round nRound);
     Output doTxsVoting();
     /**
      * Force to vote PASS during this round, if round wasn't voted before.
