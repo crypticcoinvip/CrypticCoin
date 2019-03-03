@@ -82,7 +82,7 @@ class CDposVoter
 public:
     using ValidateTxF = std::function<bool(const CTransaction&)>;
     using ValidateTxsF = std::function<bool(const std::map<TxIdSorted, CTransaction>&)>;
-    /// block to validate, dPoS committed txs list, check dPoS txs
+    /// block to validate, dPoS committed txs list, fJustCheckPoW
     using ValidateBlockF = std::function<bool(const CBlock&, const std::map<TxIdSorted, CTransaction>&, bool)>;
     /// @return true if saving inventories from this block is allowed
     using AllowArchivingF = std::function<bool(const BlockHash&)>;

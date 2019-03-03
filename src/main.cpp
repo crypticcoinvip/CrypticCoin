@@ -2774,27 +2774,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // If Sapling is active, block.hashFinalSaplingRoot must be the
     // same as the root of the Sapling tree
-    if (NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING)) {
+    if (dvr.fCheckSaplingRoot && NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING)) {
         if (block.hashFinalSaplingRoot != sapling_tree.root()) {
             return state.DoS(100,
                          error("ConnectBlock(): block's hashFinalSaplingRoot is incorrect"),
                                REJECT_INVALID, "bad-sapling-root-in-block");
-        }
-    }
-
-    // check instant txs are equal to the template
-    if (dvr.instantTxsTemplate) {
-        const size_t instTxsNum = instSectionEnd - instSectionStart;
-        if (instTxsNum != dvr.instantTxsTemplate->size())
-            return state.DoS(100, error("ConnectBlock(): wrong instant txs num"),
-                             REJECT_INVALID, "bad-blk-inst-txs-num");
-
-        auto matchInstTx_it = dvr.instantTxsTemplate->begin();
-        for (size_t i = instSectionStart; i < instSectionEnd; i++) {
-            if (block.vtx[i] != matchInstTx_it->second)
-                return state.DoS(100, error("ConnectBlock(): wrong instant txs"),
-                                 REJECT_INVALID, "bad-blk-inst-txs");
-            matchInstTx_it++;
         }
     }
 
@@ -2803,7 +2787,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // Checks dPoS rewards
     const CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
-    if (fDposActive)
+    if (dvr.fCheckDposReward && fDposActive)
     {
         const auto rewards_p = mnview.CalcDposTeamReward(blockReward, nFees_inst, pindex->nHeight);
         const bool sizeCheck = block.vtx[0].vout.size() >= rewards_p.first.size();
@@ -2812,12 +2796,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                              error("ConnectBlock(): coinbase pays incorrect dPoS reward"),
                                    REJECT_INVALID, "bad-cb-amount");
     }
-
     if (block.vtx[0].GetValueOut() > blockReward)
         return state.DoS(100,
                          error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
                                block.vtx[0].GetValueOut(), blockReward),
-                               REJECT_INVALID, "bad-cb-amount");
+                         REJECT_INVALID, "bad-cb-amount");
+
 
     if (!control.Wait())
         return state.DoS(100, false);

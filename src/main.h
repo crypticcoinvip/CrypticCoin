@@ -462,10 +462,10 @@ struct DposValidationRules {
     size_t nMaxInstsSize = MAX_INST_SECTION_SIZE;
     size_t nMaxInstsSigops = MAX_INST_SECTION_SIGOPS;
 
-    boost::optional< std::map<TxIdSorted, CTransaction> > instantTxsTemplate;
-
     bool fCheckDposSigs = true;
     bool fCheckInstSection = true;
+    bool fCheckDposReward = true;
+    bool fCheckSaplingRoot = true;
 };
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins */

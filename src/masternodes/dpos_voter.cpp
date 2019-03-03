@@ -119,7 +119,7 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
     if (viceBlock.nRound <= 0 || !viceBlock.vSig.empty() || !viceBlock.hashReserved1.IsNull() || !viceBlock.hashReserved2.IsNull()) {
         return misbehavingErr("vice-block is malformed");
     }
-    if (!world.validateBlock(viceBlock, {}, false)) {
+    if (!world.validateBlock(viceBlock, {}, true)) {
         return misbehavingErr("vice-block validation failed");
     }
 
@@ -372,7 +372,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         }
 
         const CBlock& viceBlock = v[tip].viceBlocks[viceBlockId];
-        if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
+        if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, false)) {
             viceBlockToVote = {viceBlockId};
             break;
         }
@@ -725,7 +725,7 @@ bool CDposVoter::atLeastOneViceBlockIsValid(Round nRound) const
 
     for (const auto& viceBlock_p : v[tip].viceBlocks) {
         const CBlock& viceBlock = viceBlock_p.second;
-        if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, true)) {
+        if (viceBlock.nRound == nRound && world.validateBlock(viceBlock, committedTxs, false)) {
             return true;
         }
     }
