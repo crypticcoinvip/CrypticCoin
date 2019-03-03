@@ -2778,7 +2778,7 @@ CAmount CWallet::GetBalance() const
         {
             const CWalletTx* pcoin = &(*it).second;
             // don't include instant txs. They should be included in GetInstantBalance() only
-            if (pcoin->IsTrusted() && !pDposController->isCommittedTx(static_cast<const CTransaction&>(*pcoin)))
+            if (pcoin->IsTrusted() && !pDposController->isCommittedTx(pcoin->GetHash()))
                 nTotal += pcoin->GetAvailableCredit();
         }
     }

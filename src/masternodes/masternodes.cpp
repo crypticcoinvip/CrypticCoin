@@ -857,61 +857,66 @@ CTeam CMasternodesView::ReadDposTeam(int height) const
 extern CFeeRate minRelayTxFee;
 std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAmount totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const
 {
-    std::vector<CTxOut> result;
-    CTeam const team = ReadDposTeam(height - 1);
-    bool const fDposActive = team.size() == Params().GetConsensus().dpos.nTeamSize;
-    if (!fDposActive)
-    {
-        return {result, 0};
-    }
-
-    CAmount const dposReward_one = ((totalBlockSubsidy * GetDposBlockSubsidyRatio()) / MN_BASERATIO) / team.size();
-    CAmount dposReward = 0;
-
-    for (auto it = team.begin(); it != team.end(); ++it)
-    {
-        // it->first == nodeId, it->second == joinHeight
-        uint256 const & nodeId = it->first;
-        CMasternode const & node = allNodes.at(nodeId);
-
-        CAmount ownerReward = dposReward_one;
-        CAmount operatorReward = ownerReward * node.operatorRewardRatio / MN_BASERATIO;
-        ownerReward -= operatorReward;
-        operatorReward += dPosTransactionsFee / team.size();
-
-        // Merge outputs this way. Checking equality of scriptPubKeys BEFORE creating couts to avoid situation
-        // when scripts are equal but particular amounts are dust!
-        if (node.ownerRewardAddress == node.operatorRewardAddress)
+    try {
+        std::vector<CTxOut> result;
+        CTeam const team = ReadDposTeam(height - 1);
+        bool const fDposActive = team.size() == Params().GetConsensus().dpos.nTeamSize;
+        if (!fDposActive)
         {
-            CTxOut out(ownerReward+operatorReward, node.ownerRewardAddress);
-            if (!out.IsDust(::minRelayTxFee))
+            return {result, 0};
+        }
+
+        CAmount const dposReward_one = ((totalBlockSubsidy * GetDposBlockSubsidyRatio()) / MN_BASERATIO) / team.size();
+        CAmount dposReward = 0;
+
+        for (auto it = team.begin(); it != team.end(); ++it)
+        {
+            // it->first == nodeId, it->second == joinHeight
+            uint256 const & nodeId = it->first;
+            CMasternode const & node = allNodes.at(nodeId);
+
+            CAmount ownerReward = dposReward_one;
+            CAmount operatorReward = ownerReward * node.operatorRewardRatio / MN_BASERATIO;
+            ownerReward -= operatorReward;
+            operatorReward += dPosTransactionsFee / team.size();
+
+            // Merge outputs this way. Checking equality of scriptPubKeys BEFORE creating couts to avoid situation
+            // when scripts are equal but particular amounts are dust!
+            if (node.ownerRewardAddress == node.operatorRewardAddress)
             {
-                result.push_back(out);
-                dposReward += ownerReward+operatorReward;
+                CTxOut out(ownerReward+operatorReward, node.ownerRewardAddress);
+                if (!out.IsDust(::minRelayTxFee))
+                {
+                    result.push_back(out);
+                    dposReward += ownerReward+operatorReward;
+                }
+            }
+            else
+            {
+                CTxOut outOwner(ownerReward, node.ownerRewardAddress);
+                if (!outOwner.IsDust(::minRelayTxFee))
+                {
+                    result.push_back(outOwner);
+                    dposReward += ownerReward;
+                }
+                CTxOut outOperator(operatorReward, node.operatorRewardAddress);
+                if (!outOperator.IsDust(::minRelayTxFee))
+                {
+                    result.push_back(outOperator);
+                    dposReward += operatorReward;
+                }
             }
         }
-        else
+        // sorting result by hashes
+        std::sort(result.begin(), result.end(), [&](CTxOut const & lhs, CTxOut const & rhs)
         {
-            CTxOut outOwner(ownerReward, node.ownerRewardAddress);
-            if (!outOwner.IsDust(::minRelayTxFee))
-            {
-                result.push_back(outOwner);
-                dposReward += ownerReward;
-            }
-            CTxOut outOperator(operatorReward, node.operatorRewardAddress);
-            if (!outOperator.IsDust(::minRelayTxFee))
-            {
-                result.push_back(outOperator);
-                dposReward += operatorReward;
-            }
-        }
+            return UintToArith256(lhs.GetHash()) < UintToArith256(rhs.GetHash());
+        });
+        return {result, dposReward};
+    } catch(...) {
+        LogPrintf("Masternodes database is corrupted (reading dPoS team)! Please restart with -reindex to recover. \n");
+        assert(!"Masternodes database is corrupted (reading dPoS team)! Please restart with -reindex to recover.");
     }
-    // sorting result by hashes
-    std::sort(result.begin(), result.end(), [&](CTxOut const & lhs, CTxOut const & rhs)
-    {
-        return UintToArith256(lhs.GetHash()) < UintToArith256(rhs.GetHash());
-    });
-    return {result, dposReward};
 }
 
 uint32_t CMasternodesView::GetMinDismissingQuorum()

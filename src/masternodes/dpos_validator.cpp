@@ -8,9 +8,47 @@
 namespace dpos
 {
 
-bool CDposController::Validator::validateTx(const std::map<TxIdSorted, CTransaction>& txMap)
+bool CDposController::Validator::validateTx(const CTransaction& tx)
 {
     AssertLockHeld(cs_main);
+    ScopedNoLogging noLogging;
+
+    if (!tx.fInstant)
+        return false;
+
+    {
+        // tx is already included into a block
+        BlockHash txBlockHash{};
+        CTransaction notUsed;
+        if (GetTransaction(tx.GetHash(), notUsed, txBlockHash, false) && !txBlockHash.IsNull())
+            return false;
+    }
+
+    CValidationState state;
+    int nextBlockHeight = chainActive.Height() + 1;
+
+    auto verifier = libzcash::ProofVerifier::Strict();
+    if (!CheckTransaction(tx, state, verifier))
+        return error("validateTx: CheckTransaction failed");
+
+    // Check transaction contextually against the set of consensus rules which apply in the next block to be mined.
+    if (!ContextualCheckTransaction(tx, state, nextBlockHeight, 10)) {
+        return error("validateTx: ContextualCheckTransaction failed");
+    }
+
+    // DoS mitigation: reject transactions expiring soon
+    if (IsExpiringSoonTx(tx, nextBlockHeight)) {
+        return state.DoS(0, error("validateTx(): transaction is expiring soon"), REJECT_INVALID, "tx-expiring-soon");
+    }
+
+
+    return true;
+}
+
+bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransaction>& txMap)
+{
+    AssertLockHeld(cs_main);
+    ScopedNoLogging noLogging;
     // NOT SUPPOSED TO BE USED BY AN ACTUAL VOTER! Only by relaying node.
 
     return true;

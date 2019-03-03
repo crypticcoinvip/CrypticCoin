@@ -105,7 +105,8 @@ CDposController& CDposController::getInstance()
             std::make_shared<Validator>().swap(dposControllerInstance_->validator);
             Validator* validator{dposControllerInstance_->validator.get()};
             CDposVoter::Callbacks callbacks{};
-            callbacks.validateTxs = std::bind(&Validator::validateTx, validator, _1);
+            callbacks.validateTx = std::bind(&Validator::validateTx, validator, _1);
+            callbacks.validateTxs = std::bind(&Validator::validateTxs, validator, _1);
             callbacks.validateBlock = std::bind(&Validator::validateBlock, validator, _1, _2, _3);
             callbacks.allowArchiving = std::bind(&Validator::allowArchiving, validator, _1);
             std::make_shared<CDposVoter>(callbacks).swap(dposControllerInstance_->voter);
@@ -118,7 +119,7 @@ CDposController& CDposController::getInstance()
 void CDposController::runEventLoop()
 {
     std::pair<BlockHash, Round> lastRound{};
-    int64_t lastSyncTime{GetTimeMillis() - 10000};
+    int64_t lastSyncTime{GetTimeMillis() - 1000000};
     int64_t roundTime{GetTimeMillis()};
     int64_t initialBlocksDownloadPassedTime{0};
     CDposController* self{getController()};
@@ -157,14 +158,18 @@ void CDposController::runEventLoop()
             if (syncPeriod < 1000) // not more often than once in 1s
                 syncPeriod = 1000;
 
-            if ((now - lastSyncTime) > syncPeriod) {
+            const auto nodes = getNodes();
+            if (!nodes.empty() && !IsInitialBlockDownload() && (now - lastSyncTime) > syncPeriod) {
                 lastSyncTime = now;
                 self->removeOldVotes();
 
-                const auto nodes = getNodes();
                 std::vector<CInv> txReqsToSend;
                 {
                     LOCK(cs_main);
+                    if (self->initialVotesDownload) { // txs aren't written into DB, so we need to request them from other peers
+                        self->handleVoterOutput(self->voter->requestMissingTxs());
+                    }
+
                     txReqsToSend.insert(txReqsToSend.end(), self->vTxReqs.begin(), self->vTxReqs.end());
                     self->vTxReqs.clear();
                 }
@@ -172,7 +177,8 @@ void CDposController::runEventLoop()
                     node->PushMessage("getvblocks", tipHash);
                     node->PushMessage("getrvotes", tipHash);
                     node->PushMessage("gettxvotes", tipHash, self->getTxsFilter());
-                    node->PushMessage("getdata", txReqsToSend);
+                    if (!txReqsToSend.empty())
+                        node->PushMessage("getdata", txReqsToSend);
                 }
             }
         }
@@ -398,6 +404,19 @@ bool CDposController::findTxVote(const BlockHash& hash, CTxVote_p2p* vote) const
     return rv;
 }
 
+bool CDposController::findTx(const TxId& txid, CTransaction* tx) const
+{
+    LOCK(cs_main);
+    const auto it{this->voter->txs.find(txid)};
+    const auto rv{it != this->voter->txs.end()};
+
+    if (rv && tx != nullptr) {
+        *tx = it->second;
+    }
+
+    return rv;
+}
+
 std::vector<CBlock> CDposController::listViceBlocks() const
 {
     std::vector<CBlock> rv{};
@@ -461,22 +480,22 @@ std::vector<CTransaction> CDposController::listCommittedTxs() const
     return rv;
 }
 
-bool CDposController::isCommittedTx(const CTransaction& tx) const
+bool CDposController::isCommittedTx(const TxId& txid) const
 {
     LOCK(cs_main);
-    return this->voter->isCommittedTx(tx);
+    return this->voter->isCommittedTx(txid);
 }
 
-CTxVotingDistribution CDposController::calcTxVotingStats(TxId txid) const
+CTxVotingDistribution CDposController::calcTxVotingStats(const TxId& txid) const
 {
     LOCK(cs_main);
     return this->voter->calcTxVotingStats(txid, this->voter->getCurrentRound());
 }
 
-bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
+bool CDposController::isTxApprovedByMe(const TxId& txid) const
 {
     LOCK(cs_main);
-    return this->voter->isTxApprovedByMe(tx);
+    return this->voter->isTxApprovedByMe(txid);
 }
 
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)

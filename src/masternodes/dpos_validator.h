@@ -14,7 +14,8 @@ namespace dpos
 class CDposController::Validator : public CValidationInterface
 {
 public:
-    bool validateTx(const std::map<TxIdSorted, CTransaction>& txMap);
+    bool validateTx(const CTransaction& tx);
+    bool validateTxs(const std::map<TxIdSorted, CTransaction>& txMap);
     bool validateBlock(const CBlock& block, const std::map<TxIdSorted, CTransaction>& txMap, bool flag);
     bool allowArchiving(const BlockHash& blockHash);
 

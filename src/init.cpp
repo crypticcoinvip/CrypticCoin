@@ -238,19 +238,27 @@ void Shutdown()
 
     {
         LOCK(cs_main);
-        if (pcoinsTip != NULL) {
+        if (pcoinsTip != nullptr) {
             FlushStateToDisk();
         }
+        if (pmasternodesdb != nullptr) {
+            pmasternodesdb->CommitBatch();
+        }
+        if (pdposdb != nullptr) {
+            pdposdb->Flush();
+        }
         delete pcoinsTip;
-        pcoinsTip = NULL;
+        pcoinsTip = nullptr;
         delete pcoinscatcher;
-        pcoinscatcher = NULL;
+        pcoinscatcher = nullptr;
         delete pcoinsdbview;
-        pcoinsdbview = NULL;
+        pcoinsdbview = nullptr;
         delete pblocktree;
-        pblocktree = NULL;
+        pblocktree = nullptr;
         delete pmasternodesdb;
-        pmasternodesdb = NULL;
+        pmasternodesdb = nullptr;
+        delete pdposdb;
+        pdposdb = nullptr;
     }
 #ifdef ENABLE_WALLET
     if (pwalletMain)
@@ -286,7 +294,7 @@ void Shutdown()
     pwalletMain = NULL;
 #endif
     delete pcrypticcoinParams;
-    pcrypticcoinParams = NULL;
+    pcrypticcoinParams = nullptr;
     globalVerifyHandle.reset();
     ECC_Stop();
     LogPrintf("%s: done\n", __func__);

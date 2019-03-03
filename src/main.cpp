@@ -973,6 +973,12 @@ bool ContextualCheckTransaction(
         return state.DoS(100, error("ContextualCheckTransaction(): dPoS transaction not allowed"),
                          REJECT_INVALID, "tx-instant-supported-in-sapling");
     }
+    // Instant nLockTime cannot be set
+    if (tx.fInstant && tx.nLockTime != 0)
+    {
+        return state.DoS(100, error("ContextualCheckTransaction(): instant tx cannot have nLockTime"),
+                         REJECT_INVALID, "bad-tx-inst-locktime");
+    }
     // Instant tx size
     if (tx.fInstant && ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION) > MAX_INST_TX_SIZE_AFTER_SAPLING)
     {
@@ -4400,6 +4406,7 @@ CVerifyDB::~CVerifyDB()
 
 bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth)
 {
+    return true; // @todo @mn fix MN read-only view
     LOCK(cs_main);
     if (chainActive.Tip() == NULL || chainActive.Tip()->pprev == NULL)
         return true;
@@ -5267,7 +5274,13 @@ void static ProcessGetData(CNode* pfrom)
                             pushed = true;
                         }
                     }
+                    // Send from mempool
                     if (!pushed && inv.type == MSG_TX && isInMempool) {
+                        ss << tx;
+                        pushed = true;
+                    }
+                    // Send from dPoS controller
+                    if (!pushed && inv.type == MSG_TX && dpos::getController()->findTx(inv.hash, &tx)) {
                         ss << tx;
                         pushed = true;
                     }
@@ -5739,6 +5752,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
         pfrom->setAskFor.erase(inv.hash);
         mapAlreadyAskedFor.erase(inv);
+
+        // accept to dPoS controller
+        if (tx.fInstant)
+            dpos::getController()->proceedTransaction(tx);
 
         if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs))
         {
