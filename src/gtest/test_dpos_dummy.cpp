@@ -28,6 +28,10 @@ void initVoters_dummy(std::vector<CMasternode::ID>& masternodeIds,
 TEST(dPoS, DummyEmptyBlock)
 {
     dpos::CDposVoter::Callbacks callbacks;
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return true;
+    };
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
         return true;
@@ -120,6 +124,10 @@ TEST(dPoS, DummyEmptyBlock)
 TEST(dPoS, DummyCommitTx)
 {
     dpos::CDposVoter::Callbacks callbacks;
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return true;
+    };
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
         return true;
@@ -172,7 +180,7 @@ TEST(dPoS, DummyCommitTx)
         if (i == 23 - 1) {
             // final vote
             ASSERT_EQ(voters[0].listCommittedTxs().size(), 1);
-            ASSERT_EQ(voters[0].listCommittedTxs()[UintToArith256(tx.GetHash())].GetHash(), tx.GetHash());
+            ASSERT_EQ(voters[0].listCommittedTxs()[tx.GetDposSortingHash()].GetHash(), tx.GetHash());
         }
 
         { // duplicate check
@@ -202,6 +210,10 @@ TEST(dPoS, DummyCommitTx)
 TEST(dPoS, DummyRejectTx)
 {
     dpos::CDposVoter::Callbacks callbacks{};
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return false;
+    };
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
         return false;
@@ -237,7 +249,11 @@ TEST(dPoS, DummyRejectTx)
         res += voters[i].applyTx(tx);
 
         ASSERT_EQ(voters[i].v.size(), 0);
-        ASSERT_TRUE(res.empty());
+        ASSERT_TRUE(res.vTxReqs.empty());
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
         ASSERT_TRUE(voters[i].txs.empty());
     }
 }
@@ -245,6 +261,10 @@ TEST(dPoS, DummyRejectTx)
 TEST(dPoS, InvalidVote)
 {
     dpos::CDposVoter::Callbacks callbacks{};
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return false;
+    };
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
         return false;
