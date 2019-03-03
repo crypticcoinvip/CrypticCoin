@@ -144,7 +144,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     CAmount nFees = 0;
     CAmount nFees_inst = 0;
 
-    const std::vector<CTransaction> commitedList = dpos::getController()->listCommittedTxs();
+    const std::vector<CTransaction> committedList = dpos::getController()->listCommittedTxs();
     pblock->nRound = dpos::getController()->getCurrentVotingRound();
     {
         LOCK2(cs_main, mempool.cs);
@@ -258,8 +258,23 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
         // Insert instant tranasctions
         {
-            for (auto&& tx : commitedList) {
+            for (auto&& tx : committedList) {
                 assert(tx.fInstant);
+
+                { // check
+                    if (!view.HaveInputs(tx)) {
+                        LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
+                        continue;
+                    }
+
+                    CValidationState state;
+                    PrecomputedTransactionData txdata(tx);
+                    const unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
+                    if (!ContextualCheckInputs(tx, state, view, true, flags, true, txdata, Params().GetConsensus(), consensusBranchId)) {
+                        LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
+                        continue;
+                    }
+                }
 
                 ++nBlockTx;
 
@@ -277,11 +292,11 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                 pblocktemplate->vTxFees.push_back(nTxFees);
                 pblocktemplate->vTxSigOps.push_back(nTxSigOps);
 
-                // We don't check the committed txs here because we don't have a choice to not to include them anyway
-                // They will be checked at block connection
-                UpdateCoins(tx, view, nHeight);
-                for (const OutputDescription &outDescription : tx.vShieldedOutput) {
-                    sapling_tree.append(outDescription.cm);
+                { // update view and sapling_tree
+                    UpdateCoins(tx, view, nHeight);
+                    for (const OutputDescription &outDescription : tx.vShieldedOutput) {
+                        sapling_tree.append(outDescription.cm);
+                    }
                 }
             }
         }
@@ -340,7 +355,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             // create only contains transactions that are valid in new blocks.
             CValidationState state;
             PrecomputedTransactionData txdata(tx);
-            if (!ContextualCheckInputs(tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
+            if (!ContextualCheckInputs(tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
                 continue;
 
             UpdateCoins(tx, view, nHeight);
