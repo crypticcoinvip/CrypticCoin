@@ -499,7 +499,7 @@ bool AsyncRPCOperation_sendmany::main_impl() {
 
             UniValue o(UniValue::VOBJ);
             o.push_back(Pair("txid", txid));
-            o.push_back(Pair("instant_tx", tx_.fInstant));
+            o.push_back(Pair("dpos_instant", tx_.fInstant));
             set_result(o);
         } else {
             // Test mode does not send the transaction to the network.
@@ -507,7 +507,7 @@ bool AsyncRPCOperation_sendmany::main_impl() {
             o.push_back(Pair("test", 1));
             o.push_back(Pair("txid", tx_.GetHash().ToString()));
             o.push_back(Pair("hex", signedtxn));
-            o.push_back(Pair("instant_tx", tx_.fInstant));
+            o.push_back(Pair("dpos_instant", tx_.fInstant));
             set_result(o);
         }
 
@@ -981,7 +981,7 @@ void AsyncRPCOperation_sendmany::sign_send_raw_transaction(UniValue obj)
 
         UniValue o(UniValue::VOBJ);
         o.push_back(Pair("txid", txid));
-        o.push_back(Pair("instant_tx", tx_.fInstant));
+        o.push_back(Pair("dpos_instant", tx_.fInstant));
         set_result(o);
     } else {
         // Test mode does not send the transaction to the network.
@@ -994,7 +994,7 @@ void AsyncRPCOperation_sendmany::sign_send_raw_transaction(UniValue obj)
         o.push_back(Pair("test", 1));
         o.push_back(Pair("txid", tx.GetHash().ToString()));
         o.push_back(Pair("hex", signedtxn));
-        o.push_back(Pair("instant_tx", tx_.fInstant));
+        o.push_back(Pair("dpos_instant", tx_.fInstant));
         set_result(o);
     }
 
