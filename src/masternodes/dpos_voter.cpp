@@ -112,7 +112,7 @@ void CDposVoter::updateTip(BlockHash tip)
         filterFinishedTxs(this->txs, 0);
         // filter invalid txs
         for (auto it = this->txs.begin(); it != this->txs.end();) {
-            if (world.validateTx(it->second))
+            if (!world.validateTx(it->second))
                 it = this->txs.erase(it);
             else
                 it++;
@@ -160,8 +160,10 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
         LogPrintf("%s: Received invalid tx %s \n", __func__, txid.GetHex());
         // clear tx and votes for this tx
         txs.erase(txid);
-        for (auto&& txRoundVoting_p : v[tip].txVotes) {
-            txRoundVoting_p.second.erase(txid);
+        if (v.count(tip) != 0) {
+            for (auto&& txRoundVoting_p : v[tip].txVotes) {
+                txRoundVoting_p.second.erase(txid);
+            }
         }
 
         return misbehavingErr("invalid tx");
