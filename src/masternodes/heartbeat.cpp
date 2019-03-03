@@ -263,7 +263,11 @@ int CHeartBeatTracker::getMinPeriod() const
 
 int CHeartBeatTracker::getMaxPeriod() const
 {
-    return getMinPeriod() * 20;
+    if (Params().NetworkIDString() == "regtest")
+    {
+        return getMinPeriod() * 20;
+    }
+    return std::max(getMinPeriod() * 20, 6 * 60 * 60); // 20 minimum periods or 6h, whatever is greater
 }
 
 std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
