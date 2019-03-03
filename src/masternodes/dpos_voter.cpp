@@ -107,9 +107,17 @@ void CDposVoter::updateTip(BlockHash tip)
 {
     LogPrintf("%s: Change current tip from %s to %s\n", __func__, this->tip.GetHex(), tip.GetHex());
 
-    // tip is changed not first time. TODO filter only after N blocks. store txs to clear here
-    if (this->tip != BlockHash{} && this->tip != tip)
+    // tip is changed not first time
+    if (this->tip != BlockHash{} && this->tip != tip) {
         filterFinishedTxs(this->txs, 0);
+        // filter invalid txs
+        for (auto it = this->txs.begin(); it != this->txs.end();) {
+            if (world.validateTx(it->second))
+                it = this->txs.erase(it);
+            else
+                it++;
+        }
+    }
 
     this->tip = tip;
 }
