@@ -165,6 +165,7 @@ BITCOIN_CORE_H = \
   masternodes/dpos_p2p_messages.h \
   masternodes/dpos_validator.h \
   masternodes/heartbeat.h \
+  masternodes/mntypes.h \
   masternodes/masternodes.h \
   memusage.h \
   merkleblock.h \

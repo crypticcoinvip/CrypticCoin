@@ -572,7 +572,6 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 
 CCoinsViewCache *pcoinsTip = nullptr;
 CBlockTreeDB *pblocktree = nullptr;
-CMasternodesDB *pmasternodesdb = nullptr;
 CMasternodesView *pmasternodesview = nullptr;
 CDposDB * pdposdb = nullptr;
 
@@ -4390,7 +4389,6 @@ CVerifyDB::~CVerifyDB()
 
 bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth)
 {
-    return true; // @todo @mn fix MN read-only view
     LOCK(cs_main);
     if (chainActive.Tip() == NULL || chainActive.Tip()->pprev == NULL)
         return true;

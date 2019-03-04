@@ -464,12 +464,12 @@ void CMasternodesDB::EraseUndo(uint256 const & txid, uint256 const & affectedIte
     BatchErase(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem));
 }
 
-void CMasternodesDB::ReadOperatorUndo(const uint256 & txid, CMasternodesView::COperatorUndoRec & value)
+void CMasternodesDB::ReadOperatorUndo(const uint256 & txid, COperatorUndoRec & value)
 {
     db->Read(make_pair(DB_SETOPERATORUNDO, txid), value);
 }
 
-void CMasternodesDB::WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value)
+void CMasternodesDB::WriteOperatorUndo(uint256 const & txid, COperatorUndoRec const & value)
 {
     BatchWrite(make_pair(DB_SETOPERATORUNDO, txid), value);
 }

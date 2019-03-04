@@ -586,9 +586,7 @@ extern CCoinsViewCache *pcoinsTip;
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB *pblocktree;
 
-/** Global variable that points to the CMasternodeDB (protected by cs_main) */
-class CMasternodesDB;
-extern CMasternodesDB * pmasternodesdb;
+/** Global variable that points to the CMasternodeView (protected by cs_main) */
 class CMasternodesView;
 extern CMasternodesView * pmasternodesview;
 

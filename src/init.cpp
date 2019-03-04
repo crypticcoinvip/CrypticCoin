@@ -241,8 +241,8 @@ void Shutdown()
         if (pcoinsTip != nullptr) {
             FlushStateToDisk();
         }
-        if (pmasternodesdb != nullptr) {
-            pmasternodesdb->CommitBatch();
+        if (pmasternodesview != nullptr) {
+            pmasternodesview->CommitBatch();
         }
         if (pdposdb != nullptr) {
             pdposdb->Flush();
@@ -255,8 +255,6 @@ void Shutdown()
         pcoinsdbview = nullptr;
         delete pblocktree;
         pblocktree = nullptr;
-        delete pmasternodesdb;
-        pmasternodesdb = nullptr;
         delete pdposdb;
         pdposdb = nullptr;
     }
@@ -1579,16 +1577,13 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 delete pcoinscatcher;
                 delete pblocktree;
                 delete pmasternodesview;
-                delete pmasternodesdb;
                 delete pdposdb;
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
                 pcoinsTip = new CCoinsViewCache(pcoinscatcher);
-                /// @todo @mn cache size???
-                pmasternodesdb = new CMasternodesDB(nMinDbCache << 20, false, fReindex);
-                pmasternodesview = new CMasternodesView(*pmasternodesdb);
+                pmasternodesview = new CMasternodesView(nMinDbCache << 20, false, fReindex);
                 pdposdb = new CDposDB(nMinDbCache << 20, false, fReindex);
 
                 pmasternodesview->Load();
