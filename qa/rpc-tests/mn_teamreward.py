@@ -30,7 +30,10 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
     def start_nodes(self, args = []):
         if len(args) == 0:
             args = [[]] * self.num_nodes
-        for i in range(self.num_nodes): args[i].append("-nuparams=76b809bb:200")
+        for i in range(len(args)):
+            args[i] = args[i][:]
+            args[i] += ['-nuparams=76b809bb:200']
+
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
 
     def stop_nodes(self):
@@ -130,14 +133,14 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         assert_equal(self.dump_mn(3)['status'], "active")
 
         # should be old PoW coinbase
-        height = self.nodes[i].getblockcount()
+        height = self.nodes[0].getblockcount()
         pow = self.gettipcoinbase(0)
         assert_true(len(pow['vout']) == 1)
         assert_true(pow['vout'][0]['value'] >= 6.25)
 
         self.nodes[0].generate(1)
 
-        while height == self.nodes[i].getblockcount():
+        while height == self.nodes[0].getblockcount():
             time.sleep(0.5)
 
         # should be new dPoS coinbase

@@ -31,8 +31,9 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
     def start_nodes(self, args = []):
         if len(args) == 0:
             args = [[]] * self.num_nodes
-
-        for i in range(self.num_nodes): args[i].append("-nuparams=76b809bb:200")
+        for i in range(len(args)):
+            args[i] = args[i][:]
+            args[i] += ['-nuparams=76b809bb:200']
 
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
         connect_nodes_bi(self.nodes, 0, 1)
@@ -124,8 +125,8 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         self.sync_all()
         time.sleep(2)
         self.nodes[0].generate(1)
-        time.sleep(5)
-        assert_equal(self.nodes[0].getblockcount(), 212)
+        while self.nodes[0].getblockcount() != 212:
+            time.sleep(0.5)
 
         dump0 = self.dump_mn(0)
         assert_equal(dump0['mn']['counterVotesAgainst'], 3)
@@ -147,7 +148,21 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         assert_equal(dump3['mn']['counterVotesFrom'], 1)
         assert_equal(dump3['status'], "active")
 
-#        pp.pprint(self.nodes[0].getdismissvotes())
+
+        print "Restarting nodes, checking VerifyDB"
+        self.stop_nodes()
+
+        args = [[ "-checklevel=4" ]] * self.num_nodes
+        for i in range(self.num_nodes):
+            args[i] = args[i][:]
+            args[i] += ["-masternode_operator="+self.mns[i].operator]
+
+        self.start_nodes(args)
+
+        self.nodes[0].generate(1)
+        while self.nodes[0].getblockcount() != 213:
+            time.sleep(0.5)
+
 
         # Try to finalize voting against 1
         try:
@@ -159,10 +174,11 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         # Finalize voting against 0
         self.finalizedismissvoting_mn(1, 0)
 
+
         self.sync_all()
         self.nodes[1].generate(1)
-        time.sleep(5)
-        assert_equal(self.nodes[1].getblockcount(), 213)
+        while self.nodes[1].getblockcount() != 214:
+            time.sleep(0.5)
 
         dump0 = self.dump_mn(0)
         assert_equal(dump0['mn']['counterVotesAgainst'], 0)
