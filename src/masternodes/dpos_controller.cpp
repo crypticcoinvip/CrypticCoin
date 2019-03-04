@@ -159,19 +159,15 @@ void CDposController::runEventLoop()
                 syncPeriod = 1000;
 
             const auto nodes = getNodes();
-            if (!nodes.empty() && !IsInitialBlockDownload() && (now - lastSyncTime) > syncPeriod) {
+            if (!nodes.empty() && (now - lastSyncTime) > syncPeriod) {
                 lastSyncTime = now;
                 self->removeOldVotes();
 
                 std::vector<CInv> txReqsToSend;
                 {
                     LOCK(cs_main);
-                    if (self->initialVotesDownload) { // txs aren't written into DB, so we need to request them from other peers
-                        self->handleVoterOutput(self->voter->requestMissingTxs());
-                    }
-
+                    self->handleVoterOutput(self->voter->requestMissingTxs());
                     txReqsToSend.insert(txReqsToSend.end(), self->vTxReqs.begin(), self->vTxReqs.end());
-                    self->vTxReqs.clear();
                 }
                 for (auto&& node : nodes) {
                     node->PushMessage("getvblocks", tipHash);
@@ -325,6 +321,7 @@ void CDposController::proceedViceBlock(const CBlock& viceBlock)
 void CDposController::proceedTransaction(const CTransaction& tx)
 {
     LOCK(cs_main);
+    vTxReqs.erase(CInv{MSG_TX, tx.GetHash()});
     handleVoterOutput(voter->applyTx(tx));
 }
 
