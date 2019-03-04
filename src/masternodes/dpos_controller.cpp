@@ -14,34 +14,11 @@
 #include "../snark/libsnark/common/utils.hpp"
 #include <mutex>
 #include <future>
+#include <boost/thread.hpp>
 
 namespace dpos
 {
-CCriticalSection cs_dpos{};
 CDposController* dposControllerInstance_{nullptr};
-
-int computeBlockHeight(const BlockHash& blockHash, int maxDeep = -1)
-{
-    int rv{-1};
-
-    if (blockHash == chainActive.Tip()->GetBlockHash()) {
-        rv = chainActive.Height();
-    } else {
-        for (CBlockIndex* index{chainActive.Tip()}; index != nullptr; index = index->pprev) {
-            if (blockHash == index->GetBlockHash()) {
-                rv = index->nHeight;
-                break;
-            }
-            if (maxDeep > 0) {
-                maxDeep--;
-            }
-            if (maxDeep == 0) {
-                break;
-            }
-        }
-    }
-    return rv;
-}
 
 BlockHash getTipHash()
 {
@@ -58,6 +35,7 @@ std::size_t getActiveMasternodeCount()
 
 std::size_t getTeamSizeCount(int height)
 {
+    LOCK(cs_main);
     return pmasternodesview->ReadDposTeam(height).size();
 }
 
@@ -81,71 +59,6 @@ CKey getMasternodeKey()
 #endif
     return rv;
 }
-
-bool checkIsTeamMember(const BlockHash& tipHash, const CKeyID& operatorKey)
-{
-    int height{-100};
-    LOCK(cs_main);
-
-    for (CBlockIndex* index{chainActive.Tip()}; index != nullptr && height < 0; index = index->pprev, height++) {
-        if (index->GetBlockHash() == tipHash) {
-            height = index->nHeight;
-            break;
-        }
-    }
-
-    if (height > 0) {
-        return pmasternodesview->IsTeamMember(height, operatorKey);
-    }
-
-    return false;
-}
-
-boost::optional<CMasternode::ID> findMasternodeId(const CKeyID& operatorKeyId = CKeyID{})
-{
-    CKeyID keyId{operatorKeyId};
-
-    if (operatorKeyId.IsNull()) {
-        const CKey key{getMasternodeKey()};
-        if (key.IsValid()) {
-            keyId = key.GetPubKey().GetID();
-        }
-    }
-
-    if (!keyId.IsNull()) {
-        LOCK(cs_main);
-        const auto authIndex{CMasternodesView::AuthIndex::ByOperator};
-        const auto mnIt{pmasternodesview->ExistMasternode(authIndex, keyId)};
-        if (mnIt != boost::none) {
-            return mnIt.get()->second;
-        }
-    }
-
-    return boost::none;
-}
-
-boost::optional<CMasternode::ID> extractMasternodeId(const CRoundVote_p2p& vote)
-{
-    CPubKey pubKey{};
-    if (pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature) &&
-        checkIsTeamMember(vote.tip, pubKey.GetID()))
-    {
-        return findMasternodeId(pubKey.GetID());
-    }
-    return boost::none;
-}
-
-boost::optional<CMasternode::ID> extractMasternodeId(const CTxVote_p2p& vote)
-{
-    CPubKey pubKey{};
-    if (pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature) &&
-        checkIsTeamMember(vote.tip, pubKey.GetID()))
-    {
-        return findMasternodeId(pubKey.GetID());
-    }
-    return boost::none;
-}
-
 
 template<typename T>
 void relayEntity(const T& entity, int type)
@@ -175,6 +88,7 @@ void relayEntity(const T& entity, int type)
 template<typename T, typename StoreMethod>
 void storeEntity(const T& entity, StoreMethod storeMethod, const BlockHash& tipHash)
 {
+    LOCK(cs_main);
     (pdposdb->*storeMethod)(tipHash, entity, nullptr);
 }
 
@@ -185,13 +99,14 @@ CDposController& CDposController::getInstance()
     using std::placeholders::_3;
 
     if (dposControllerInstance_ == nullptr) {
-        LOCK(cs_dpos);
+        LOCK(cs_main);
         if (dposControllerInstance_ == nullptr) {
             dposControllerInstance_ = new CDposController{};
             std::make_shared<Validator>().swap(dposControllerInstance_->validator);
             Validator* validator{dposControllerInstance_->validator.get()};
             CDposVoter::Callbacks callbacks{};
-            callbacks.validateTxs = std::bind(&Validator::validateTx, validator, _1);
+            callbacks.validateTx = std::bind(&Validator::validateTx, validator, _1);
+            callbacks.validateTxs = std::bind(&Validator::validateTxs, validator, _1);
             callbacks.validateBlock = std::bind(&Validator::validateBlock, validator, _1, _2, _3);
             callbacks.allowArchiving = std::bind(&Validator::allowArchiving, validator, _1);
             std::make_shared<CDposVoter>(callbacks).swap(dposControllerInstance_->voter);
@@ -203,54 +118,69 @@ CDposController& CDposController::getInstance()
 
 void CDposController::runEventLoop()
 {
-    Round lastRound{0};
-    int64_t lastTime{GetTimeMillis()};
-    int64_t roundTime{lastTime};
-    int64_t ibdPassedTime{lastTime};
-    bool ibdPassed{false};
+    std::pair<BlockHash, Round> lastRound{};
+    int64_t lastSyncTime{GetTimeMillis() - 1000000};
+    int64_t roundTime{GetTimeMillis()};
+    int64_t initialBlocksDownloadPassedTime{0};
     CDposController* self{getController()};
     const Consensus::Params& params{Params().GetConsensus()};
 
     while (true) {
         boost::this_thread::interruption_point();
-        const auto now{GetTimeMillis()};
 
-        if (!ibdPassed && !IsInitialBlockDownload()) {
-            ibdPassedTime = now;
-            ibdPassed = true;
-        }
-
-        if (!self->ready && ibdPassed && (now - ibdPassedTime > params.dpos.nDelayIBD * 1000)) {
-            self->ready = true;
-            self->onChainTipUpdated(getTipHash());
-        }
-
-        if (now - roundTime > params.dpos.nStalemateTimeout * 1000) {
-            const Round currentRound{self->getCurrentVotingRound()};
-
-            if (lastRound > 0 &&
-                currentRound > 0 &&
-                lastRound == currentRound &&
-                self->checkStalemate(currentRound))
-            {
-                LOCK2(cs_main, cs_dpos);
-                self->handleVoterOutput(self->voter->onRoundTooLong());
+        const BlockHash tipHash{getTipHash()};
+        if (self->isEnabled(tipHash)) {
+            const auto now{GetTimeMillis()};
+            if (initialBlocksDownloadPassedTime == 0 && !IsInitialBlockDownload()) {
+                initialBlocksDownloadPassedTime = now;
             }
 
-            roundTime = now;
-            lastRound = currentRound;
-        }
+            if (self->initialVotesDownload && initialBlocksDownloadPassedTime > 0 && ((now - initialBlocksDownloadPassedTime) > params.dpos.nDelayIBD * 1000)) {
+                self->initialVotesDownload = false;
+                self->onChainTipUpdated(getTipHash());
+            }
 
-        if (now - lastTime > params.dpos.nPollingPeriod * 1000) {
-            lastTime = now;
-            self->removeOldVotes();
+            {
+                LOCK(cs_main);
+                const std::pair<BlockHash, Round> currentRound{self->voter->getTip(), self->getCurrentVotingRound()};
 
-//            const BlockHash tipHash{getTipHash()};
-//            for (auto&& node : getNodes()) {
-//                node->PushMessage("get_vice_blocks", tipHash);
-//                node->PushMessage("get_round_votes", tipHash);
-//                node->PushMessage("get_tx_votes", tipHash, self->getTxsFilter());
-//            }
+                if ((now - roundTime) > (params.dpos.nRoundTooLong * 1000) && lastRound == currentRound) {
+                    self->handleVoterOutput(self->voter->onRoundTooLong());
+                }
+
+                roundTime = now;
+                lastRound = currentRound;
+            }
+
+            int64_t syncPeriod = params.dpos.nPollingPeriod * 1000;
+            if (self->initialVotesDownload)
+                syncPeriod /= 10; // poll 10 times more often when initialVotesDownload
+            if (syncPeriod < 1000) // not more often than once in 1s
+                syncPeriod = 1000;
+
+            const auto nodes = getNodes();
+            if (!nodes.empty() && !IsInitialBlockDownload() && (now - lastSyncTime) > syncPeriod) {
+                lastSyncTime = now;
+                self->removeOldVotes();
+
+                std::vector<CInv> txReqsToSend;
+                {
+                    LOCK(cs_main);
+                    if (self->initialVotesDownload) { // txs aren't written into DB, so we need to request them from other peers
+                        self->handleVoterOutput(self->voter->requestMissingTxs());
+                    }
+
+                    txReqsToSend.insert(txReqsToSend.end(), self->vTxReqs.begin(), self->vTxReqs.end());
+                    self->vTxReqs.clear();
+                }
+                for (auto&& node : nodes) {
+                    node->PushMessage("getvblocks", tipHash);
+                    node->PushMessage("getrvotes", tipHash);
+                    node->PushMessage("gettxvotes", tipHash, self->getTxsFilter());
+                    if (!txReqsToSend.empty())
+                        node->PushMessage("getdata", txReqsToSend);
+                }
+            }
         }
 
         MilliSleep(500);
@@ -275,7 +205,7 @@ bool CDposController::isEnabled(const BlockHash& tipHash) const
 
     if (!tipHash.IsNull()) {
         LOCK(cs_main);
-        height = computeBlockHeight(tipHash);
+        height = Validator::computeBlockHeight(tipHash);
     }
 
     return isEnabled(height);
@@ -289,34 +219,45 @@ CValidationInterface* CDposController::getValidator()
 void CDposController::loadDB()
 {
     assert(pdposdb != nullptr);
+    assert(!this->voter->checkAmIVoter());
+    assert(this->initialVotesDownload);
 
     voter->minQuorum = Params().GetConsensus().dpos.nMinQuorum;
     voter->numOfVoters = Params().GetConsensus().dpos.nTeamSize;
 
-    pdposdb->LoadViceBlocks([this](const BlockHash& tip, const CBlock& block) {
-        assert(!this->voter->checkAmIVoter());
-        assert(block.hashPrevBlock == tip);
-        this->voter->v[tip].viceBlocks.emplace(block.GetHash(), block);
+
+    bool success = false;
+
+    success = pdposdb->LoadViceBlocks([this](const BlockHash& blockHash, const CBlock& block) {
+        if (block.GetHash() != blockHash)
+            throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
+        this->voter->v[block.hashPrevBlock].viceBlocks.emplace(block.GetHash(), block);
     });
-    pdposdb->LoadRoundVotes([this](const BlockHash& tip, const CRoundVote_p2p& vote) {
-        assert(!this->voter->checkAmIVoter());
-        const auto mnId{extractMasternodeId(vote)};
+    if (!success)
+        throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
+
+    success = pdposdb->LoadRoundVotes([this](const uint256& voteHash, const CRoundVote_p2p& vote) {
+        if (vote.GetHash() != voteHash)
+            throw std::runtime_error("dPoS database is corrupted (reading round votes)! Please restart with -reindex to recover.");
+        const auto mnId{authenticateMsg(vote)};
         if (mnId != boost::none) {
             CRoundVote roundVote{};
             roundVote.tip = vote.tip;
             roundVote.voter = mnId.get();
             roundVote.nRound = vote.nRound;
             roundVote.choice = vote.choice;
-            assert(roundVote.tip == tip);
 
             this->receivedRoundVotes.emplace(vote.GetHash(), vote);
-            this->voter->v[tip].roundVotes[roundVote.nRound].emplace(roundVote.voter, roundVote);
+            this->voter->v[vote.tip].roundVotes[roundVote.nRound].emplace(roundVote.voter, roundVote);
         }
     });
-    pdposdb->LoadTxVotes([this](const BlockHash& tip, const CTxVote_p2p& vote) {
-        assert(!this->voter->checkAmIVoter());
-        const auto mnId{extractMasternodeId(vote)};
+    if (!success)
+        throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
 
+    success = pdposdb->LoadTxVotes([this](const uint256& voteHash, const CTxVote_p2p& vote) {
+        if (vote.GetHash() != voteHash)
+            throw std::runtime_error("dPoS database is corrupted (reading tx votes)! Please restart with -reindex to recover.");
+        const auto mnId{authenticateMsg(vote)};
         if (mnId != boost::none) {
             for (const auto& choice : vote.choices) {
                 CTxVote txVote{};
@@ -324,20 +265,21 @@ void CDposController::loadDB()
                 txVote.voter = mnId.get();
                 txVote.nRound = vote.nRound;
                 txVote.choice = choice;
-                assert(txVote.tip == tip);
 
-                this->voter->v[tip].txVotes[txVote.nRound][choice.subject].emplace(txVote.voter, txVote);
+                this->voter->v[vote.tip].txVotes[txVote.nRound][choice.subject].emplace(txVote.voter, txVote);
             }
             this->receivedTxVotes.emplace(vote.GetHash(), vote);
         }
     });
+    if (!success)
+        throw std::runtime_error("dPoS database is corrupted (reading tx votes)! Please restart with -reindex to recover.");
 }
 
 void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 {
-    if (ready && isEnabled(tipHash)) {
-        const auto mnId{findMasternodeId()};
-        LOCK(cs_dpos);
+    if (!initialVotesDownload && isEnabled(tipHash)) {
+        const auto mnId{findMyMasternodeId()};
+        LOCK(cs_main);
 
         if (mnId != boost::none && !this->voter->checkAmIVoter()) {
             LogPrintf("%s: Enabling dpos voter for me %s\n", __func__, mnId.get().GetHex());
@@ -353,8 +295,8 @@ void CDposController::onChainTipUpdated(const BlockHash& tipHash)
 
 Round CDposController::getCurrentVotingRound() const
 {
-    if (ready && isEnabled()) {
-        LOCK(cs_dpos);
+    if (isEnabled()) {
+        LOCK(cs_main);
         return voter->getCurrentRound();
     }
     return 0;
@@ -362,52 +304,66 @@ Round CDposController::getCurrentVotingRound() const
 
 void CDposController::proceedViceBlock(const CBlock& viceBlock)
 {
+    bool success = false;
     if (!findViceBlock(viceBlock.GetHash())) {
-        LOCK2(cs_main, cs_dpos);
+        LOCK(cs_main);
         const CDposVoterOutput out{voter->applyViceBlock(viceBlock)};
 
-        storeEntity(viceBlock, &CDposDB::WriteViceBlock, viceBlock.hashPrevBlock); // TODO move into voter
         if (handleVoterOutput(out)) {
-            relayEntity(viceBlock, MSG_VICE_BLOCK);
+            success = true;
         }
+    }
+    if (success) {
+        storeEntity(viceBlock, &CDposDB::WriteViceBlock, viceBlock.GetHash());
+        relayEntity(viceBlock, MSG_VICE_BLOCK);
     }
 }
 
 void CDposController::proceedTransaction(const CTransaction& tx)
 {
-    LOCK2(cs_main, cs_dpos);
+    LOCK(cs_main);
     handleVoterOutput(voter->applyTx(tx));
 }
 
 void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
 {
+    bool success = false;
     if (!findRoundVote(vote.GetHash())) {
-        LOCK2(cs_main, cs_dpos);
+        LOCK(cs_main);
 
-        this->receivedRoundVotes.emplace(vote.GetHash(), vote); // TODO move into voter
+        this->receivedRoundVotes.emplace(vote.GetHash(), vote); // emplace before to be able to find signature to submit block
         if (acceptRoundVote(vote)) {
-            storeEntity(vote, &CDposDB::WriteRoundVote, vote.tip);
-            relayEntity(vote, MSG_ROUND_VOTE);
+            success = true;
+        } else {
+            this->receivedRoundVotes.erase(vote.GetHash());
         }
+    }
+    if (success) {
+        storeEntity(vote, &CDposDB::WriteRoundVote, vote.GetHash());
+        relayEntity(vote, MSG_ROUND_VOTE);
     }
 }
 
 void CDposController::proceedTxVote(const CTxVote_p2p& vote)
 {
+    bool success = false;
     if (!findTxVote(vote.GetHash())) {
-        LOCK2(cs_main, cs_dpos);
+        LOCK(cs_main);
 
         if (acceptTxVote(vote)) {
-            this->receivedTxVotes.emplace(vote.GetHash(), vote);
-            storeEntity(vote, &CDposDB::WriteTxVote, vote.tip);
-            relayEntity(vote, MSG_TX_VOTE);
+            success = true;
         }
+    }
+    if (success) {
+        this->receivedTxVotes.emplace(vote.GetHash(), vote);
+        storeEntity(vote, &CDposDB::WriteTxVote, vote.GetHash());
+        relayEntity(vote, MSG_TX_VOTE);
     }
 }
 
 bool CDposController::findViceBlock(const BlockHash& hash, CBlock* block) const
 {
-    LOCK(cs_dpos);
+    LOCK(cs_main);
 
     for (const auto& pair : this->voter->v) {
         const auto it{pair.second.viceBlocks.find(hash)};
@@ -424,7 +380,7 @@ bool CDposController::findViceBlock(const BlockHash& hash, CBlock* block) const
 
 bool CDposController::findRoundVote(const BlockHash& hash, CRoundVote_p2p* vote) const
 {
-    LOCK(cs_dpos);
+    LOCK(cs_main);
     const auto it{this->receivedRoundVotes.find(hash)};
     const auto rv{it != this->receivedRoundVotes.end()};
 
@@ -437,7 +393,7 @@ bool CDposController::findRoundVote(const BlockHash& hash, CRoundVote_p2p* vote)
 
 bool CDposController::findTxVote(const BlockHash& hash, CTxVote_p2p* vote) const
 {
-    LOCK(cs_dpos);
+    LOCK(cs_main);
     const auto it{this->receivedTxVotes.find(hash)};
     const auto rv{it != this->receivedTxVotes.end()};
 
@@ -448,10 +404,23 @@ bool CDposController::findTxVote(const BlockHash& hash, CTxVote_p2p* vote) const
     return rv;
 }
 
+bool CDposController::findTx(const TxId& txid, CTransaction* tx) const
+{
+    LOCK(cs_main);
+    const auto it{this->voter->txs.find(txid)};
+    const auto rv{it != this->voter->txs.end()};
+
+    if (rv && tx != nullptr) {
+        *tx = it->second;
+    }
+
+    return rv;
+}
+
 std::vector<CBlock> CDposController::listViceBlocks() const
 {
     std::vector<CBlock> rv{};
-    LOCK(cs_dpos);
+    LOCK(cs_main);
 
     for (const auto& pair1 : this->voter->v) {
         for (const auto& pair2 : pair1.second.viceBlocks) {
@@ -465,7 +434,7 @@ std::vector<CBlock> CDposController::listViceBlocks() const
 std::vector<CRoundVote_p2p> CDposController::listRoundVotes() const
 {
     std::vector<CRoundVote_p2p> rv{};
-    LOCK(cs_dpos);
+    LOCK(cs_main);
 
     rv.reserve(this->receivedRoundVotes.size());
 
@@ -480,7 +449,7 @@ std::vector<CRoundVote_p2p> CDposController::listRoundVotes() const
 std::vector<CTxVote_p2p> CDposController::listTxVotes() const
 {
     std::vector<CTxVote_p2p> rv{};
-    LOCK(cs_dpos);
+    LOCK(cs_main);
 
     rv.reserve(this->receivedTxVotes.size());
 
@@ -498,7 +467,7 @@ std::vector<CTransaction> CDposController::listCommittedTxs() const
     std::map<TxIdSorted, CTransaction> txs{};
 
     {
-        LOCK(cs_dpos);
+        LOCK(cs_main);
         txs = this->voter->listCommittedTxs();
     }
 
@@ -511,22 +480,22 @@ std::vector<CTransaction> CDposController::listCommittedTxs() const
     return rv;
 }
 
-bool CDposController::isCommittedTx(const CTransaction& tx) const
+bool CDposController::isCommittedTx(const TxId& txid) const
 {
-    LOCK(cs_dpos);
-    return this->voter->isCommittedTx(tx);
+    LOCK(cs_main);
+    return this->voter->isCommittedTx(txid);
 }
 
-CTxVotingDistribution CDposController::calcTxVotingStats(TxId txid) const
+CTxVotingDistribution CDposController::calcTxVotingStats(const TxId& txid) const
 {
-    LOCK(cs_dpos);
+    LOCK(cs_main);
     return this->voter->calcTxVotingStats(txid, this->voter->getCurrentRound());
 }
 
-bool CDposController::isTxApprovedByMe(const CTransaction& tx) const
+bool CDposController::isTxApprovedByMe(const TxId& txid) const
 {
-    LOCK(cs_dpos);
-    return this->voter->isTxApprovedByMe(tx);
+    LOCK(cs_main);
+    return this->voter->isTxApprovedByMe(txid);
 }
 
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
@@ -542,6 +511,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
         const CKey masternodeKey{getMasternodeKey()};
 
         if (masternodeKey.IsValid()) {
+            // process before blockToSubmit, to be able to find signatures
             for (const auto& roundVote : out.vRoundVotes) {
                 CRoundVote_p2p vote{};
                 vote.tip = roundVote.tip;
@@ -552,7 +522,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                     LogPrintf("%s: Can't sign round vote\n", __func__);
                 } else {
                     this->receivedRoundVotes.emplace(vote.GetHash(), vote);
-                    storeEntity(vote, &CDposDB::WriteRoundVote, vote.tip);
+                    storeEntity(vote, &CDposDB::WriteRoundVote, vote.GetHash());
                     relayEntity(vote, MSG_ROUND_VOTE);
                 }
             }
@@ -566,37 +536,42 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                     LogPrintf("%s: Can't sign tx vote\n", __func__);
                 } else {
                     this->receivedTxVotes.emplace(vote.GetHash(), vote);
-                    storeEntity(vote, &CDposDB::WriteTxVote, vote.tip);
+                    storeEntity(vote, &CDposDB::WriteTxVote, vote.GetHash());
                     relayEntity(vote, MSG_TX_VOTE);
                 }
             }
+        }
 
-            if (out.blockToSubmit != boost::none) {
-                CValidationState state{};
-                CBlockToSubmit blockToSubmit{out.blockToSubmit.get()};
-                CBlock* pblock{&blockToSubmit.block};
-                const Round currentRound{getCurrentVotingRound()};
-                BlockHash blockHash = pblock->GetHash();
+        for (const TxId& txReq : out.vTxReqs) {
+            if (this->vTxReqs.size() >= MAX_INV_SZ)
+                break;
+            this->vTxReqs.emplace(MSG_TX, txReq);
+        }
 
-                for (const auto& votePair : this->receivedRoundVotes) {
-                    if (votePair.second.nRound == currentRound &&
-                        votePair.second.choice.decision == CVoteChoice::Decision::YES &&
-                        votePair.second.choice.subject == blockHash &&
-                        extractMasternodeId(votePair.second) != boost::none)
-                    {
-                        pblock->vSig.insert(pblock->vSig.end(),
-                                            votePair.second.signature.begin(),
-                                            votePair.second.signature.end());
-                    }
+        if (out.blockToSubmit != boost::none) {
+            CValidationState state{};
+            CBlockToSubmit blockToSubmit{out.blockToSubmit.get()};
+            CBlock* pblock{&blockToSubmit.block};
+            BlockHash blockHash = pblock->GetHash();
+
+            for (const auto& votePair : this->receivedRoundVotes) {
+                if (votePair.second.nRound == pblock->nRound &&
+                    votePair.second.choice.decision == CVoteChoice::Decision::YES &&
+                    votePair.second.choice.subject == blockHash &&
+                    authenticateMsg(votePair.second) != boost::none)
+                {
+                    pblock->vSig.insert(pblock->vSig.end(),
+                                        votePair.second.signature.begin(),
+                                        votePair.second.signature.end());
                 }
-                if ((pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE) < this->voter->minQuorum) {
-                    LogPrintf("%s: Can't submit block - missing signatures (%d < %d)\n",
-                              __func__,
-                              pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE,
-                              this->voter->minQuorum);
-                } else if (!ProcessNewBlock(state, NULL, const_cast<CBlock*>(pblock), true, NULL)) {
-                    LogPrintf("%s: Can't ProcessNewBlock\n", __func__);
-                }
+            }
+            if ((pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE) < this->voter->minQuorum) {
+                LogPrintf("%s: Can't submit block - missing signatures (%d < %d)\n",
+                          __func__,
+                          pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE,
+                          this->voter->minQuorum);
+            } else if (!ProcessNewBlock(state, nullptr, const_cast<CBlock*>(pblock), true, nullptr)) {
+                LogPrintf("%s: Can't ProcessNewBlock\n", __func__);
             }
         }
     }
@@ -607,7 +582,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 {
     bool rv{true};
-    const auto mnId{extractMasternodeId(vote)};
+    const auto mnId{authenticateMsg(vote)};
 
     if (mnId == boost::none) {
         rv = false;
@@ -627,7 +602,7 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
 {
     bool rv{true};
-    const auto mnId{extractMasternodeId(vote)};
+    const auto mnId{authenticateMsg(vote)};
 
     if (mnId == boost::none) {
         rv = false;
@@ -650,57 +625,77 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
     return rv;
 }
 
-bool CDposController::checkStalemate(const Round round)
+boost::optional<CMasternode::ID> CDposController::findMyMasternodeId()
 {
-//    const auto committedTxs{self->listCommittedTxs()};
-//    const std::set<TxId> committedTxHashes{committedTxs.begin(), committedTxs.end()};
-
-    LOCK(cs_dpos);
-    const auto itV{this->voter->v.find(this->voter->getTip())};
-    LogPrintf("%s: check stalemate for tip %s and round %d\n",
-              __func__,
-              this->voter->getTip().GetHex(),
-              round);
-    if (itV != this->voter->v.end() && !itV->second.isNull()) {
-        /** check that voter has some round votes for current tip */
-        return itV->second.roundVotes.find(round) != itV->second.roundVotes.end();
-//        const auto itT{itV->second.txVotes.find(round)};
-//        if (itT != itV->second.txVotes.end()) {
-//            for (const auto& pair : itT->second) {
-//                if (committedTxHashes.find(pair.first) == committedTxHashes.end()) {
-//                    /** voter has tx-votes for uncommitted transaction */
-//                    return true;
-//                }
-//            }
-//        }
+    LOCK(cs_main);
+    const auto mnIds = pmasternodesview->AmIActiveOperator();
+    if (mnIds == boost::none) {
+        return boost::none;
     }
 
-    return false;
+    return getIdOfTeamMember(getTipHash(), mnIds->operatorAuthAddress);
+}
+
+boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth)
+{
+    LOCK(cs_main);
+    const int height{Validator::computeBlockHeight(blockHash, MIN_BLOCKS_TO_KEEP)};
+    const CTeam team = pmasternodesview->ReadDposTeam(height);
+    for (auto&& member : team)
+    {
+        if (member.second.second == operatorAuth)
+            return {member.first};
+    }
+    if (team.empty()) {
+        LogPrintf("Couldn't read dPoS team as it was already cleared \n");
+    }
+
+    return boost::none;
+}
+
+boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CTxVote_p2p& vote)
+{
+    CPubKey pubKey{};
+    if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature))
+    {
+        return boost::none;
+    }
+    return getIdOfTeamMember(vote.tip, pubKey.GetID());
+}
+
+boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CRoundVote_p2p& vote)
+{
+    CPubKey pubKey{};
+    if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature))
+    {
+        return boost::none;
+    }
+    return getIdOfTeamMember(vote.tip, pubKey.GetID());
 }
 
 void CDposController::removeOldVotes()
 {
-    LOCK2(cs_main, cs_dpos);
-    const auto tipHeight{computeBlockHeight(chainActive.Tip()->GetBlockHash())};
+//    LOCK(cs_main);
+//    const auto tipHeight{chainActive.Height()};
 
-    for (const auto& pair: this->receivedRoundVotes) {
-        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
-            this->receivedRoundVotes.erase(pair.first);
-            pdposdb->EraseRoundVote(pair.second.tip);
-        }
-    }
-    for (const auto& pair: this->receivedTxVotes) {
-        if (tipHeight - computeBlockHeight(pair.second.tip, 100) > 100) {
-            this->receivedRoundVotes.erase(pair.first);
-            pdposdb->EraseTxVote(pair.second.tip);
-        }
-    }
+//    for (const auto& pair: this->receivedRoundVotes) {
+//        if (tipHeight - computeBlockHeight(pair.second.tip, MIN_BLOCKS_TO_KEEP) > MIN_BLOCKS_TO_KEEP) {
+//            this->receivedRoundVotes.erase(pair.first);
+//            pdposdb->EraseRoundVote(pair.second.GetHash());
+//        }
+//    }
+//    for (const auto& pair: this->receivedTxVotes) {
+//        if (tipHeight - computeBlockHeight(pair.second.tip, MIN_BLOCKS_TO_KEEP) > MIN_BLOCKS_TO_KEEP) {
+//            this->receivedRoundVotes.erase(pair.first);
+//            pdposdb->EraseTxVote(pair.second.GetHash());
+//        }
+//    }
 
-    for (const auto& pair: this->voter->v) {
-        if (tipHeight - computeBlockHeight(pair.first, 100) > 100) {
-            pdposdb->EraseViceBlock(pair.first);
-        }
-    }
+//    for (const auto& pair: this->voter->v) {
+//        if (tipHeight - computeBlockHeight(pair.first, MIN_BLOCKS_TO_KEEP) > MIN_BLOCKS_TO_KEEP) {
+//            pdposdb->EraseViceBlock(pair.second.GetHash());
+//        }
+//    }
 }
 
 std::vector<TxId> CDposController::getTxsFilter() const
@@ -708,6 +703,5 @@ std::vector<TxId> CDposController::getTxsFilter() const
     std::vector<TxId> rv{};
     return rv;
 }
-
 
 } //namespace dpos

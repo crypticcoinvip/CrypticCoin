@@ -80,11 +80,12 @@ struct CDposVoterOutput
 class CDposVoter
 {
 public:
+    using ValidateTxF = std::function<bool(const CTransaction&)>;
     using ValidateTxsF = std::function<bool(const std::map<TxIdSorted, CTransaction>&)>;
-    /// block to validate, dPoS committed txs list, check dPoS txs
+    /// block to validate, dPoS committed txs list, fJustCheckPoW
     using ValidateBlockF = std::function<bool(const CBlock&, const std::map<TxIdSorted, CTransaction>&, bool)>;
     /// @return true if saving inventories from this block is allowed
-    using AllowArchivingF = std::function<bool(BlockHash)>;
+    using AllowArchivingF = std::function<bool(const BlockHash&)>;
     using Output = CDposVoterOutput;
 
     /**
@@ -110,6 +111,7 @@ public:
     */
     struct Callbacks
     {
+        ValidateTxF validateTx;
         ValidateTxsF validateTxs;
         ValidateBlockF validateBlock;
         AllowArchivingF allowArchiving;
@@ -142,11 +144,13 @@ public:
 
     void pruneTxVote(const CTxVote& vote);
 
+    Output requestMissingTxs();
+
     Output doRoundVoting();
     /**
      * Submit if valid vice-block with enough votes
      */
-    Output tryToSubmitBlock(BlockHash viceBlockId);
+    Output tryToSubmitBlock(BlockHash viceBlockId, Round nRound);
     Output doTxsVoting();
     /**
      * Force to vote PASS during this round, if round wasn't voted before.
@@ -170,8 +174,8 @@ public:
     };
     ApprovedByMeTxsList listApprovedByMe_txs() const;
 
-    bool isCommittedTx(const CTransaction& tx) const;
-    bool isTxApprovedByMe(const CTransaction& tx) const;
+    bool isCommittedTx(const TxId& txid) const;
+    bool isTxApprovedByMe(const TxId& txid) const;
 
     CTxVotingDistribution calcTxVotingStats(TxId txid, Round nRound) const;
     CRoundVotingDistribution calcRoundVotingStats(Round nRound) const;

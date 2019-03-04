@@ -98,8 +98,8 @@ class CBlock : public CBlockHeader
 {
 public:
     // network and disk
-    std::vector<CTransaction> vtx; // txs order: coinbase | instant txs section | not instant txs section
-    std::vector<unsigned char> vSig; // CPubKey::COMPACT_SIGNATURE_SIZE
+    std::vector<CTransaction> vtx; //< txs order: coinbase | instant txs section | not instant txs section
+    std::vector<unsigned char> vSig; //< n signatures, each is CPubKey::COMPACT_SIGNATURE_SIZE
 
     // memory only
     mutable std::vector<uint256> vMerkleTree;

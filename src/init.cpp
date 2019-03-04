@@ -238,19 +238,27 @@ void Shutdown()
 
     {
         LOCK(cs_main);
-        if (pcoinsTip != NULL) {
+        if (pcoinsTip != nullptr) {
             FlushStateToDisk();
         }
+        if (pmasternodesdb != nullptr) {
+            pmasternodesdb->CommitBatch();
+        }
+        if (pdposdb != nullptr) {
+            pdposdb->Flush();
+        }
         delete pcoinsTip;
-        pcoinsTip = NULL;
+        pcoinsTip = nullptr;
         delete pcoinscatcher;
-        pcoinscatcher = NULL;
+        pcoinscatcher = nullptr;
         delete pcoinsdbview;
-        pcoinsdbview = NULL;
+        pcoinsdbview = nullptr;
         delete pblocktree;
-        pblocktree = NULL;
+        pblocktree = nullptr;
         delete pmasternodesdb;
-        pmasternodesdb = NULL;
+        pmasternodesdb = nullptr;
+        delete pdposdb;
+        pdposdb = nullptr;
     }
 #ifdef ENABLE_WALLET
     if (pwalletMain)
@@ -286,7 +294,7 @@ void Shutdown()
     pwalletMain = NULL;
 #endif
     delete pcrypticcoinParams;
-    pcrypticcoinParams = NULL;
+    pcrypticcoinParams = nullptr;
     globalVerifyHandle.reset();
     ECC_Stop();
     LogPrintf("%s: done\n", __func__);
@@ -1578,13 +1586,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
                 pcoinsTip = new CCoinsViewCache(pcoinscatcher);
-                /// @todo @mn cash size???
+                /// @todo @mn cache size???
                 pmasternodesdb = new CMasternodesDB(nMinDbCache << 20, false, fReindex);
                 pmasternodesview = new CMasternodesView(*pmasternodesdb);
                 pdposdb = new CDposDB(nMinDbCache << 20, false, fReindex);
 
                 pmasternodesview->Load();
-                dpos::getController()->loadDB();
 
                 if (fReindex) {
                     pblocktree->WriteReindexing(true);
@@ -1640,6 +1647,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     strLoadError = _("Corrupted block database detected");
                     break;
                 }
+
+                dpos::getController()->loadDB();
             } catch (const std::exception& e) {
                 if (fDebug) LogPrintf("%s\n", e.what());
                 strLoadError = _("Error opening block database");

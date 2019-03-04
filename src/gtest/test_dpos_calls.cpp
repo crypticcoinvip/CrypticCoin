@@ -230,6 +230,10 @@ void initVoters(std::vector<CMasternode::ID>& masternodeIds,
 TEST(dPoS_calls, TestStats)
 {
     dpos::CDposVoter::Callbacks callbacks;
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return true;
+    };
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
         return true;

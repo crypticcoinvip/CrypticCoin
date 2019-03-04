@@ -154,12 +154,10 @@ public:
         auto validateTxs = [=](const std::map<TxIdSorted, CTransaction>& txsIn)
         {
             for (const auto& tx1_p : txsIn) {
-                const TxId txid1 = ArithToUint256(tx1_p.first);
-                assert(txid1 == tx1_p.second.GetHash());
+                const TxId txid1 = tx1_p.second.GetHash();
 
                 for (const auto& tx2_p : txsIn) {
-                    const TxId txid2 = ArithToUint256(tx2_p.first);
-                    assert(txid2 == tx2_p.second.GetHash());
+                    const TxId txid2 = tx2_p.second.GetHash();
 
                     if (conflicts.count(std::pair<TxId, TxId>{txid1, txid2}) != 0) {
                         LogPrintf("txs are conflicted: %s and %s \n", txid1.GetHex(), txid2.GetHex());
@@ -168,6 +166,10 @@ public:
                 }
             }
 
+            return true;
+        };
+        callbacks.validateTx = [](const CTransaction&)
+        {
             return true;
         };
         callbacks.validateTxs = validateTxs;
@@ -182,8 +184,8 @@ public:
                 std::map<TxIdSorted, CTransaction> committedTxs_all = _committedTxs;
 
                 for (const auto& tx : b.vtx) {
-                    committedTxs_block.emplace(UintToArith256(tx.GetHash()), tx);
-                    committedTxs_all.emplace(UintToArith256(tx.GetHash()), tx);
+                    committedTxs_block.emplace(tx.GetDposSortingHash(), tx);
+                    committedTxs_all.emplace(tx.GetDposSortingHash(), tx);
                 }
                 // check that block contains all the committed txs
                 for (const auto& tx_p : committedTxs) {
