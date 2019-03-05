@@ -18,6 +18,8 @@ void initVoters_dummy(std::vector<CMasternode::ID>& masternodeIds,
     for (uint64_t i = 0; i < 32; i++) {
         voters[i].minQuorum = 23;
         voters[i].numOfVoters = 32;
+        voters[i].maxNotVotedTxsToKeep = 100;
+        voters[i].maxTxVotesFromVoter = 100;
         voters[i].updateTip(tip);
         voters[i].setVoting(true, masternodeIds[i]);
     }
@@ -193,18 +195,6 @@ TEST(dPoS, DummyCommitTx)
             ASSERT_TRUE(empty.empty());
         }
     }
-
-    // check finished txs are erased after change of tip
-    mtx.nLockTime = 1000;
-    voters[0].applyTx(CTransaction{mtx});
-
-    ASSERT_EQ(voters[0].txs.size(), 2);
-    voters[0].updateTip(tip); // the same tip, nothing changes
-    ASSERT_EQ(voters[0].txs.size(), 2);
-    voters[0].updateTip(uint256S("0xB102")); // new tip
-    ASSERT_EQ(voters[0].txs.size(), 1);
-    voters[0].updateTip(uint256S("0xB103")); // new tip
-    ASSERT_EQ(voters[0].txs.size(), 1);
 }
 
 TEST(dPoS, DummyRejectTx)

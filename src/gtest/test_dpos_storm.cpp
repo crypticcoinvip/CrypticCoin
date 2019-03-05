@@ -291,6 +291,8 @@ TEST(dPoS_storm, OptimisticStorm)
     for (uint64_t i = 0; i < 32; i++) {
         suit.voters[i].minQuorum = 23;
         suit.voters[i].numOfVoters = 32;
+        suit.voters[i].maxTxVotesFromVoter = 50;
+        suit.voters[i].maxNotVotedTxsToKeep = 100;
         suit.voters[i].updateTip(tip);
         suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
     }
@@ -331,6 +333,8 @@ TEST(dPoS_storm, PessimisticStorm)
     for (uint64_t i = 0; i < 32; i++) {
         suit.voters[i].minQuorum = 23;
         suit.voters[i].numOfVoters = 32;
+        suit.voters[i].maxTxVotesFromVoter = 8;
+        suit.voters[i].maxNotVotedTxsToKeep = 4;
         suit.voters[i].updateTip(tip);
         suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
     }
@@ -375,6 +379,8 @@ TEST(dPoS_storm, RealisticStorm)
     for (uint64_t i = 0; i < 32; i++) {
         suit.voters[i].minQuorum = 23;
         suit.voters[i].numOfVoters = 32;
+        suit.voters[i].maxTxVotesFromVoter = 200;
+        suit.voters[i].maxNotVotedTxsToKeep = 50;
         suit.voters[i].updateTip(tip);
         suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
     }

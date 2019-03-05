@@ -254,7 +254,8 @@ void CDposController::loadDB()
 
     voter->minQuorum = Params().GetConsensus().dpos.nMinQuorum;
     voter->numOfVoters = Params().GetConsensus().dpos.nTeamSize;
-
+    voter->maxNotVotedTxsToKeep = Params().GetConsensus().dpos.nMaxNotVotedTxsToKeep;
+    voter->maxTxVotesFromVoter = Params().GetConsensus().dpos.nMaxTxVotesFromVoter;
 
     bool success = false;
 
@@ -297,12 +298,16 @@ void CDposController::loadDB()
                 txVote.choice = choice;
 
                 this->voter->v[vote.tip].txVotes[txVote.nRound][choice.subject].emplace(txVote.voter, txVote);
+                this->voter->v[vote.tip].mnTxVotes[txVote.voter].push_back(txVote);
             }
             this->receivedTxVotes.emplace(vote.GetHash(), vote);
         }
     });
     if (!success)
         throw std::runtime_error("dPoS database is corrupted (reading tx votes)! Please restart with -reindex to recover.");
+
+    if (!this->voter->verifyVotingState())
+        throw std::runtime_error("dPoS database is corrupted (voting state verification failed)! Please restart with -reindex to recover.");
 }
 
 void CDposController::onChainTipUpdated(const BlockHash& tip)
@@ -641,6 +646,10 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 
 bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
 {
+    if (vote.choices.size() != 1) {
+        return false; // currently, accept only votes with 1 tx to avoid issues with partially accepted votes
+    }
+
     AssertLockHeld(cs_main);
     bool rv{true};
     const auto mnId{authenticateMsg(vote)};
@@ -653,12 +662,12 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
         txVote.voter = mnId.get();
         txVote.nRound = vote.nRound;
 
+        assert(vote.choices.size() == 1);
         for (const auto& choice : vote.choices) {
             txVote.choice = choice;
 
             if (!handleVoterOutput(voter->applyTxVote(txVote))) {
                 rv = false;
-                this->voter->pruneTxVote(txVote);
             }
         }
     }

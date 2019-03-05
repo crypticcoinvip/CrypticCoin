@@ -77,16 +77,16 @@ void EnsureWalletIsUnlocked()
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 }
 
-/// copy-pasted from dpos_voter.cpp. Refactor
+/// copy-pasted from dpos_voter.cpp. @todo refactor, move into dpos controller
 static bool checkInstTxNotCommittable(const dpos::CTxVotingDistribution& stats, size_t minQuorum, size_t numOfVoters)
 {
     assert(numOfVoters > 0);
     assert(minQuorum <= numOfVoters);
-    const size_t totus = stats.totus();
+    const size_t totus = stats.effective.totus();
     const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
 
     // not committed, and not possible to commit
-    return (stats.pro + notKnown) < minQuorum;
+    return (stats.effective.pro + notKnown) < minQuorum;
 }
 
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
@@ -99,14 +99,14 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
         stats = dpos::getController()->calcTxVotingStats(wtx.GetHash());
 
     std::string dposStatus = "";
-    if (confirms > 0 || stats.pro >= dpos_params.nMinQuorum)
+    if (confirms > 0 || stats.effective.pro >= dpos_params.nMinQuorum)
         dposStatus = "committed";
     if (confirms <= 0) {
         if (checkInstTxNotCommittable(stats, dpos_params.nMinQuorum, dpos_params.nTeamSize))
             dposStatus = "deffered";
-        if (stats.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
+        if (stats.effective.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
             dposStatus = "rejected";
-        if (stats.totus() == 0)
+        if (stats.effective.totus() == 0)
             dposStatus = "not_voted";
         if (dposStatus.empty())
             dposStatus = "voting";
@@ -120,9 +120,9 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
     if (wtx.fInstant)
         entry.push_back(Pair("dpos_status", dposStatus));
     if (wtx.fInstant && confirms <= 0) {
-        entry.push_back(Pair("dpos_yes_votes", static_cast<int>(stats.pro)));
-        entry.push_back(Pair("dpos_no_votes", static_cast<int>(stats.contra)));
-        entry.push_back(Pair("dpos_pass_votes", static_cast<int>(stats.abstinendi)));
+        entry.push_back(Pair("dpos_yes_votes", static_cast<int>(stats.effective.pro)));
+        entry.push_back(Pair("dpos_no_votes", static_cast<int>(stats.effective.contra)));
+        entry.push_back(Pair("dpos_pass_votes", static_cast<int>(stats.effective.abstinendi)));
     }
     if (wtx.IsCoinBase())
         entry.push_back(Pair("generated", true));
@@ -2342,14 +2342,14 @@ UniValue listunspent(const UniValue& params, bool fHelp)
             stats = dpos::getController()->calcTxVotingStats(out.tx->GetHash());
 
         std::string dposStatus = "";
-        if (out.nDepth > 0 || stats.pro >= dpos_params.nMinQuorum)
+        if (out.nDepth > 0 || stats.effective.pro >= dpos_params.nMinQuorum)
             dposStatus = "committed";
         if (out.nDepth <= 0) {
             if (checkInstTxNotCommittable(stats, dpos_params.nMinQuorum, dpos_params.nTeamSize))
                 dposStatus = "deffered";
-            if (stats.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
+            if (stats.effective.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
                 dposStatus = "rejected";
-            if (stats.totus() == 0)
+            if (stats.effective.totus() == 0)
                 dposStatus = "not_voted";
             if (dposStatus.empty())
                 dposStatus = "voting";
@@ -2364,9 +2364,9 @@ UniValue listunspent(const UniValue& params, bool fHelp)
         if (out.tx->fInstant)
             entry.push_back(Pair("dpos_status", dposStatus));
         if (out.nDepth <= 0 && out.tx->fInstant) {
-            entry.push_back(Pair("dpos_yes_votes", static_cast<int>(stats.pro)));
-            entry.push_back(Pair("dpos_no_votes", static_cast<int>(stats.contra)));
-            entry.push_back(Pair("dpos_pass_votes", static_cast<int>(stats.abstinendi)));
+            entry.push_back(Pair("dpos_yes_votes", static_cast<int>(stats.effective.pro)));
+            entry.push_back(Pair("dpos_no_votes", static_cast<int>(stats.effective.contra)));
+            entry.push_back(Pair("dpos_pass_votes", static_cast<int>(stats.effective.abstinendi)));
         }
         entry.push_back(Pair("vout", out.i));
         entry.push_back(Pair("generated", out.tx->IsCoinBase()));
