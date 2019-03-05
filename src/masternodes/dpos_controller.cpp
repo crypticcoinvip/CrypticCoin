@@ -4,6 +4,7 @@
 #include "dpos_controller.h"
 #include "dpos_voter.h"
 #include "dpos_validator.h"
+#include "../timedata.h"
 #include "../chainparams.h"
 #include "../init.h"
 #include "../key.h"
@@ -224,9 +225,14 @@ bool CDposController::isEnabled(int tipHeight) const
         LOCK(cs_main);
         tipHeight = chainActive.Height();
     }
+
+    // Disable dPoS if mns are offline
+    const bool fBigGapBetweenBlocks = (GetAdjustedTime() - chainActive.Tip()->GetBlockTime()) > params.dpos.nMaxTimeBetweenBlocks;
+
     const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
     return NetworkUpgradeActive(tipHeight, params, Consensus::UPGRADE_SAPLING) &&
-           nCurrentTeamSize == params.dpos.nTeamSize;
+           nCurrentTeamSize == params.dpos.nTeamSize &&
+           !fBigGapBetweenBlocks;
 }
 
 bool CDposController::isEnabled(const BlockHash& tipHash) const

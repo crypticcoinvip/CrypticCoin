@@ -384,7 +384,7 @@ public:
         consensus.dpos.nDelayIBD = 1;
         consensus.dpos.nPollingPeriod = 2;
         consensus.dpos.nRoundTooLong = 10 * 60;
-        consensus.dpos.nMaxNotVotedTxsToKeep = 10;
+        consensus.dpos.nMaxNotVotedTxsToKeep = 12;
         consensus.dpos.nMaxTxVotesFromVoter = 8;
         consensus.dpos.nMaxTimeBetweenBlocks = 60;
         consensus.dpos.nVotersWaitingTimeout = 30;
