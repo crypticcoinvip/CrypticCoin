@@ -242,6 +242,8 @@ void Shutdown()
             FlushStateToDisk();
         }
         if (pmasternodesview != nullptr) {
+            // @todo @egor i suggest you to remove it, cause it can bring more troubles than profits
+            // or we should make flush|sync of system buffers, not current batch
             pmasternodesview->CommitBatch();
         }
         if (pdposdb != nullptr) {

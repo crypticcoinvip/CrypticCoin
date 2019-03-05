@@ -86,6 +86,7 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         connect_nodes_bi(self.nodes, 1, 2)
         connect_nodes_bi(self.nodes, 2, 3)
         connect_nodes_bi(self.nodes, 3, 0)
+        time.sleep(2)
 
 
         print "Announce nodes"
@@ -108,6 +109,8 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         connect_nodes_bi(self.nodes, 1, 2)
         connect_nodes_bi(self.nodes, 2, 3)
         connect_nodes_bi(self.nodes, 3, 0)
+        time.sleep(2)
+
 
         # Generate blocks for activation height
         self.nodes[0].generate(10)
@@ -141,7 +144,8 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         self.nodes[0].generate(1)
 
         while height == self.nodes[0].getblockcount():
-            time.sleep(0.5)
+            print height
+            time.sleep(1)
 
         # should be new dPoS coinbase
         dpos = self.gettipcoinbase(0)

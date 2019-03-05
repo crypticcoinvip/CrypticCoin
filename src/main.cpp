@@ -1386,7 +1386,7 @@ CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowF
 
 
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
-                        bool* pfMissingInputs, bool fRejectAbsurdFee)
+                        bool* pfMissingInputs, CMasternodesView & mnview, bool fRejectAbsurdFee)
 {
     AssertLockHeld(cs_main);
     if (pfMissingInputs)
@@ -1614,6 +1614,11 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         if (!ContextualCheckInputs(tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
         {
             return error("AcceptToMemoryPool: ConnectInputs failed %s", hash.ToString());
+        }
+        CMasternodesView dummymnview = mnview; // here we don't want any changes!
+        if (!CheckMasternodeTx(dummymnview, tx, Params().GetConsensus(), nextBlockHeight))
+        {
+            return error("AcceptToMemoryPool: CheckMnTx failed %s", hash.ToString());
         }
 
         // Check again against just the consensus-critical mandatory script
@@ -2653,6 +2658,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     const size_t instSectionStart = 1;
     size_t instSectionEnd = 0;
 
+    CMasternodesView tmp_mnview(mnview);
+
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
     for (unsigned int i = 0; i < block.vtx.size(); i++)
@@ -2736,6 +2743,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             std::vector<CScriptCheck> vChecks;
             if (!ContextualCheckInputs(tx, state, view, fExpensiveChecks, flags, false, txdata[i], chainparams.GetConsensus(), consensusBranchId, nScriptCheckThreads ? &vChecks : NULL))
                 return false;
+            // We checks MN txs on a tmp copy. This is a bit dumb doublework, but durable!
+            if (!CheckMasternodeTx(tmp_mnview, tx, chainparams.GetConsensus(), pindex->nHeight))
+                return false;
             control.Add(vChecks);
         }
 
@@ -2788,6 +2798,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     const CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
     if (dvr.fCheckDposReward && fDposActive)
     {
+        // We use 'main' mnview here, cause tmp_mnview was spoiled by current txs movements
         const auto rewards_p = mnview.CalcDposTeamReward(blockReward, nFees_inst, pindex->nHeight);
         const bool sizeCheck = block.vtx[0].vout.size() >= rewards_p.first.size();
         if (!sizeCheck || !std::equal(rewards_p.first.rbegin(), rewards_p.first.rend(), block.vtx[0].vout.rbegin()))
@@ -2859,7 +2870,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     LogPrint("bench", "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
 
 
-    // If we are here - everything is OK
+    // If we are here - everything is OK - lets make real DB movements
     ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight);
     return true;
 }
@@ -3043,6 +3054,7 @@ bool static DisconnectTip(CValidationState &state, bool fBare = false) {
         CCoinsViewCache view(pcoinsTip);
         if (!DisconnectBlock(block, state, pindexDelete, view, *pmasternodesview))
         {
+            // Don't know if it is necessary, cause we are still in trouble
             pmasternodesview->DropBatch();
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         }
@@ -3061,7 +3073,7 @@ bool static DisconnectTip(CValidationState &state, bool fBare = false) {
             // ignore validation errors in resurrected transactions
             list<CTransaction> removed;
             CValidationState stateDummy;
-            if (tx.IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, tx, false, NULL))
+            if (tx.IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, tx, false, NULL, *pmasternodesview))
                 mempool.remove(tx, removed, true);
         }
         if (sproutAnchorBeforeDisconnect != sproutAnchorAfterDisconnect) {
@@ -4401,7 +4413,6 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     LogPrintf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(coinsview);
-    /// @todo @mn replace with fake mnview
     CMasternodesView mnview(*pmasternodesview);
     CBlockIndex* pindexState = chainActive.Tip();
     CBlockIndex* pindexFailure = NULL;
@@ -5739,7 +5750,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (tx.fInstant)
             dpos::getController()->proceedTransaction(tx);
 
-        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs))
+        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, *pmasternodesview))
         {
             mempool.check(pcoinsTip);
             RelayTransaction(tx);
@@ -5773,7 +5784,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                     if (setMisbehaving.count(fromPeer))
                         continue;
-                    if (AcceptToMemoryPool(mempool, stateDummy, orphanTx, true, &fMissingInputs2))
+                    if (AcceptToMemoryPool(mempool, stateDummy, orphanTx, true, &fMissingInputs2, *pmasternodesview))
                     {
                         LogPrint("mempool", "   accepted orphan tx %s\n", orphanHash.ToString());
                         RelayTransaction(orphanTx);
@@ -6721,56 +6732,53 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
 
 //////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
 
-void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int height)
+bool CheckMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, Consensus::Params const & consensusParams, int height)
 {
-    if (!NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
+    bool result = true;
+    if (tx.IsCoinBase())
     {
-        return;
+        return true;
     }
 
+    bool isSapling = NetworkUpgradeActive(height, consensusParams, Consensus::UPGRADE_SAPLING);
+
+    // Before sapling we have no chance to announce MN so nothing to spend
+    if (isSapling)
+        result = CheckInputsForCollateralSpent(mnview, tx, height);
+
+    // Check it AFTER collateral spent. note, that ==0 is possible, cause vouts are just a transparent outputs
+    if (tx.vout.size() == 0)
+    {
+        return result;
+    }
+    // Check if it is masternode tx with metadata
+    std::vector<unsigned char> metadata;
+    MasternodesTxType guess = GuessMasternodeTxType(tx, metadata);
+    switch (guess)
+    {
+        case MasternodesTxType::AnnounceMasternode:
+            return result && isSapling && CheckAnnounceMasternodeTx(mnview, tx, height, metadata);
+        case MasternodesTxType::ActivateMasternode:
+            return result && isSapling && CheckActivateMasternodeTx(mnview, tx, height, metadata);
+        case MasternodesTxType::SetOperatorReward:
+            return result && isSapling && CheckSetOperatorRewardTx(mnview, tx, height, metadata);
+        case MasternodesTxType::DismissVote:
+            return result && isSapling && CheckDismissVoteTx(mnview, tx, height, metadata);
+        case MasternodesTxType::DismissVoteRecall:
+            return result && isSapling && CheckDismissVoteRecallTx(mnview, tx, height, metadata);
+        case MasternodesTxType::FinalizeDismissVoting:
+            return result && isSapling && CheckFinalizeDismissVotingTx(mnview, tx, height, metadata);
+        default:
+            break;
+    }
+    return result;
+}
+
+void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int height)
+{
     for (unsigned int i = 0; i < block.vtx.size(); ++i)
     {
-        CTransaction const & tx = block.vtx[i];
-
-        if (tx.IsCoinBase())
-        {
-            continue;
-        }
-
-        // 1.
-        CheckInputsForCollateralSpent(mnview, tx, height);
-
-        if (tx.vout.size() == 0)
-        {
-            continue;
-        }
-        // 2. Check if it is masternode tx with metadata
-        std::vector<unsigned char> metadata;
-        MasternodesTxType guess = GuessMasternodeTxType(tx, metadata);
-        switch (guess)
-        {
-            case MasternodesTxType::AnnounceMasternode:
-                CheckAnnounceMasternodeTx(mnview, tx, height, metadata);
-                break;
-            case MasternodesTxType::ActivateMasternode:
-                CheckActivateMasternodeTx(mnview, tx, height, metadata);
-                break;
-            case MasternodesTxType::SetOperatorReward:
-                CheckSetOperatorRewardTx(mnview, tx, height, metadata);
-                break;
-            case MasternodesTxType::DismissVote:
-                CheckDismissVoteTx(mnview, tx, height, metadata);
-                break;
-            case MasternodesTxType::DismissVoteRecall:
-                CheckDismissVoteRecallTx(mnview, tx, height, metadata);
-                break;
-            case MasternodesTxType::FinalizeDismissVoting:
-                CheckFinalizeDismissVotingTx(mnview, tx, height, metadata);
-                break;
-            default:
-                break;
-        }
-
+        CheckMasternodeTx(mnview, block.vtx[i], Params().GetConsensus(), height);
     }
     mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
     mnview.CommitBatch();
@@ -6818,7 +6826,7 @@ CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
  * Checks all inputs for collateral. Deactivates corresponding MN if it is true.
  * Issued by: any
  */
-void CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int height)
+bool CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int height)
 {
     for (uint32_t i = 0; i < tx.vin.size(); ++i)
     {
@@ -6826,9 +6834,10 @@ void CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const
         // Checks if it was collateral output.
         if (prevout.n == 1 && mnview.ExistMasternode(prevout.hash))
         {
-            mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
+            return mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
         }
     }
+    return true;
 }
 
 /*
