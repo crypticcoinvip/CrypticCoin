@@ -109,7 +109,7 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         connect_nodes_bi(self.nodes, 1, 2)
         connect_nodes_bi(self.nodes, 2, 3)
         connect_nodes_bi(self.nodes, 3, 0)
-        time.sleep(2)
+        time.sleep(4)
 
 
         # Generate blocks for activation height
@@ -134,6 +134,9 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         self.nodes[3].generate(1)
         self.sync_all()
         assert_equal(self.dump_mn(3)['status'], "active")
+
+        # Just for sure that dpos has started after activation
+        time.sleep(4)
 
         # should be old PoW coinbase
         height = self.nodes[0].getblockcount()

@@ -1386,7 +1386,7 @@ CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowF
 
 
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
-                        bool* pfMissingInputs, CMasternodesView & mnview, bool fRejectAbsurdFee)
+                        bool* pfMissingInputs, std::function<bool(const CTransaction &, const Consensus::Params&, int)> mntxChecker, bool fRejectAbsurdFee)
 {
     AssertLockHeld(cs_main);
     if (pfMissingInputs)
@@ -1615,10 +1615,9 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         {
             return error("AcceptToMemoryPool: ConnectInputs failed %s", hash.ToString());
         }
-        CMasternodesView dummymnview = mnview; // here we don't want any changes!
-        if (!CheckMasternodeTx(dummymnview, tx, Params().GetConsensus(), nextBlockHeight))
+        if (!mntxChecker(tx, Params().GetConsensus(), nextBlockHeight))
         {
-            return error("AcceptToMemoryPool: CheckMnTx failed %s", hash.ToString());
+            return error("AcceptToMemoryPool: Check masternode tx failed %s", hash.ToString());
         }
 
         // Check again against just the consensus-critical mandatory script
@@ -3073,7 +3072,8 @@ bool static DisconnectTip(CValidationState &state, bool fBare = false) {
             // ignore validation errors in resurrected transactions
             list<CTransaction> removed;
             CValidationState stateDummy;
-            if (tx.IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, tx, false, NULL, *pmasternodesview))
+
+            if (tx.IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, tx, false, NULL, [] (CTransaction const &, Consensus::Params const &, int) { return true; }  ))
                 mempool.remove(tx, removed, true);
         }
         if (sproutAnchorBeforeDisconnect != sproutAnchorAfterDisconnect) {
@@ -5750,7 +5750,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (tx.fInstant)
             dpos::getController()->proceedTransaction(tx);
 
-        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, *pmasternodesview))
+        CMasternodesView mnview(*pmasternodesview);
+        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3)))
         {
             mempool.check(pcoinsTip);
             RelayTransaction(tx);
@@ -5784,7 +5785,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
                     if (setMisbehaving.count(fromPeer))
                         continue;
-                    if (AcceptToMemoryPool(mempool, stateDummy, orphanTx, true, &fMissingInputs2, *pmasternodesview))
+                    if (AcceptToMemoryPool(mempool, stateDummy, orphanTx, true, &fMissingInputs2, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3)))
                     {
                         LogPrint("mempool", "   accepted orphan tx %s\n", orphanHash.ToString());
                         RelayTransaction(orphanTx);
