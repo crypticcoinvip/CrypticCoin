@@ -263,7 +263,7 @@ void PruneAndFlush();
 
 /** (try to) add transaction to memory pool **/
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
-                        bool* pfMissingInputs, CMasternodesView & mnview, bool fRejectAbsurdFee=false);
+                        bool* pfMissingInputs, std::function<bool(CTransaction const &, Consensus::Params const &, int)> mntxChecker, bool fRejectAbsurdFee=false);
 
 
 struct CNodeStateStats {
