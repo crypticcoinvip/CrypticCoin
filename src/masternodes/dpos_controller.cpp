@@ -290,7 +290,7 @@ void CDposController::onChainTipUpdated(const BlockHash& tipHash)
         }
 
         this->voter->updateTip(tipHash);
-        handleVoterOutput(this->voter->doTxsVoting());
+        handleVoterOutput(this->voter->doTxsVoting() + this->voter->doRoundVoting());
     }
 }
 
