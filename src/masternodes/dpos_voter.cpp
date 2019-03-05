@@ -721,21 +721,22 @@ CDposVoter::ApprovedByMeTxsList CDposVoter::listApprovedByMe_txs() const
             assert(vote.tip == tip);
             assert(vote.choice.subject == txid);
 
-            exhaustedVoters.erase(vote_p.first);
-
             switch (vote.choice.decision) {
             case CVoteChoice::Decision::YES:
                 stats.real.pro++;
                 stats.effective.pro++;
+                exhaustedVoters.erase(vote_p.first);
                 break;
             case CVoteChoice::Decision::NO:
                 stats.real.contra++;
                 stats.effective.contra++;
+                exhaustedVoters.erase(vote_p.first);
                 break;
             case CVoteChoice::Decision::PASS:
                 if (vote.nRound == nRound) { // count PASS votes only from specified round
                     stats.real.abstinendi++;
                     stats.effective.abstinendi++;
+                    exhaustedVoters.erase(vote_p.first);
                 }
                 break;
             default:
@@ -830,8 +831,10 @@ bool CDposVoter::checkRoundStalemate(const CRoundVotingDistribution& stats) cons
 {
     assert(numOfVoters > 0);
     assert(minQuorum <= numOfVoters);
+    assert(offlineVoters <= numOfVoters);
     const size_t totus = stats.totus();
-    const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
+    const size_t onlineVoters = numOfVoters - offlineVoters;
+    const size_t notKnown = totus <= onlineVoters ? onlineVoters - totus : 0;
 
     const auto best_it = std::max_element(stats.pro.begin(), stats.pro.end(),
                                           [](const std::pair<BlockHash, size_t>& p1,
@@ -848,8 +851,10 @@ bool CDposVoter::checkTxNotCommittable(const CTxVotingDistribution& stats) const
 {
     assert(numOfVoters > 0);
     assert(minQuorum <= numOfVoters);
+    assert(offlineVoters <= numOfVoters);
     const size_t totus = stats.effective.totus();
-    const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
+    const size_t onlineVoters = numOfVoters - offlineVoters;
+    const size_t notKnown = totus <= onlineVoters ? onlineVoters - totus : 0;
 
     // not committed, and not possible to commit
     return (stats.effective.pro + notKnown) < minQuorum;

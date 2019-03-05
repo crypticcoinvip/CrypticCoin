@@ -65,6 +65,9 @@ void initVoters(std::vector<CMasternode::ID>& masternodeIds,
     for (uint64_t i = 0; i < 1; i++) {
         voters[i].minQuorum = 23;
         voters[i].numOfVoters = 32;
+        voters[i].maxNotVotedTxsToKeep = 500;
+        voters[i].maxTxVotesFromVoter = 500;
+        voters[i].offlineVoters = 0;
         voters[i].updateTip(tip);
         voters[i].setVoting(true, masternodeIds[i]);
     }
@@ -399,6 +402,9 @@ TEST(dPoS_calls, TestRoundStalamate)
     dpos::CDposVoterTesting voter(dpos::CDposVoterTesting::Callbacks{});
     voter.minQuorum = 23;
     voter.numOfVoters = 32;
+    voter.maxNotVotedTxsToKeep = 500;
+    voter.maxTxVotesFromVoter = 500;
+    voter.offlineVoters = 0;
 
     dpos::CRoundVotingDistribution stats;
     ASSERT_FALSE(voter.priv_checkRoundStalemate(stats));
@@ -435,6 +441,9 @@ TEST(dPoS_calls, TestNotCommitable)
     dpos::CDposVoterTesting voter(dpos::CDposVoterTesting::Callbacks{});
     voter.minQuorum = 23;
     voter.numOfVoters = 32;
+    voter.maxNotVotedTxsToKeep = 500;
+    voter.maxTxVotesFromVoter = 500;
+    voter.offlineVoters = 0;
 
     dpos::CTxVotingDistribution stats;
     ASSERT_FALSE(voter.priv_checkTxNotCommittable(stats));

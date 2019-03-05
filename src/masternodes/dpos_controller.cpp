@@ -262,6 +262,7 @@ void CDposController::loadDB()
     voter->numOfVoters = Params().GetConsensus().dpos.nTeamSize;
     voter->maxNotVotedTxsToKeep = Params().GetConsensus().dpos.nMaxNotVotedTxsToKeep;
     voter->maxTxVotesFromVoter = Params().GetConsensus().dpos.nMaxTxVotesFromVoter;
+    voter->offlineVoters = 0;
 
     bool success = false;
 
@@ -321,6 +322,8 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
     if (isEnabled(tip)) {
         const auto mnId{findMyMasternodeId()};
         LOCK(cs_main);
+
+        voter->offlineVoters = 0; // reset counter of offline nodes after succefully connected block
 
         if (!initialVotesDownload && mnId != boost::none && !this->voter->checkAmIVoter()) {
             LogPrintf("dpos: %s: I became a team member, enabling voter for me (I'm %s)\n", __func__, mnId.get().GetHex());

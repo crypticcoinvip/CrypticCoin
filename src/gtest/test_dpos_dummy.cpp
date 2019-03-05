@@ -20,6 +20,7 @@ void initVoters_dummy(std::vector<CMasternode::ID>& masternodeIds,
         voters[i].numOfVoters = 32;
         voters[i].maxNotVotedTxsToKeep = 100;
         voters[i].maxTxVotesFromVoter = 100;
+        voters[i].offlineVoters = 0;
         voters[i].updateTip(tip);
         voters[i].setVoting(true, masternodeIds[i]);
     }

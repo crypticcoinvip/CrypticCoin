@@ -293,6 +293,7 @@ TEST(dPoS_storm, OptimisticStorm)
         suit.voters[i].numOfVoters = 32;
         suit.voters[i].maxTxVotesFromVoter = 50;
         suit.voters[i].maxNotVotedTxsToKeep = 100;
+        suit.voters[i].offlineVoters = 0;
         suit.voters[i].updateTip(tip);
         suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
     }
@@ -304,7 +305,7 @@ TEST(dPoS_storm, OptimisticStorm)
     ASSERT_EQ(suit.voters[0].listCommittedTxs().size(), 10);
 }
 
-/// 2 pairs of conflicted txs, frequent disconnections, big ping, a lot of vice-blocks
+/// 2 pairs of conflicted txs, frequent disconnections, big ping, a lot of vice-blocks. 6 mns are down
 TEST(dPoS_storm, PessimisticStorm)
 {
     StormTestSuit suit{};
@@ -335,8 +336,9 @@ TEST(dPoS_storm, PessimisticStorm)
         suit.voters[i].numOfVoters = 32;
         suit.voters[i].maxTxVotesFromVoter = 8;
         suit.voters[i].maxNotVotedTxsToKeep = 4;
+        suit.voters[i].offlineVoters = 6;
         suit.voters[i].updateTip(tip);
-        suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
+        suit.voters[i].setVoting(i < 26, ArithToUint256(arith_uint256{i}));
     }
 
     suit.randRange = 25;
@@ -349,7 +351,7 @@ TEST(dPoS_storm, PessimisticStorm)
     ASSERT_EQ(suit.voters[0].listCommittedTxs().size(), 2);
 }
 
-/// 2 pairs of conflicted txs, a lot of not conflixted txs, small number of vice-blocks, rare disconnections, medium ping
+/// 2 pairs of conflicted txs, a lot of not conflixted txs, small number of vice-blocks, rare disconnections, medium ping. 3 mns are down
 TEST(dPoS_storm, RealisticStorm)
 {
     StormTestSuit suit{};
@@ -381,8 +383,9 @@ TEST(dPoS_storm, RealisticStorm)
         suit.voters[i].numOfVoters = 32;
         suit.voters[i].maxTxVotesFromVoter = 200;
         suit.voters[i].maxNotVotedTxsToKeep = 50;
+        suit.voters[i].offlineVoters = 3;
         suit.voters[i].updateTip(tip);
-        suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
+        suit.voters[i].setVoting(i < 29, ArithToUint256(arith_uint256{i}));
     }
 
     suit.randRange = 10;
