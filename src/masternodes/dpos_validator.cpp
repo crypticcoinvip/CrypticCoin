@@ -19,6 +19,8 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
 
     {
         // tx is already included into a block
+        if (pcoinsTip->HaveCoins(tx.GetHash()))
+            return false;
         BlockHash txBlockHash{};
         CTransaction notUsed;
         if (GetTransaction(tx.GetHash(), notUsed, txBlockHash, false) && !txBlockHash.IsNull())
