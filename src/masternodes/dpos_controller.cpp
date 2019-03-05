@@ -290,6 +290,7 @@ void CDposController::onChainTipUpdated(const BlockHash& tipHash)
         }
 
         this->voter->updateTip(tipHash);
+        handleVoterOutput(this->voter->doTxsVoting());
     }
 }
 
@@ -305,12 +306,14 @@ Round CDposController::getCurrentVotingRound() const
 void CDposController::proceedViceBlock(const CBlock& viceBlock)
 {
     bool success = false;
-    if (!findViceBlock(viceBlock.GetHash())) {
-        LOCK(cs_main);
-        const CDposVoterOutput out{voter->applyViceBlock(viceBlock)};
+    LOCK(cs_main);
+    {
+        if (!findViceBlock(viceBlock.GetHash())) {
+            const CDposVoterOutput out{voter->applyViceBlock(viceBlock)};
 
-        if (handleVoterOutput(out)) {
-            success = true;
+            if (handleVoterOutput(out)) {
+                success = true;
+            }
         }
     }
     if (success) {
@@ -328,14 +331,16 @@ void CDposController::proceedTransaction(const CTransaction& tx)
 void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
 {
     bool success = false;
-    if (!findRoundVote(vote.GetHash())) {
-        LOCK(cs_main);
+    LOCK(cs_main);
+    {
+        if (!findRoundVote(vote.GetHash())) {
 
-        this->receivedRoundVotes.emplace(vote.GetHash(), vote); // emplace before to be able to find signature to submit block
-        if (acceptRoundVote(vote)) {
-            success = true;
-        } else {
-            this->receivedRoundVotes.erase(vote.GetHash());
+            this->receivedRoundVotes.emplace(vote.GetHash(), vote); // emplace before to be able to find signature to submit block
+            if (acceptRoundVote(vote)) {
+                success = true;
+            } else {
+                this->receivedRoundVotes.erase(vote.GetHash());
+            }
         }
     }
     if (success) {
@@ -347,11 +352,13 @@ void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
 void CDposController::proceedTxVote(const CTxVote_p2p& vote)
 {
     bool success = false;
-    if (!findTxVote(vote.GetHash())) {
+    {
         LOCK(cs_main);
+        if (!findTxVote(vote.GetHash())) {
 
-        if (acceptTxVote(vote)) {
-            success = true;
+            if (acceptTxVote(vote)) {
+                success = true;
+            }
         }
     }
     if (success) {
@@ -363,7 +370,7 @@ void CDposController::proceedTxVote(const CTxVote_p2p& vote)
 
 bool CDposController::findViceBlock(const BlockHash& hash, CBlock* block) const
 {
-    LOCK(cs_main);
+    AssertLockHeld(cs_main);
 
     for (const auto& pair : this->voter->v) {
         const auto it{pair.second.viceBlocks.find(hash)};
@@ -380,7 +387,7 @@ bool CDposController::findViceBlock(const BlockHash& hash, CBlock* block) const
 
 bool CDposController::findRoundVote(const BlockHash& hash, CRoundVote_p2p* vote) const
 {
-    LOCK(cs_main);
+    AssertLockHeld(cs_main);
     const auto it{this->receivedRoundVotes.find(hash)};
     const auto rv{it != this->receivedRoundVotes.end()};
 
@@ -393,7 +400,7 @@ bool CDposController::findRoundVote(const BlockHash& hash, CRoundVote_p2p* vote)
 
 bool CDposController::findTxVote(const BlockHash& hash, CTxVote_p2p* vote) const
 {
-    LOCK(cs_main);
+    AssertLockHeld(cs_main);
     const auto it{this->receivedTxVotes.find(hash)};
     const auto rv{it != this->receivedTxVotes.end()};
 
@@ -406,7 +413,7 @@ bool CDposController::findTxVote(const BlockHash& hash, CTxVote_p2p* vote) const
 
 bool CDposController::findTx(const TxId& txid, CTransaction* tx) const
 {
-    LOCK(cs_main);
+    AssertLockHeld(cs_main);
     const auto it{this->voter->txs.find(txid)};
     const auto rv{it != this->voter->txs.end()};
 
