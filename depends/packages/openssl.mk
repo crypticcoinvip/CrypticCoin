@@ -5,7 +5,11 @@ $(package)_download_path=https://www.openssl.org/source
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
 
 define $(package)_set_vars
+ifeq ($(host_os),darwin)
+  $(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)
+else
   $(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)/etc/openssl
+endif
   $(package)_config_env=AR="$($(package)_ar)" RANLIB="$($(package)_ranlib)" CC="$($(package)_cc)"
   $(package)_config_opts+=no-shared
   $(package)_config_opts+=no-unit-test
@@ -24,23 +28,33 @@ define $(package)_set_vars
   $(package)_config_opts_i686_mingw32=mingw
 endef
 
+ifneq ($(host_os),darwin)
 define $(package)_preprocess_cmds
   sed -i.old "/define DATE/d" util/mkbuildinf.pl && \
   sed -i.old "s|\"engines\", \"apps\", \"test\"|\"engines\"|" Configure
 endef
+endif
 
 define $(package)_config_cmds
   ./Configure $($(package)_config_opts)
 endef
 
+ifeq ($(host_os),darwin)
+define $(package)_build_cmds
+  $(MAKE)
+endef
+else
 define $(package)_build_cmds
   $(MAKE) -j1 build_libs libcrypto.pc libssl.pc openssl.pc
 endef
+endif
 
 define $(package)_stage_cmds
   $(MAKE) INSTALL_PREFIX=$($(package)_staging_dir) install
 endef
 
+ifneq ($(host_os),darwin)
 define $(package)_postprocess_cmds
   rm -rf share bin etc
 endef
+endif

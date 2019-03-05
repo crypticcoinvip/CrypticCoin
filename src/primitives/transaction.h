@@ -12,11 +12,13 @@
 #include "serialize.h"
 #include "streams.h"
 #include "uint256.h"
+#include "arith_uint256.h"
 #include "consensus/consensus.h"
 
 #include <array>
 
 #include <boost/variant.hpp>
+#include <arith_uint256.h>
 
 #include "crypticcoin/NoteEncryption.hpp"
 #include "crypticcoin/Crypticcoin.h"
@@ -695,6 +697,12 @@ public:
     {
         return a.hash != b.hash;
     }
+
+    /// used to control order of instant transactions (like tx nonce in ETH)
+    /// @return nExpiryHeight | 28 bytes of txid
+    arith_uint256 GetDposSortingHash() const {
+        return (arith_uint256{static_cast<uint64_t>(nExpiryHeight)} << (256 - 32)) | (UintToArith256(GetHash()) >> 32);
+    };
 
     std::string ToString() const;
 };

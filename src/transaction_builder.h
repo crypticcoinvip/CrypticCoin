@@ -72,6 +72,8 @@ public:
     TransactionBuilder() {}
     TransactionBuilder(const Consensus::Params& consensusParams, int nHeight, CKeyStore* keyStore = nullptr);
 
+    void SetInstant(bool fInstant);
+
     void SetFee(CAmount fee);
 
     // Returns false if the anchor does not match the anchor used by

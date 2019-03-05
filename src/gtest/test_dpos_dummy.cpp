@@ -5,14 +5,33 @@
 namespace
 {
 
-void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds, std::array<dpos::CDposVoter, 32>& voters, BlockHash& tip)
+void initVoters_dummy(std::vector<CMasternode::ID>& masternodeIds,
+                      std::vector<dpos::CDposVoter>& voters,
+                      BlockHash tip,
+                      dpos::CDposVoter::Callbacks callbacks)
 {
     for (uint64_t i = 0; i < 32; i++) {
-        masternodeIds[i] = ArithToUint256(arith_uint256{i});
+        masternodeIds.emplace_back(ArithToUint256(arith_uint256{i}));
+        voters.emplace_back(callbacks);
     }
 
-    dpos::CDposVoter::Callbacks callbacks;
+    for (uint64_t i = 0; i < 32; i++) {
+        voters[i].minQuorum = 23;
+        voters[i].numOfVoters = 32;
+        voters[i].updateTip(tip);
+        voters[i].setVoting(true, masternodeIds[i]);
+    }
+}
 
+}
+
+TEST(dPoS, DummyEmptyBlock)
+{
+    dpos::CDposVoter::Callbacks callbacks;
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return true;
+    };
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
         return true;
@@ -26,41 +45,28 @@ void initVoters_dummy(std::array<CMasternode::ID, 32>& masternodeIds, std::array
         return true;
     };
 
-    tip = uint256S("0xB101");
-    for (uint64_t i = 0; i < 32; i++) {
-        voters[i].minQuorum = 23;
-        voters[i].numOfVoters = 32;
-        voters[i].setVoting(tip, callbacks, true, masternodeIds[i]);
-    }
-}
-
-}
-
-TEST(dPoS, DummyEmptyBlock)
-{
     // Init voters
-    std::array<CMasternode::ID, 32> masternodeIds;
-    std::array<dpos::CDposVoter, 32> voters;
-    BlockHash tip;
-    initVoters_dummy(masternodeIds, voters, tip);
+    std::vector<CMasternode::ID> masternodeIds;
+    std::vector<dpos::CDposVoter> voters;
+    BlockHash tip = uint256S("0xB101");
+    initVoters_dummy(masternodeIds, voters, tip, callbacks);
 
     // Create dummy vice-block
     CBlock viceBlock;
     viceBlock.hashPrevBlock = tip;
-    viceBlock.nRoundNumber = 1;
+    viceBlock.nRound = 1;
 
     dpos::CDposVoter::Output res;
     for (uint64_t i = 0; i < 23; i++) {
-        { // wrong round check
-            viceBlock.nRoundNumber = static_cast<dpos::Round>(i * 2);
-            const size_t initSize = voters[i].v[tip].viceBlocks.size();
+        { // future round check
+            viceBlock.nRound = static_cast<dpos::Round>(i + 2);
             const auto empty = voters[i].applyViceBlock(viceBlock);
             ASSERT_TRUE(empty.vTxVotes.empty());
             ASSERT_TRUE(!empty.blockToSubmit);
             ASSERT_TRUE(empty.vRoundVotes.empty());
             ASSERT_TRUE(empty.vErrors.empty());
             ASSERT_EQ(voters[i].v[tip].viceBlocks[viceBlock.GetHash()].GetHash(), viceBlock.GetHash());
-            viceBlock.nRoundNumber = 1;
+            viceBlock.nRound = 1;
         }
 
         res += voters[i].applyViceBlock(viceBlock);
@@ -117,11 +123,29 @@ TEST(dPoS, DummyEmptyBlock)
 
 TEST(dPoS, DummyCommitTx)
 {
+    dpos::CDposVoter::Callbacks callbacks;
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return true;
+    };
+    callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
+    {
+        return true;
+    };
+    callbacks.validateBlock = [](const CBlock& b, const std::map<TxIdSorted, CTransaction>& txs, bool checkTxs)
+    {
+        return true;
+    };
+    callbacks.allowArchiving = [](BlockHash votingId)
+    {
+        return true;
+    };
+
     // Init voters
-    std::array<CMasternode::ID, 32> masternodeIds;
-    std::array<dpos::CDposVoter, 32> voters;
-    BlockHash tip;
-    initVoters_dummy(masternodeIds, voters, tip);
+    std::vector<CMasternode::ID> masternodeIds;
+    std::vector<dpos::CDposVoter> voters;
+    BlockHash tip = uint256S("0xB101");
+    initVoters_dummy(masternodeIds, voters, tip, callbacks);
 
     // create dummy tx
     CMutableTransaction mtx;
@@ -140,7 +164,7 @@ TEST(dPoS, DummyCommitTx)
         ASSERT_TRUE(res.vRoundVotes.empty());
         ASSERT_TRUE(!res.blockToSubmit);
         ASSERT_TRUE(res.vErrors.empty());
-        ASSERT_EQ(voters[i].v[tip].txs[tx.GetHash()].GetHash(), tx.GetHash());
+        ASSERT_EQ(voters[i].txs[tx.GetHash()].GetHash(), tx.GetHash());
 
         dpos::CTxVote voteWant;
         voteWant.voter = masternodeIds[i];
@@ -151,12 +175,12 @@ TEST(dPoS, DummyCommitTx)
         ASSERT_EQ(res.vTxVotes.size(), i + 1);
         ASSERT_EQ(res.vTxVotes[i], voteWant);
 
-        const auto voter0out = voters[0].applyRoundVote(res.vTxVotes[i]);
+        const auto voter0out = voters[0].applyTxVote(res.vTxVotes[i]);
         ASSERT_TRUE(voter0out.empty());
         if (i == 23 - 1) {
             // final vote
             ASSERT_EQ(voters[0].listCommittedTxs().size(), 1);
-            ASSERT_EQ(voters[0].listCommittedTxs()[UintToArith256(tx.GetHash())].GetHash(), tx.GetHash());
+            ASSERT_EQ(voters[0].listCommittedTxs()[tx.GetDposSortingHash()].GetHash(), tx.GetHash());
         }
 
         { // duplicate check
@@ -169,17 +193,27 @@ TEST(dPoS, DummyCommitTx)
             ASSERT_TRUE(empty.empty());
         }
     }
+
+    // check finished txs are erased after change of tip
+    mtx.nLockTime = 1000;
+    voters[0].applyTx(CTransaction{mtx});
+
+    ASSERT_EQ(voters[0].txs.size(), 2);
+    voters[0].updateTip(tip); // the same tip, nothing changes
+    ASSERT_EQ(voters[0].txs.size(), 2);
+    voters[0].updateTip(uint256S("0xB102")); // new tip
+    ASSERT_EQ(voters[0].txs.size(), 1);
+    voters[0].updateTip(uint256S("0xB103")); // new tip
+    ASSERT_EQ(voters[0].txs.size(), 1);
 }
 
 TEST(dPoS, DummyRejectTx)
 {
-    // Init voters
-    std::array<CMasternode::ID, 32> masternodeIds;
-    std::array<dpos::CDposVoter, 32> voters;
-    BlockHash tip;
-    initVoters_dummy(masternodeIds, voters, tip);
-
     dpos::CDposVoter::Callbacks callbacks{};
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return false;
+    };
     callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
     {
         return false;
@@ -192,7 +226,14 @@ TEST(dPoS, DummyRejectTx)
     {
         return true;
     };
-    voters[0].setVoting(tip, callbacks, true, masternodeIds[0]);
+
+    // Init voters
+    std::vector<CMasternode::ID> masternodeIds;
+    std::vector<dpos::CDposVoter> voters;
+    BlockHash tip = uint256S("0xB101");
+    initVoters_dummy(masternodeIds, voters, tip, callbacks);
+
+    voters[0].setVoting(true, masternodeIds[0]);
 
     // create dummy tx
     CMutableTransaction mtx;
@@ -208,7 +249,145 @@ TEST(dPoS, DummyRejectTx)
         res += voters[i].applyTx(tx);
 
         ASSERT_EQ(voters[i].v.size(), 0);
-        ASSERT_TRUE(res.empty());
-        ASSERT_TRUE(voters[i].v[tip].txs.empty());
+        ASSERT_TRUE(res.vTxReqs.empty());
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+        ASSERT_TRUE(voters[i].txs.empty());
+    }
+}
+
+TEST(dPoS, InvalidVote)
+{
+    dpos::CDposVoter::Callbacks callbacks{};
+    callbacks.validateTx = [](const CTransaction&)
+    {
+        return false;
+    };
+    callbacks.validateTxs = [](const std::map<TxIdSorted, CTransaction>&)
+    {
+        return false;
+    };
+    callbacks.validateBlock = [](const CBlock& b, const std::map<TxIdSorted, CTransaction>& txs, bool checkTxs)
+    {
+        return true;
+    };
+    callbacks.allowArchiving = [](BlockHash votingId)
+    {
+        return true;
+    };
+
+    // Init voters
+    std::vector<CMasternode::ID> masternodeIds;
+    std::vector<dpos::CDposVoter> voters;
+    BlockHash tip = uint256S("0xB101");
+    initVoters_dummy(masternodeIds, voters, tip, callbacks);
+
+    voters[0].setVoting(true, masternodeIds[0]);
+
+    // create dummy tx
+    CMutableTransaction mtx;
+    mtx.fInstant = true;
+    mtx.fOverwintered = true;
+    mtx.nVersion = 4;
+    mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
+    mtx.nExpiryHeight = 0;
+    CTransaction tx{mtx};
+
+    dpos::CDposVoter::Output res;
+    for (uint64_t i = 0; i < 1; i++) {
+        // try to apply vote with nRound = 0
+        dpos::CTxVote voteInvalid;
+        voteInvalid.voter = masternodeIds[i];
+        voteInvalid.nRound = 0;
+        voteInvalid.tip = tip;
+        voteInvalid.choice = dpos::CVoteChoice{tx.GetHash(), dpos::CVoteChoice::Decision::YES};
+        res = voters[i].applyTxVote(voteInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        dpos::CRoundVote voteRInvalid;
+        voteRInvalid.voter = masternodeIds[i];
+        voteRInvalid.nRound = 0;
+        voteRInvalid.tip = tip;
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), dpos::CVoteChoice::Decision::YES};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+        // try to apply vote with invalid decision
+        voteInvalid.nRound = 1;
+        voteInvalid.choice = dpos::CVoteChoice{tx.GetHash(), 55};
+        res = voters[i].applyTxVote(voteInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        voteRInvalid.nRound = 1;
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), 55};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        // try to apply round vote with NO
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), dpos::CVoteChoice::Decision::NO};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        // try to apply round vote with PASS, but not empty hash
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), dpos::CVoteChoice::Decision::NO};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_TRUE(res.vRoundVotes.empty());
+        ASSERT_TRUE(!res.blockToSubmit);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+        ASSERT_TRUE(voters[i].txs.empty());
+
+
+        // Try to doublesign with round vote
+        voteRInvalid.choice = dpos::CVoteChoice{uint256S("0xB101"), dpos::CVoteChoice::Decision::YES};
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_EQ(voters[i].v.size(), 1);
+        ASSERT_TRUE(res.vErrors.empty());
+
+        voteRInvalid.choice = dpos::CVoteChoice{BlockHash{},
+                                                dpos::CVoteChoice::Decision::PASS}; // pass after voted for another vice block
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+
+        voteRInvalid.choice =
+            dpos::CVoteChoice{uint256S("0xB102"), dpos::CVoteChoice::Decision::YES}; // vote for another vice block
+        res = voters[i].applyRoundVote(voteRInvalid);
+        ASSERT_FALSE(res.vErrors.empty()); // err
+
+
+        // Try to doublesign with tx vote
+        voteInvalid.choice = dpos::CVoteChoice{tx.GetHash(), dpos::CVoteChoice::Decision::YES};
+        res = voters[i].applyTxVote(voteInvalid);
+        ASSERT_TRUE(res.vErrors.empty());
+
+        voteInvalid.choice = dpos::CVoteChoice{tx.GetHash(), dpos::CVoteChoice::Decision::PASS};
+        res = voters[i].applyTxVote(voteInvalid);
+        ASSERT_FALSE(res.vErrors.empty()); // err
     }
 }

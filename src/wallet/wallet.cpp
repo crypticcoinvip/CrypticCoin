@@ -2773,10 +2773,12 @@ CAmount CWallet::GetBalance() const
     CAmount nTotal = 0;
     {
         LOCK2(cs_main, cs_wallet);
+        const dpos::CDposController* pDposController = dpos::getController();
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if (pcoin->IsTrusted())
+            // don't include instant txs. They should be included in GetInstantBalance() only
+            if (pcoin->IsTrusted() && !pDposController->isCommittedTx(pcoin->GetHash()))
                 nTotal += pcoin->GetAvailableCredit();
         }
     }
@@ -2833,11 +2835,8 @@ CAmount CWallet::GetInstantBalance() const
 {
     CAmount rv{0};
 
-    for (const auto& tx : dpos::getController()->listCommittedTransactions()) {
-        if (!CheckFinalTx(tx) || tx.vin.empty()) {
-            continue;
-        }
-
+    const auto instantTxs = dpos::getController()->listCommittedTxs();
+    for (const auto& tx : instantTxs) {
         for (unsigned int i = 0; i < tx.vout.size(); i++) {
             const CTxOut &txout = tx.vout[i];
             rv += GetCredit(txout, ISMINE_SPENDABLE);
@@ -2925,11 +2924,12 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
             if (nDepth < 0)
                 continue;
 
-            if (pmasternodesview->ExistMasternode(wtxid))
-                continue;
-
+            auto const node = pmasternodesview->ExistMasternode(wtxid);
             for (unsigned int i = 0; i < pcoin->vout.size(); i++) {
                 isminetype mine = IsMine(pcoin->vout[i]);
+                // Lock for MN's collateral: check for MN exists and 'not dismissed yet' (instead of just 'active'!)
+                if (i == 1 && node && node->deadSinceHeight == -1)
+                    continue;
                 if (!(IsSpent(wtxid, i)) && mine != ISMINE_NO &&
                     !IsLockedCoin((*it).first, i) && (pcoin->vout[i].nValue > 0 || fIncludeZeroValue) &&
                     (!coinControl || !coinControl->HasSelected() || coinControl->fAllowOtherInputs || coinControl->IsSelected((*it).first, i)))
@@ -3262,6 +3262,9 @@ bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wt
     if (!NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
         max_tx_size = MAX_TX_SIZE_BEFORE_SAPLING;
     }
+    if (wtxNew.fInstant) {
+        max_tx_size = MAX_INST_TX_SIZE_AFTER_SAPLING;
+    }
 
     // Discourage fee sniping.
     //
@@ -3554,6 +3557,16 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
     {
         LOCK2(cs_main, cs_wallet);
         LogPrintf("CommitTransaction:\n%s", wtxNew.ToString());
+
+        {
+            const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
+            const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+            if (wtxNew.fInstant && !fDposActive) {
+                LogPrintf("CommitTransaction(): Error: dPoS isn't active, instant tx cannot be committed \n");
+                return false;
+            }
+        }
+
         {
             // This is only to keep the database open to defeat the auto-flush for the
             // duration of this scope.  This is the only place where this optimization
@@ -4410,7 +4423,7 @@ int CMerkleTx::GetBlocksToMaturity() const
 bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree, bool fRejectAbsurdFee)
 {
     CValidationState state;
-    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, fRejectAbsurdFee);
+    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, *pmasternodesview, fRejectAbsurdFee);
 }
 
 /**

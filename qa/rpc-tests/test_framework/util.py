@@ -85,17 +85,17 @@ def initialize_datadir(dirname, n):
         f.write("listenonion=0\n")
     return datadir
 
-def initialize_chain(test_dir):
+def initialize_chain(test_dir, num_nodes=4):
     """
     Create (or copy from cache) a 200-block-long chain and
-    4 wallets.
+    <num_nodes> wallets.
     bitcoind and bitcoin-cli must be in search path.
     """
 
     if not os.path.isdir(os.path.join("cache", "node0")):
         devnull = open("/dev/null", "w+")
         # Create cache directories, run bitcoinds:
-        for i in range(4):
+        for i in range(num_nodes):
             datadir=initialize_datadir("cache", i)
             args = [ os.getenv("BITCOIND", "bitcoind"), "-keypool=1", "-datadir="+datadir, "-discover=0" ]
             if i > 0:
@@ -109,7 +109,7 @@ def initialize_chain(test_dir):
                 print "initialize_chain: bitcoin-cli -rpcwait getblockcount completed"
         devnull.close()
         rpcs = []
-        for i in range(4):
+        for i in range(num_nodes):
             try:
                 url = "http://rt:rt@127.0.0.1:%d"%(rpc_port(i),)
                 rpcs.append(AuthServiceProxy(url))
@@ -117,14 +117,14 @@ def initialize_chain(test_dir):
                 sys.stderr.write("Error connecting to "+url+"\n")
                 sys.exit(1)
 
-        # Create a 200-block-long chain; each of the 4 nodes
+        # Create a 200-block-long chain; each of the <num_nodes> nodes
         # gets 25 mature blocks and 25 immature.
         # blocks are created with timestamps 10 minutes apart, starting
         # at 1 Jan 2014
         block_time = 1388534400
         for i in range(2):
-            for peer in range(4):
-                for j in range(25):
+            for peer in range(num_nodes):
+                for j in range(200 / 2 / num_nodes):
                     set_node_times(rpcs, block_time)
                     rpcs[peer].generate(1)
                     block_time += 10*60
@@ -134,13 +134,13 @@ def initialize_chain(test_dir):
         # Shut them down, and clean up cache directories:
         stop_nodes(rpcs)
         wait_bitcoinds()
-        for i in range(4):
+        for i in range(num_nodes):
             os.remove(log_filename("cache", i, "debug.log"))
             os.remove(log_filename("cache", i, "db.log"))
             os.remove(log_filename("cache", i, "peers.dat"))
             os.remove(log_filename("cache", i, "fee_estimates.dat"))
 
-    for i in range(4):
+    for i in range(num_nodes):
         from_dir = os.path.join("cache", "node"+str(i))
         to_dir = os.path.join(test_dir,  "node"+str(i))
         shutil.copytree(from_dir, to_dir)

@@ -22,21 +22,26 @@ struct CDposVote
 bool operator==(const CDposVote& l, const CDposVote& r);
 bool operator!=(const CDposVote& l, const CDposVote& r);
 
-using CTxVote = CDposVote;
-using CRoundVote = CDposVote;
+class CTxVote : public CDposVote {};
+bool operator==(const CTxVote& l, const CTxVote& r);
+bool operator!=(const CTxVote& l, const CTxVote& r);
+
+class CRoundVote : public CDposVote {};
+bool operator==(const CRoundVote& l, const CRoundVote& r);
+bool operator!=(const CRoundVote& l, const CRoundVote& r);
 
 struct CTxVotingDistribution
 {
-    size_t pro; //< yes
-    size_t contra; //< no
-    size_t abstinendi; //< pass
+    size_t pro = 0; //< yes
+    size_t contra = 0; //< no
+    size_t abstinendi = 0; //< pass
     size_t totus() const; //< total
 };
 
 struct CRoundVotingDistribution
 {
     std::map<BlockHash, size_t> pro; //< yes
-    size_t abstinendi; //< pass
+    size_t abstinendi = 0; //< pass
     size_t totus() const; //< total
 };
 
@@ -57,6 +62,7 @@ struct CDposVoterOutput
 {
     std::vector<CTxVote> vTxVotes;
     std::vector<CRoundVote> vRoundVotes;
+    std::vector<TxId> vTxReqs;
     boost::optional<CBlockToSubmit> blockToSubmit;
     std::vector<std::string> vErrors;
 
@@ -65,8 +71,6 @@ struct CDposVoterOutput
     CDposVoterOutput& operator+=(const CDposVoterOutput& r);
     CDposVoterOutput operator+(const CDposVoterOutput& r);
 };
-bool operator==(const CDposVoterOutput& l, const CDposVoterOutput& r);
-bool operator!=(const CDposVoterOutput& l, const CDposVoterOutput& r);
 
 /**
  * @brief implements dPoS voting mechanism as a black box
@@ -76,11 +80,12 @@ bool operator!=(const CDposVoterOutput& l, const CDposVoterOutput& r);
 class CDposVoter
 {
 public:
+    using ValidateTxF = std::function<bool(const CTransaction&)>;
     using ValidateTxsF = std::function<bool(const std::map<TxIdSorted, CTransaction>&)>;
-    /// block to validate, dPoS committed txs list, check dPoS txs
+    /// block to validate, dPoS committed txs list, fJustCheckPoW
     using ValidateBlockF = std::function<bool(const CBlock&, const std::map<TxIdSorted, CTransaction>&, bool)>;
     /// @return true if saving inventories from this block is allowed
-    using AllowArchivingF = std::function<bool(BlockHash)>;
+    using AllowArchivingF = std::function<bool(const BlockHash&)>;
     using Output = CDposVoterOutput;
 
     /**
@@ -88,27 +93,37 @@ public:
     */
     struct VotingState
     {
-        std::map<Round, std::map<TxId, std::map<CMasternode::ID, CDposVote> > > txVotes;
-        std::map<Round, std::map<CMasternode::ID, CDposVote> > roundVotes;
+        std::map<Round, std::map<TxId, std::map<CMasternode::ID, CTxVote> > > txVotes;
+        std::map<Round, std::map<CMasternode::ID, CRoundVote> > roundVotes;
 
-        std::map<TxId, CTransaction> txs;
         std::map<BlockHash, CBlock> viceBlocks;
+
+        bool isNull() const
+        {
+            return txVotes.empty() &&
+                   roundVotes.empty() &&
+                   viceBlocks.empty();
+        }
     };
+
     /**
     * Used to access blockchain
     */
     struct Callbacks
     {
+        ValidateTxF validateTx;
         ValidateTxsF validateTxs;
         ValidateBlockF validateBlock;
         AllowArchivingF allowArchiving;
     };
 
     mutable std::map<BlockHash, VotingState> v;
+    mutable std::map<TxId, CTransaction> txs;
+
     size_t minQuorum;
     size_t numOfVoters;
 
-    CDposVoter() = default;
+    explicit CDposVoter(Callbacks world);
 
     /**
     *
@@ -117,9 +132,7 @@ public:
     * @param amIvoter is true if voting is enabled and I'm an active operator, member of the team
     * @param me is ID of current masternode
     */
-    void setVoting(BlockHash tip,
-                   Callbacks world,
-                   bool amIvoter,
+    void setVoting(bool amIvoter,
                    CMasternode::ID me);
 
     void updateTip(BlockHash tip);
@@ -131,23 +144,43 @@ public:
 
     void pruneTxVote(const CTxVote& vote);
 
-    /**
-     * Force to vote PASS during this round, if round wasn't voted before.
-     * Called when round didnt come to a consensus/stalemate for a long time.
-     */
+    Output requestMissingTxs();
+
     Output doRoundVoting();
     /**
      * Submit if valid vice-block with enough votes
      */
-    Output tryToSubmitBlock(BlockHash viceBlockId);
+    Output tryToSubmitBlock(BlockHash viceBlockId, Round nRound);
     Output doTxsVoting();
+    /**
+     * Force to vote PASS during this round, if round wasn't voted before.
+     * Called when round didnt come to a consensus/stalemate for a long time.
+     */
     Output onRoundTooLong();
 
+    const BlockHash & getTip() const;
     bool checkAmIVoter() const;
     Round getCurrentRound() const;
-    std::map<TxIdSorted, CTransaction> listCommittedTxs() const;
 
-private:
+    std::map<TxIdSorted, CTransaction> listCommittedTxs() const;
+    /**
+     * @return transaction which had YES vote from me, from any round
+     */
+
+    struct ApprovedByMeTxsList
+    {
+        std::map<TxIdSorted, CTransaction> txs;
+        std::set<TxId> missing;
+    };
+    ApprovedByMeTxsList listApprovedByMe_txs() const;
+
+    bool isCommittedTx(const TxId& txid) const;
+    bool isTxApprovedByMe(const TxId& txid) const;
+
+    CTxVotingDistribution calcTxVotingStats(TxId txid, Round nRound) const;
+    CRoundVotingDistribution calcRoundVotingStats(Round nRound) const;
+
+protected:
     Output misbehavingErr(const std::string& msg) const;
     Output voteForTx(const CTransaction& tx);
 
@@ -156,13 +189,6 @@ private:
      */
     bool wasVotedByMe_tx(TxId txid, Round nRound) const;
     bool wasVotedByMe_round(Round nRound) const;
-
-    /**
-     * @return transaction which had YES vote from me, from any round
-     */
-    std::map<TxIdSorted, CTransaction> listApprovedByMe_txs() const;
-    CTxVotingDistribution calcTxVotingStats(TxId txid, Round nRound) const;
-    CRoundVotingDistribution calcRoundVotingStats(Round nRound) const;
 
     bool atLeastOneViceBlockIsValid(Round nRound) const;
     bool txHasAnyVote(TxId txid) const;
@@ -174,11 +200,12 @@ private:
     bool checkTxNotCommittable(const CTxVotingDistribution& stats) const;
 
     /**
-     * @return false if all txs are either committed, not committable, or without votes
+     * @param nRound specifies a round to calc voting stats (including abstinendi). If 0, then drop abstinendi part
+     * @return false if all my txs are either committed or not committable, or if one of my txs is missing
      */
-    bool haveAnyUnfinishedTxs(Round nRound) const;
-
-private:
+    void filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Round nRound) const;
+    void filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nRound) const;
+protected:
     CMasternode::ID me;
     BlockHash tip;
     Callbacks world;

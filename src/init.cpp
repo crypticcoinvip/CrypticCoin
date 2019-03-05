@@ -238,19 +238,27 @@ void Shutdown()
 
     {
         LOCK(cs_main);
-        if (pcoinsTip != NULL) {
+        if (pcoinsTip != nullptr) {
             FlushStateToDisk();
         }
+        if (pmasternodesview != nullptr) {
+            // @todo @egor i suggest you to remove it, cause it can bring more troubles than profits
+            // or we should make flush|sync of system buffers, not current batch
+            pmasternodesview->CommitBatch();
+        }
+        if (pdposdb != nullptr) {
+            pdposdb->Flush();
+        }
         delete pcoinsTip;
-        pcoinsTip = NULL;
+        pcoinsTip = nullptr;
         delete pcoinscatcher;
-        pcoinscatcher = NULL;
+        pcoinscatcher = nullptr;
         delete pcoinsdbview;
-        pcoinsdbview = NULL;
+        pcoinsdbview = nullptr;
         delete pblocktree;
-        pblocktree = NULL;
-        delete pmasternodesdb;
-        pmasternodesdb = NULL;
+        pblocktree = nullptr;
+        delete pdposdb;
+        pdposdb = nullptr;
     }
 #ifdef ENABLE_WALLET
     if (pwalletMain)
@@ -286,7 +294,7 @@ void Shutdown()
     pwalletMain = NULL;
 #endif
     delete pcrypticcoinParams;
-    pcrypticcoinParams = NULL;
+    pcrypticcoinParams = nullptr;
     globalVerifyHandle.reset();
     ECC_Stop();
     LogPrintf("%s: done\n", __func__);
@@ -1571,20 +1579,16 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 delete pcoinscatcher;
                 delete pblocktree;
                 delete pmasternodesview;
-                delete pmasternodesdb;
                 delete pdposdb;
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
                 pcoinsTip = new CCoinsViewCache(pcoinscatcher);
-                /// @todo @mn cash size???
-                pmasternodesdb = new CMasternodesDB(nMinDbCache << 20, false, fReindex);
-                pmasternodesview = new CMasternodesView(*pmasternodesdb);
+                pmasternodesview = new CMasternodesView(nMinDbCache << 20, false, fReindex);
                 pdposdb = new CDposDB(nMinDbCache << 20, false, fReindex);
 
-                /// @todo @mn I'm totally not sure where to load the Team. Where and when will be the correct Height?
-                pmasternodesview->Load(/*chainActive.Height()*/);
+                pmasternodesview->Load();
 
                 if (fReindex) {
                     pblocktree->WriteReindexing(true);
@@ -1640,13 +1644,13 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     strLoadError = _("Corrupted block database detected");
                     break;
                 }
+
+                dpos::getController()->loadDB();
             } catch (const std::exception& e) {
                 if (fDebug) LogPrintf("%s\n", e.what());
                 strLoadError = _("Error opening block database");
                 break;
             }
-
-            dpos::getController()->initialize();
 
             fLoaded = true;
         } while(false);
@@ -1959,10 +1963,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (pwalletMain != nullptr) {
         const auto hbThreadProc{&CHeartBeatTracker::runTickerLoop};
         threadGroup.create_thread(boost::bind(&TraceThread<decltype(hbThreadProc)>, "heartbeat", hbThreadProc));
-
-        const auto dposThreadProc{&dpos::CDposController::runEventLoop};
-        threadGroup.create_thread(boost::bind(&TraceThread<decltype(dposThreadProc)>, "dpos", dposThreadProc));
     }
+    // MN-DPOS
+    const auto dposThreadProc{&dpos::CDposController::runEventLoop};
+    threadGroup.create_thread(boost::bind(&TraceThread<decltype(dposThreadProc)>, "dpos", dposThreadProc));
 
     return !fRequestShutdown;
 }

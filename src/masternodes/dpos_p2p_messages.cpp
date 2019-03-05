@@ -23,13 +23,14 @@ std::array<unsigned char, 16> ROUND_VOTE_SALT{0x6A, 0x2A, 0x5E, 0x2D, 0x1D, 0x13
 
 bool CTxVote_p2p::IsNull() const
 {
-    return round == 0;
+    return nRound == 0;
 }
 
 void CTxVote_p2p::SetNull()
 {
+    nVersion = CURRENT_VERSION;
     tip.SetNull();
-    round = 0;
+    nRound = 0;
     choices.clear();
     signature.clear();
 }
@@ -42,8 +43,9 @@ uint256 CTxVote_p2p::GetHash() const
 uint256 CTxVote_p2p::GetSignatureHash() const
 {
     CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
-    ss << tip
-       << round
+    ss << nVersion
+       << tip
+       << nRound
        << choices
        << TX_VOTE_SALT;
     return Hash(ss.begin(), ss.end());
@@ -62,13 +64,14 @@ bool CTxVote_p2p::containsTx(const CTransaction& transaction) const
 
 bool CRoundVote_p2p::IsNull() const
 {
-    return round == 0;
+    return nRound == 0;
 }
 
 void CRoundVote_p2p::SetNull()
 {
+    nVersion = CURRENT_VERSION;
     tip.SetNull();
-    round = 0;
+    nRound = 0;
     choice.subject.SetNull();
     signature.clear();
 }
@@ -81,8 +84,9 @@ uint256 CRoundVote_p2p::GetHash() const
 uint256 CRoundVote_p2p::GetSignatureHash() const
 {
     CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
-    ss << tip
-       << round
+    ss << nVersion
+       << tip
+       << nRound
        << choice
        << ROUND_VOTE_SALT;
     return Hash(ss.begin(), ss.end());

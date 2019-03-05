@@ -207,6 +207,11 @@ UniValue generate(const UniValue& params, bool fHelp)
         nHeight = nHeightStart;
         nHeightEnd = nHeightStart+nGenerate;
     }
+
+    if (nGenerate > 1 && dpos::getController()->isEnabled(nHeight)) {
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "dPoS is active, can't mine more than 1 block at once");
+    }
+
     unsigned int nExtraNonce = 0;
     UniValue blockHashes(UniValue::VARR);
     unsigned int n = Params().EquihashN();
@@ -275,9 +280,11 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
-        if (dpos::getController()->isEnabled()) {
+        if (dpos::getController()->isEnabled(nHeight)) {
+            LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
             dpos::getController()->proceedViceBlock(*pblock);
         } else {
+            LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
             CValidationState state;
             if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
                 throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
@@ -368,6 +375,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
             "  \"pooledtx\": n              (numeric) The size of the mem pool\n"
             "  \"testnet\": true|false      (boolean) If using testnet or not\n"
             "  \"chain\": \"xxxx\",         (string) current network name as defined in BIP70 (main, test, regtest)\n"
+            "  \"dpos\": true|false         (boolean) If dPoS enabled\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getmininginfo", "")
@@ -390,6 +398,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("pooledtx",         (uint64_t)mempool.size()));
     obj.push_back(Pair("testnet",          Params().TestnetToBeDeprecatedFieldRPC()));
     obj.push_back(Pair("chain",            Params().NetworkIDString()));
+    obj.push_back(Pair("dpos",             dpos::getController()->isEnabled(chainActive.Height())));
 #ifdef ENABLE_MINING
     obj.push_back(Pair("generate",         getgenerate(params, false)));
 #endif
@@ -851,7 +860,7 @@ UniValue estimatefee(const UniValue& params, bool fHelp)
             "\nResult:\n"
             "n :    (numeric) estimated fee-per-kilobyte\n"
             "\n"
-            "-1.0 is returned if not enough transactions and\n"
+            "default minimum fee is returned if not enough transactions and\n"
             "blocks have been observed to make an estimate.\n"
             "\nExample:\n"
             + HelpExampleCli("estimatefee", "6")
@@ -865,9 +874,30 @@ UniValue estimatefee(const UniValue& params, bool fHelp)
 
     CFeeRate feeRate = mempool.estimateFee(nBlocks);
     if (feeRate == CFeeRate(0))
-        return -1.0;
+        feeRate = minRelayTxFee;
 
     return ValueFromAmount(feeRate.GetFeePerK());
+}
+
+UniValue instant_estimatefee(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "estimatefee nblocks\n"
+            "\nEstimates the approximate fee per kilobyte\n"
+            "needed for a instant transaction\n"
+            "\nResult:\n"
+            "n :    (numeric) estimated fee-per-kilobyte\n"
+            "\n"
+            "\nExample:\n"
+            + HelpExampleCli("instant_estimatefee", "6"));
+    }
+
+    CFeeRate feeRate = mempool.estimateFee(1);
+    if (feeRate == CFeeRate(0))
+        feeRate = minRelayTxFee;
+
+    return ValueFromAmount(feeRate.GetFeePerK() * 10);
 }
 
 UniValue estimatepriority(const UniValue& params, bool fHelp)
@@ -953,6 +983,7 @@ static const CRPCCommand commands[] =
 
     { "util",               "estimatefee",            &estimatefee,            true  },
     { "util",               "estimatepriority",       &estimatepriority,       true  },
+    { "util",               "instant_estimatefee",    &instant_estimatefee,    true  },
 };
 
 void RegisterMiningRPCCommands(CRPCTable &tableRPC)

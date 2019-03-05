@@ -120,9 +120,14 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000006d9629934e7");
 
+        consensus.nMasternodesHeartbeatPeriod = 30;
+
         // dPoS
         consensus.dpos.nTeamSize = 32;
         consensus.dpos.nMinQuorum = 23;
+        consensus.dpos.nDelayIBD = 60 * 60;
+        consensus.dpos.nPollingPeriod = 3 * 60;
+        consensus.dpos.nRoundTooLong = 2 * 60;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -243,9 +248,14 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
+        consensus.nMasternodesHeartbeatPeriod = 30;
+
         // dPoS
         consensus.dpos.nTeamSize = 32;
         consensus.dpos.nMinQuorum = 23;
+        consensus.dpos.nDelayIBD = 60 * 60;
+        consensus.dpos.nPollingPeriod = 3 * 60;
+        consensus.dpos.nRoundTooLong = 2 * 60;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -358,9 +368,14 @@ public:
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
+        consensus.nMasternodesHeartbeatPeriod = 5;
+
         // dPoS
         consensus.dpos.nTeamSize = 4;
         consensus.dpos.nMinQuorum = 3;
+        consensus.dpos.nDelayIBD = 1;
+        consensus.dpos.nPollingPeriod = 2;
+        consensus.dpos.nRoundTooLong = 10 * 60;
         consensus.nDposMinPeriodOfIncome = (1 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -500,11 +515,6 @@ CScript CChainParams::GetFoundersRewardScriptAtHeight(int nHeight) const {
 std::string CChainParams::GetFoundersRewardAddressAtIndex(int i) const {
     assert(i >= 0 && i < vFoundersRewardAddress.size());
     return vFoundersRewardAddress[i];
-}
-
-std::uint32_t CChainParams::GetMinimalMasternodeCount() const
-{
-    return this == &regTestParams ? GetArg("-minimal-masternode-count", 1) : 100;
 }
 
 void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight)

@@ -9,7 +9,7 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
-#include "masternodes/masternodes.h" // TODO refactor, use forward declaration
+#include "masternodes/mntypes.h"
 
 #include <map>
 #include <string>
@@ -19,9 +19,6 @@
 class CBlockFileInfo;
 class CBlockIndex;
 struct CDiskTxPos;
-class uint256;
-class CMasternode;
-class CDismissVote;
 
 namespace dpos{ class CRoundVote_p2p; }
 namespace dpos{ class CTxVote_p2p; }
@@ -84,39 +81,71 @@ public:
 };
 
 /** Access to the masternodes database (masternodes/) */
-class CMasternodesDB : public CDBWrapper
+class CMasternodesDB
 {
 private:
-//    CDBWrapper db;
+    boost::shared_ptr<CDBWrapper> db;
+    boost::scoped_ptr<CDBBatch> batch;
+    const bool readOnly;
 
 public:
     CMasternodesDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    CMasternodesDB(CMasternodesDB const & other);
 
 private:
-    CMasternodesDB(CMasternodesDB const &);
-    void operator=(CMasternodesDB const &);
+    CMasternodesDB & operator=(CMasternodesDB const &) = delete;
+
+    template <typename K, typename V>
+    void BatchWrite(const K& key, const V& value)
+    {
+        if (readOnly)
+        {
+            return;
+        }
+        if (!batch)
+        {
+            batch.reset(new CDBBatch(*db));
+        }
+        batch->Write<K,V>(key, value);
+    }
+    template <typename K>
+    void BatchErase(const K& key)
+    {
+        if (readOnly)
+        {
+            return;
+        }
+        if (!batch)
+        {
+            batch.reset(new CDBBatch(*db));
+        }
+        batch->Erase<K>(key);
+    }
 
 public:
-    void WriteMasternode(uint256 const & txid, CMasternode const & node, CDBBatch & batch);
-    void EraseMasternode(uint256 const & txid, CDBBatch & batch);
+    void CommitBatch();
+    void DropBatch();
 
-    void WriteVote(uint256 const & txid, CDismissVote const & vote, CDBBatch & batch);
-    void EraseVote(uint256 const & txid, CDBBatch & batch);
+    void WriteMasternode(uint256 const & txid, CMasternode const & node);
+    void EraseMasternode(uint256 const & txid);
 
-    void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType, CDBBatch & batch);
-    void EraseUndo(uint256 const & txid, uint256 const & affectedItem, CDBBatch & batch);
+    void WriteVote(uint256 const & txid, CDismissVote const & vote);
+    void EraseVote(uint256 const & txid);
 
-    void ReadOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec & value);
-    void WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value, CDBBatch & batch);
-    void EraseOperatorUndo(uint256 const & txid, CDBBatch & batch);
+    void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType);
+    void EraseUndo(uint256 const & txid, uint256 const & affectedItem);
 
-    bool ReadTeam(int blockHeight, CTeam & team);
+    void ReadOperatorUndo(uint256 const & txid, COperatorUndoRec & value);
+    void WriteOperatorUndo(uint256 const & txid, COperatorUndoRec const & value);
+    void EraseOperatorUndo(uint256 const & txid);
+
+    bool ReadTeam(int blockHeight, CTeam & team) const;
     bool WriteTeam(int blockHeight, CTeam const & team);
     bool EraseTeam(int blockHeight);
 
-    bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode);
-    bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote);
-    bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo);
+    bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode) const;
+    bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote) const;
+    bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo) const;
 };
 
 
@@ -129,14 +158,13 @@ public:
     CDposDB& operator=(const CDposDB&) = delete;
 
 public:
-    void WriteViceBlock(const uint256& tip, const CBlock& block);
-    void EraseViceBlock(const uint256& tip);
+    void WriteViceBlock(const uint256& key, const CBlock& block, CDBBatch* batch = nullptr);
+    void WriteRoundVote(const uint256& key, const dpos::CRoundVote_p2p& vote, CDBBatch* batch = nullptr);
+    void WriteTxVote(const uint256& key, const dpos::CTxVote_p2p& vote, CDBBatch* batch = nullptr);
 
-    void WriteRoundVote(const uint256& tip, const dpos::CRoundVote_p2p& vote);
-    void EraseRoundVote(const uint256& tip);
-
-    void WriteTxVote(const uint256& tip, const dpos::CTxVote_p2p& vote);
-    void EraseTxVote(const uint256& tip);
+    void EraseViceBlock(const uint256& key, CDBBatch* batch = nullptr);
+    void EraseRoundVote(const uint256& key, CDBBatch* batch = nullptr);
+    void EraseTxVote(const uint256& key, CDBBatch* batch = nullptr);
 
     bool LoadViceBlocks(std::function<void(const uint256&, const CBlock&)> onViceBlock);
     bool LoadRoundVotes(std::function<void(const uint256&, const dpos::CRoundVote_p2p&)> onRoundVote);
