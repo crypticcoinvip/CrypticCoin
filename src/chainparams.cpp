@@ -233,7 +233,7 @@ public:
         consensus.nPowMaxAdjustDown = 32; // 32% adjustment down
         consensus.nPowMaxAdjustUp = 16; // 16% adjustment up
         consensus.nPowTargetSpacing = 2.5 * 60;
-        consensus.nPowAllowMinDifficultyBlocksAfterHeight = 299187;
+        consensus.nPowAllowMinDifficultyBlocksAfterHeight = 289;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nProtocolVersion = 170002;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nActivationHeight =
             Consensus::NetworkUpgrade::ALWAYS_ACTIVE;
@@ -241,9 +241,9 @@ public:
         consensus.vUpgrades[Consensus::UPGRADE_TESTDUMMY].nActivationHeight =
             Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
         consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nProtocolVersion = 170003;
-        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 1000000;
+        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 300;
         consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nProtocolVersion = 170007;
-        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 1000000;
+        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 300;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -251,8 +251,8 @@ public:
         consensus.nMasternodesHeartbeatPeriod = 30;
 
         // dPoS
-        consensus.dpos.nTeamSize = 32;
-        consensus.dpos.nMinQuorum = 23;
+        consensus.dpos.nTeamSize = 6;
+        consensus.dpos.nMinQuorum = 4;
         consensus.dpos.nDelayIBD = 60 * 60;
         consensus.dpos.nPollingPeriod = 3 * 60;
         consensus.dpos.nRoundTooLong = 2 * 60;
