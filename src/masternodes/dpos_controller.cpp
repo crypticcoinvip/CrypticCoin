@@ -118,68 +118,102 @@ CDposController& CDposController::getInstance()
 
 void CDposController::runEventLoop()
 {
+    int64_t lastTipChangeT{GetTimeMillis()};
+    BlockHash lastTip{};
+
     std::pair<BlockHash, Round> lastRound{};
-    int64_t lastSyncTime{GetTimeMillis() - 1000000};
-    int64_t roundTime{GetTimeMillis()};
-    int64_t initialBlocksDownloadPassedTime{0};
+    int64_t lastRoundChangeT{GetTimeMillis()};
+
+    int64_t lastSyncT{GetTimeMillis() - 1000000};
+
+    int64_t initialBlocksDownloadPassedT{0};
+
     CDposController* self{getController()};
     const Consensus::Params& params{Params().GetConsensus()};
+
+    self->onChainTipUpdated(getTipHash());
 
     while (true) {
         boost::this_thread::interruption_point();
 
-        const BlockHash tipHash{getTipHash()};
-        if (self->isEnabled(tipHash)) {
+        const BlockHash tip{getTipHash()};
+        if (self->isEnabled(tip)) {
             const auto now{GetTimeMillis()};
-            if (initialBlocksDownloadPassedTime == 0 && !IsInitialBlockDownload()) {
-                initialBlocksDownloadPassedTime = now;
+            { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
+                if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
+                    initialBlocksDownloadPassedT = now;
+                }
+                if (initialBlocksDownloadPassedT == 0 && (now - lastTipChangeT) > 2 * 60 * 1000) {
+                    initialBlocksDownloadPassedT = now;
+                }
+
+                if (self->initialVotesDownload && initialBlocksDownloadPassedT > 0 && ((now - initialBlocksDownloadPassedT) > params.dpos.nDelayIBD * 1000)) {
+                    self->initialVotesDownload = false;
+                    self->onChainTipUpdated(tip);
+                }
             }
 
-            if (self->initialVotesDownload && initialBlocksDownloadPassedTime > 0 && ((now - initialBlocksDownloadPassedTime) > params.dpos.nDelayIBD * 1000)) {
-                self->initialVotesDownload = false;
-                self->onChainTipUpdated(getTipHash());
-            }
-
-            {
+            { // maintenance under cs_main
                 LOCK(cs_main);
-                const std::pair<BlockHash, Round> currentRound{self->voter->getTip(), self->getCurrentVotingRound()};
+                {
+                    const std::pair<BlockHash, Round> currentRound{self->voter->getTip(), self->getCurrentVotingRound()};
 
-                if ((now - roundTime) > (params.dpos.nRoundTooLong * 1000) && lastRound == currentRound) {
-                    self->handleVoterOutput(self->voter->onRoundTooLong());
+                    if ((now - lastRoundChangeT) > (params.dpos.nRoundTooLong * 1000) && lastRound == currentRound) {
+                        self->handleVoterOutput(self->voter->onRoundTooLong());
+                    }
+
+                    // track changes of tip and round
+                    if (lastRound != currentRound)
+                        lastRoundChangeT = now;
+                    lastRound = currentRound;
+                    if (lastTip != tip)
+                        lastTipChangeT = now;
+                    lastTip = tip;
                 }
 
-                roundTime = now;
-                lastRound = currentRound;
+                // try to find missing txs in mempool
+                for (auto it = self->vTxReqs.begin(); it != self->vTxReqs.end();) {
+                    CTransaction tx;
+                    if (mempool.lookup(it->hash, tx)) {
+                        self->handleVoterOutput(self->voter->applyTx(tx));
+                        it = self->vTxReqs.erase(it);
+                    } else {
+                        it++;
+                    }
+                }
+
+                // periodically rm waste data from old blocks
+                self->cleanUpDb();
             }
 
-            int64_t syncPeriod = params.dpos.nPollingPeriod * 1000;
-            if (self->initialVotesDownload)
-                syncPeriod /= 10; // poll 10 times more often when initialVotesDownload
-            if (syncPeriod < 1000) // not more often than once in 1s
-                syncPeriod = 1000;
+            { // p2p syncing requests
+                int64_t syncPeriod = params.dpos.nPollingPeriod * 1000;
+                if (self->initialVotesDownload)
+                    syncPeriod /= 10; // poll 10 times more often when initialVotesDownload
+                if (syncPeriod < 1000) // not more often than once in 1s
+                    syncPeriod = 1000;
 
-            const auto nodes = getNodes();
-            if (!nodes.empty() && (now - lastSyncTime) > syncPeriod) {
-                lastSyncTime = now;
-                self->removeOldVotes();
+                const auto nodes = getNodes(); // protected by cs inside
+                if (!nodes.empty() && (now - lastSyncT) > syncPeriod) {
+                    lastSyncT = now;
 
-                std::vector<CInv> txReqsToSend;
-                {
-                    LOCK(cs_main);
-                    self->handleVoterOutput(self->voter->requestMissingTxs());
-                    txReqsToSend.insert(txReqsToSend.end(), self->vTxReqs.begin(), self->vTxReqs.end());
-                }
-                for (auto&& node : nodes) {
-                    node->PushMessage("getvblocks", tipHash);
-                    node->PushMessage("getrvotes", tipHash);
-                    node->PushMessage("gettxvotes", tipHash, self->getTxsFilter());
-                    if (!txReqsToSend.empty())
-                        node->PushMessage("getdata", txReqsToSend);
+                    std::vector<CInv> txReqsToSend;
+                    {
+                        LOCK(cs_main);
+                        txReqsToSend.insert(txReqsToSend.end(), self->vTxReqs.begin(), self->vTxReqs.end());
+                    }
+                    for (auto&& node : nodes) {
+                        node->PushMessage("getvblocks", tip);
+                        node->PushMessage("getrvotes", tip);
+                        node->PushMessage("gettxvotes", tip, self->getTxsFilter());
+                        if (!txReqsToSend.empty())
+                            node->PushMessage("getdata", txReqsToSend);
+                    }
                 }
             }
         }
 
-        MilliSleep(500);
+        MilliSleep(1000);
     }
 }
 
@@ -271,22 +305,22 @@ void CDposController::loadDB()
         throw std::runtime_error("dPoS database is corrupted (reading tx votes)! Please restart with -reindex to recover.");
 }
 
-void CDposController::onChainTipUpdated(const BlockHash& tipHash)
+void CDposController::onChainTipUpdated(const BlockHash& tip)
 {
-    if (!initialVotesDownload && isEnabled(tipHash)) {
+    if (isEnabled(tip)) {
         const auto mnId{findMyMasternodeId()};
         LOCK(cs_main);
 
-        if (mnId != boost::none && !this->voter->checkAmIVoter()) {
-            LogPrintf("%s: Enabling dpos voter for me %s\n", __func__, mnId.get().GetHex());
+        if (!initialVotesDownload && mnId != boost::none && !this->voter->checkAmIVoter()) {
+            LogPrintf("dpos: %s: I became a team member, enabling voter for me (I'm %s)\n", __func__, mnId.get().GetHex());
             this->voter->setVoting(true, mnId.get());
         } else if (mnId == boost::none && this->voter->checkAmIVoter()) {
-            LogPrintf("%s: Disabling dpos voter\n", __func__);
+            LogPrintf("dpos: %s: Disabling voter, I'm not a team member for now \n", __func__);
             this->voter->setVoting(false, CMasternode::ID{});
         }
 
-        this->voter->updateTip(tipHash);
-        handleVoterOutput(this->voter->doTxsVoting() + this->voter->doRoundVoting());
+        this->voter->updateTip(tip);
+        handleVoterOutput(this->voter->requestMissingTxs() + this->voter->doTxsVoting() + this->voter->doRoundVoting());
     }
 }
 
@@ -504,9 +538,10 @@ bool CDposController::isTxApprovedByMe(const TxId& txid) const
 
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 {
+    AssertLockHeld(cs_main);
     if (!out.vErrors.empty()) {
         for (const auto& error : out.vErrors) {
-            LogPrintf("%s: %s\n", __func__, error);
+            LogPrintf("dpos: %s: %s\n", __func__, error);
         }
         return false;
     }
@@ -523,7 +558,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                 vote.choice = roundVote.choice;
 
                 if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
-                    LogPrintf("%s: Can't sign round vote\n", __func__);
+                    LogPrintf("dpos: %s: Can't sign round vote\n", __func__);
                 } else {
                     this->receivedRoundVotes.emplace(vote.GetHash(), vote);
                     storeEntity(vote, &CDposDB::WriteRoundVote, vote.GetHash());
@@ -537,7 +572,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                 vote.choices.push_back(txVote.choice);
 
                 if (!masternodeKey.SignCompact(vote.GetSignatureHash(), vote.signature)) {
-                    LogPrintf("%s: Can't sign tx vote\n", __func__);
+                    LogPrintf("dpos: %s: Can't sign tx vote\n", __func__);
                 } else {
                     this->receivedTxVotes.emplace(vote.GetHash(), vote);
                     storeEntity(vote, &CDposDB::WriteTxVote, vote.GetHash());
@@ -570,12 +605,12 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                 }
             }
             if ((pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE) < this->voter->minQuorum) {
-                LogPrintf("%s: Can't submit block - missing signatures (%d < %d)\n",
+                LogPrintf("dpos: %s: Can't submit block - missing signatures (%d < %d)\n",
                           __func__,
                           pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE,
                           this->voter->minQuorum);
             } else if (!ProcessNewBlock(state, nullptr, const_cast<CBlock*>(pblock), true, nullptr)) {
-                LogPrintf("%s: Can't ProcessNewBlock\n", __func__);
+                LogPrintf("dpos: %s: Can't ProcessNewBlock\n", __func__);
             }
         }
     }
@@ -585,6 +620,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
 
 bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 {
+    AssertLockHeld(cs_main);
     bool rv{true};
     const auto mnId{authenticateMsg(vote)};
 
@@ -605,6 +641,7 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
 
 bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
 {
+    AssertLockHeld(cs_main);
     bool rv{true};
     const auto mnId{authenticateMsg(vote)};
 
@@ -651,7 +688,7 @@ boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockH
             return {member.first};
     }
     if (team.empty()) {
-        LogPrintf("Couldn't read dPoS team as it was already cleared \n");
+        LogPrintf("dpos: Couldn't read dPoS team as it was already cleared \n");
     }
 
     return boost::none;
@@ -677,9 +714,9 @@ boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CRoundVo
     return getIdOfTeamMember(vote.tip, pubKey.GetID());
 }
 
-void CDposController::removeOldVotes()
+void CDposController::cleanUpDb()
 {
-//    LOCK(cs_main);
+//    AssertLockHeld(cs_main);
 //    const auto tipHeight{chainActive.Height()};
 
 //    for (const auto& pair: this->receivedRoundVotes) {

@@ -105,18 +105,22 @@ void CDposVoter::setVoting(bool amIvoter, CMasternode::ID me)
 
 void CDposVoter::updateTip(BlockHash tip)
 {
-    LogPrintf("%s: Change current tip from %s to %s\n", __func__, this->tip.GetHex(), tip.GetHex());
+    // tip is changed
+    if (this->tip == tip)
+        return;
+
+    LogPrintf("dpos: %s: Change current tip from %s to %s\n", __func__, this->tip.GetHex(), tip.GetHex());
 
     // tip is changed not first time
-    if (this->tip != BlockHash{} && this->tip != tip) {
+    if (this->tip != BlockHash{})
         filterFinishedTxs(this->txs, 0);
-        // filter invalid txs
-        for (auto it = this->txs.begin(); it != this->txs.end();) {
-            if (!world.validateTx(it->second))
-                it = this->txs.erase(it);
-            else
-                it++;
-        }
+
+    // filter invalid txs
+    for (auto it = this->txs.begin(); it != this->txs.end();) {
+        if (!world.validateTx(it->second))
+            it = this->txs.erase(it);
+        else
+            it++;
     }
 
     this->tip = tip;
@@ -132,21 +136,21 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
     }
 
     if (viceBlock.hashPrevBlock != tip && !world.allowArchiving(viceBlock.hashPrevBlock)) {
-        LogPrintf("%s: Ignoring too old vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
+        LogPrintf("dpos: %s: Ignoring too old vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
 
     if (!v[viceBlock.hashPrevBlock].viceBlocks.emplace(viceBlock.GetHash(), viceBlock).second) {
-        LogPrintf("%s: Ignoring duplicating vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
+        LogPrintf("dpos: %s: Ignoring duplicating vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
 
     if (viceBlock.nRound != getCurrentRound()) {
-        LogPrintf("%s: Ignoring vice-block from prev. round: %s \n", __func__, viceBlock.GetHash().GetHex());
+        LogPrintf("dpos: %s: Ignoring vice-block from prev. round: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
     }
 
-    LogPrintf("%s: Received vice-block %s \n", __func__, viceBlock.GetHash().GetHex());
+    LogPrintf("dpos: %s: Received vice-block %s \n", __func__, viceBlock.GetHash().GetHex());
     return doRoundVoting();
 }
 
@@ -157,7 +161,7 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
     TxId txid = tx.GetHash();
 
     if (!world.validateTx(tx)) {
-        LogPrintf("%s: Received invalid tx %s \n", __func__, txid.GetHex());
+        LogPrintf("dpos: %s: Received invalid tx %s \n", __func__, txid.GetHex());
         // clear tx and votes for this tx
         txs.erase(txid);
         if (v.count(tip) != 0) {
@@ -168,7 +172,7 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
 
         return misbehavingErr("invalid tx");
     }
-    LogPrintf("%s: Received tx %s \n", __func__, txid.GetHex());
+    LogPrintf("dpos: %s: Received tx %s \n", __func__, txid.GetHex());
 
     const bool wasLost = wasTxLost(txid);
     txs[txid] = tx;
@@ -190,12 +194,12 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
     }
 
     if (vote.tip != tip && !world.allowArchiving(vote.tip)) {
-        LogPrintf("%s: Ignoring too old transaction vote from block %s \n", __func__, vote.tip.GetHex());
+        LogPrintf("dpos: %s: Ignoring too old transaction vote from block %s \n", __func__, vote.tip.GetHex());
         return {};
     }
 
     const TxId txid = vote.choice.subject;
-    LogPrintf("%s: Received transaction vote for %s, from %s, decision=%d \n",
+    LogPrintf("dpos: %s: Received transaction vote for %s, from %s, decision=%d \n",
               __func__,
               txid.GetHex(),
               vote.voter.GetHex(),
@@ -205,13 +209,13 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
     // Check misbehaving or duplicating
     if (txVoting.count(vote.voter) > 0) {
         if (txVoting[vote.voter] != vote) {
-            LogPrintf("%s: MISBEHAVING MASTERNODE! doublesign. tx voting,  vote for %s, from %s \n",
+            LogPrintf("dpos: %s: MISBEHAVING MASTERNODE! doublesign. tx voting,  vote for %s, from %s \n",
                       __func__,
                       txid.GetHex(),
                       vote.voter.GetHex());
             return misbehavingErr("masternode tx doublesign misbehaving");
         }
-        LogPrintf("%s: Ignoring duplicating transaction vote \n", __func__);
+        LogPrintf("dpos: %s: Ignoring duplicating transaction vote \n", __func__);
         return {};
     }
 
@@ -225,6 +229,7 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
     if (txs.count(txid) == 0) {
         // request the missing tx
         out.vTxReqs.push_back(txid);
+        LogPrintf("dpos: %s: request the missing tx %s \n", __func__, txid.GetHex());
     }
 
     return out + doRoundVoting();
@@ -243,18 +248,18 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
     }
 
     if (vote.nRound <= 0) {
-        LogPrintf("%s: MISBEHAVING MASTERNODE! malformed vote from %s \n",
+        LogPrintf("dpos: %s: MISBEHAVING MASTERNODE! malformed vote from %s \n",
                   __func__,
                   vote.voter.GetHex());
         return misbehavingErr("masternode malformed tx vote");
     }
 
     if (vote.tip != tip && !world.allowArchiving(vote.tip)) {
-        LogPrintf("%s: Ignoring too old round vote from block %s \n", __func__, vote.tip.GetHex());
+        LogPrintf("dpos: %s: Ignoring too old round vote from block %s \n", __func__, vote.tip.GetHex());
         return {};
     }
 
-    LogPrintf("%s: Received round vote for %s, from %s \n",
+    LogPrintf("dpos: %s: Received round vote for %s, from %s \n",
               __func__,
               vote.choice.subject.GetHex(),
               vote.voter.GetHex());
@@ -263,13 +268,13 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
     // Check misbehaving or duplicating
     if (roundVoting.count(vote.voter) > 0) {
         if (roundVoting[vote.voter] != vote) {
-            LogPrintf("%s: MISBEHAVING MASTERNODE! doublesign. round voting, vote for %s, from %s \n",
+            LogPrintf("dpos: %s: MISBEHAVING MASTERNODE! doublesign. round voting, vote for %s, from %s \n",
                       __func__,
                       vote.choice.subject.GetHex(),
                       vote.voter.GetHex());
             return misbehavingErr("masternode round doublesign misbehaving");
         }
-        LogPrintf("%s: Ignoring duplicating Round vote \n", __func__);
+        LogPrintf("dpos: %s: Ignoring duplicating Round vote \n", __func__);
         return {};
     }
 
@@ -283,7 +288,7 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
     // check voting result after emplaced
     const auto stats = calcRoundVotingStats(vote.nRound);
     if (checkRoundStalemate(stats)) {
-        LogPrintf("%s: New round ... %d \n", __func__, getCurrentRound());
+        LogPrintf("dpos: %s: New round #%d \n", __func__, getCurrentRound());
         // on new round
         out += doTxsVoting();
         out += doRoundVoting();
@@ -306,9 +311,9 @@ void CDposVoter::pruneTxVote(const CTxVote& vote)
     }
 }
 
-CDposVoter::Output CDposVoter::requestMissingTxs() {
+CDposVoter::Output CDposVoter::requestMissingTxs()
+{
     Output out{};
-    LogPrintf("%s \n", __func__);
     for (auto&& txsRoundVoting_p : v[tip].txVotes) {
         for (const auto& txVoting_p : txsRoundVoting_p.second) {
             if (txs.count(txVoting_p.first) == 0) {
@@ -316,6 +321,10 @@ CDposVoter::Output CDposVoter::requestMissingTxs() {
             }
         }
     }
+
+    if (!out.vTxReqs.empty())
+        LogPrintf("dpos: %s: %d \n", __func__, out.vTxReqs.size());
+
     return out;
 }
 
@@ -332,18 +341,22 @@ CDposVoter::Output CDposVoter::doRoundVoting()
 
     auto myTxs = listApprovedByMe_txs();
     if (!myTxs.missing.empty()) {
-        // forbid voting if one of approved by me txs is missing.
+        // forbid voting if one of approved-by-me txs is missing.
         // It means that I can't check that a tx doesn't interfere with already approved by me.
         // Without this condition, it's possible to do doublesign by accident.
         std::copy(myTxs.missing.begin(),
                   myTxs.missing.end(),
                   std::back_inserter(out.vTxReqs)); // request missing txs
+        LogPrintf("dpos: %s: Can't do round voting because %d of approved-by-me txs are missing (one of them is %s). Txs are requested. \n",
+                  __func__,
+                  myTxs.missing.size(),
+                  myTxs.missing.begin()->GetHex());
         return out;
     }
 
     filterFinishedTxs(myTxs.txs, nRound); // filter finished tx. If all txs are finished, the result is empty
     if (!myTxs.txs.empty()) {
-        LogPrintf("%s: Can't do round voting because %d of approved-by-me txs aren't finished (one of them is %s) \n",
+        LogPrintf("dpos: %s: Can't do round voting because %d of approved-by-me txs aren't finished (one of them is %s) \n",
                   __func__,
                   myTxs.txs.size(),
                   myTxs.txs.begin()->first.GetHex());
@@ -351,7 +364,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
     }
 
     if (wasVotedByMe_round(nRound)) {
-        LogPrintf("%s: Round was already voted by me \n", __func__);
+        LogPrintf("dpos: %s: Round was already voted by me \n", __func__);
         return out;
     }
 
@@ -389,7 +402,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
     }
 
     if (viceBlockToVote) {
-        LogPrintf("%s: Vote for vice block %s at round %d \n", __func__, viceBlockToVote->GetHex(), nRound);
+        LogPrintf("dpos: %s: Vote for vice block %s at round %d \n", __func__, viceBlockToVote->GetHex(), nRound);
 
         CRoundVote newVote{};
         newVote.voter = me;
@@ -400,7 +413,7 @@ CDposVoter::Output CDposVoter::doRoundVoting()
 
         out += applyRoundVote(newVote);
     } else {
-        LogPrintf("%s: Suitable vice block wasn't found at round %d, candidates=%d \n", __func__, nRound, sortedViceBlocks.size());
+        LogPrintf("dpos: %s: Suitable vice block wasn't found at round %d, candidates=%d \n", __func__, nRound, sortedViceBlocks.size());
     }
 
     return out;
@@ -417,7 +430,7 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
     const Round nRound = getCurrentRound();
 
     if (wasVotedByMe_tx(txid, nRound)) {
-        LogPrintf("%s: Tx %s was already voted by me \n", __func__, txid.GetHex());
+        LogPrintf("dpos: %s: Tx %s was already voted by me \n", __func__, txid.GetHex());
         return out;
     }
 
@@ -431,6 +444,10 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
         std::copy(myTxs.missing.begin(),
                   myTxs.missing.end(),
                   std::back_inserter(out.vTxReqs)); // request missing txs
+        LogPrintf("dpos: %s: Can't do txs voting because %d of approved-by-me txs are missing (one of them is %s). Txs are requested. \n",
+                  __func__,
+                  myTxs.missing.size(),
+                  myTxs.missing.begin()->GetHex());
         return out;
     }
 
@@ -479,7 +496,10 @@ CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId, Round nRo
         const auto& viceBlock = v[tip].viceBlocks[viceBlockId];
         assert(viceBlock.nRound == nRound);
 
-        LogPrintf("%s: Submit block, num of votes = %d, minQuorum = %d \n",
+        if (viceBlock.hashPrevBlock != tip)
+            return out;
+
+        LogPrintf("dpos: %s: Submit block, num of votes = %d, minQuorum = %d \n",
                   __func__,
                   stats.pro[viceBlockId],
                   minQuorum);
@@ -504,7 +524,7 @@ CDposVoter::Output CDposVoter::doTxsVoting()
         return {};
     }
     Output out{};
-    LogPrintf("%s \n", __func__);
+   LogPrintf("dpos: %s: \n", __func__);
     for (const auto& tx_p : txs) {
         out += voteForTx(tx_p.second);
     }
@@ -521,7 +541,7 @@ CDposVoter::Output CDposVoter::onRoundTooLong()
     }
     const Round nRound = getCurrentRound();
     Output out{};
-    LogPrintf("%s: %d\n", __func__, nRound);
+    LogPrintf("dpos: %s: %d\n", __func__, nRound);
     if (!wasVotedByMe_round(nRound)) {
         CRoundVote newVote{};
         newVote.voter = me;
@@ -649,7 +669,7 @@ CDposVoter::ApprovedByMeTxsList CDposVoter::listApprovedByMe_txs() const
 
                 if (txs.count(txid) == 0) {
                     // theoretically can happen after reindex, if we didn't download all the txs
-                    LogPrintf("%s approved tx=%d wasn't found in the map of txs \n", __func__, txid.GetHex());
+                   LogPrintf("dpos: %s: approved tx=%d wasn't found in the map of txs \n", __func__, txid.GetHex());
                     res.missing.insert(txid);
                     continue;
                 }

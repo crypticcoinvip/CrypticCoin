@@ -72,7 +72,7 @@ private:
     bool acceptRoundVote(const CRoundVote_p2p& vote);
     bool acceptTxVote(const CTxVote_p2p& vote);
 
-    void removeOldVotes();
+    void cleanUpDb();
 
     std::vector<TxId> getTxsFilter() const;
 
