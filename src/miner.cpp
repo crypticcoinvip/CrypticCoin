@@ -154,6 +154,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nTime = GetAdjustedTime();
         const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
         CCoinsViewCache view(pcoinsTip);
+        CMasternodesView mnview(*pmasternodesview);
 
         SaplingMerkleTree sapling_tree;
         assert(view.GetSaplingAnchorAt(view.GetBestAnchor(SAPLING), sapling_tree));
@@ -350,6 +351,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
                 continue;
 
+            if (!CheckMasternodeTx(mnview, tx, chainparams.GetConsensus(), nHeight))
+                continue;
+
             // Note that flags: we don't want to set mempool/IsStandard()
             // policy here, but we still have to ensure that the block we
             // create only contains transactions that are valid in new blocks.
@@ -428,7 +432,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
         // Share reward with masternodes' team
         {
-            const auto rewards_p = pmasternodesview->CalcDposTeamReward(txNew.vout[0].nValue, nFees_inst, nHeight);
+            const auto rewards_p = mnview.CalcDposTeamReward(txNew.vout[0].nValue, nFees_inst, nHeight);
             txNew.vout[0].nValue -= rewards_p.second;
             txNew.vout.insert(txNew.vout.end(), rewards_p.first.begin(), rewards_p.first.end());
         }

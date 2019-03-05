@@ -263,7 +263,7 @@ void PruneAndFlush();
 
 /** (try to) add transaction to memory pool **/
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
-                        bool* pfMissingInputs, bool fRejectAbsurdFee=false);
+                        bool* pfMissingInputs, CMasternodesView & mnview, bool fRejectAbsurdFee=false);
 
 
 struct CNodeStateStats {
@@ -586,9 +586,7 @@ extern CCoinsViewCache *pcoinsTip;
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB *pblocktree;
 
-/** Global variable that points to the CMasternodeDB (protected by cs_main) */
-class CMasternodesDB;
-extern CMasternodesDB * pmasternodesdb;
+/** Global variable that points to the CMasternodeView (protected by cs_main) */
 class CMasternodesView;
 extern CMasternodesView * pmasternodesview;
 
@@ -606,11 +604,11 @@ int GetSpendHeight(const CCoinsViewCache& inputs);
 CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Params& consensusParams, int nHeight);
 
 //////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
-
+bool CheckMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, const Consensus::Params& consensusParams, int height);
 void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int nHeight);
 void ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height);
 
-void CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int nHeight);
+bool CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int nHeight);
 //! Deep check (and write)
 bool CheckAnnounceMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);
 bool CheckActivateMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata);

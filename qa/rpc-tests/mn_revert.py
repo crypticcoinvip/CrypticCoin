@@ -28,7 +28,10 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
     def start_nodes(self, args = []):
         if len(args) == 0:
             args = [[]] * self.num_nodes
-        for i in range(self.num_nodes): args[i].append("-nuparams=76b809bb:200")
+        for i in range(len(args)):
+            args[i] = args[i][:]
+            args[i] += ['-nuparams=76b809bb:200']
+
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
 
     def stop_nodes(self):
@@ -145,8 +148,21 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
 
 
         print "Restarting nodes. Node #2 mines forward, reverting dismissed status and all votes"
+        nodesOld = self.nodes[0].dumpmns()
+        votesOld = self.nodes[0].getdismissvotes()
+
         self.stop_nodes()
         self.start_nodes([[ "-masternode_operator="+self.mns[i].operator] for i in range(self.num_nodes) ] )
+
+        nodesNew = self.nodes[0].dumpmns()
+        votesNew = self.nodes[0].getdismissvotes()
+        assert_equal(nodesOld, nodesNew)
+        assert_equal(votesOld, votesNew)
+#        pp.pprint(nodesOld)
+#        pp.pprint(nodesNew)
+#        pp.pprint(votesOld)
+#        pp.pprint(votesNew)
+
         self.nodes[2].generate(16) #(total +17)
         connect_nodes_bi(self.nodes, 0, 2)
         sync_blocks([self.nodes[0], self.nodes[2]])
