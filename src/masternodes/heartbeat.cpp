@@ -146,7 +146,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
 {
     bool rv{false};
     CPubKey pubKey{};
-    const std::int64_t now{GetTimeMicros()};
+    const std::int64_t now{GetTimeMillis()};
     const uint256 hash{message.GetHash()};
 
     if (message.GetPubKey(pubKey)) {
@@ -174,13 +174,6 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
                 rv = true;
             }
         }
-    }
-    if (hashMessageMap.find(hash) == hashMessageMap.end()) {
-        LogPrintf("%s: Skipping heartbeat (%s,%d) message at %d\n",
-                  __func__,
-                  hash.ToString(),
-                  message.GetTimestamp(),
-                  now);
     }
 
     return rv;
@@ -292,7 +285,7 @@ std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilte
         const auto it{keyMessageMap.find(mnPair.first)};
         const int64_t previousTime{(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime)};
         const int64_t previousMaxTime{std::max(previousTime, chainActive[mn.activationHeight]->GetBlockTime() * 1000)};
-        const int64_t elapsed{GetTimeMicros() - previousMaxTime};
+        const int64_t elapsed{GetTimeMillis() - previousMaxTime};
 
         if ((elapsed < period.first && ageFilter == RECENTLY) ||
             (elapsed > period.second && ageFilter == OUTDATED) ||

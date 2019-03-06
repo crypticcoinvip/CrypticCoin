@@ -11,8 +11,7 @@ import time
 from dpos_base import dPoS_BaseTest
 from test_framework.util import \
     assert_equal, \
-    assert_greater_than, \
-    connect_nodes_bi
+    assert_greater_than
 
 INITIAL_BALANCES    = [19372, 20624, 20624, 18747, 18372, 16874, 16874, 14997, 14997, 14997]
 NOTXS_BALANCES      = [24997, 21250, 20624, 18747, 18372, 16874, 16874, 14997, 14997, 14997]
@@ -120,59 +119,10 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         self.stop_nodes()
         self.start_masternodes([['-reindex']] * self.num_nodes)
         self.connect_nodes()
+        time.sleep(15)
         [assert_equal(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
         [assert_equal(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
         [assert_equal(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
-        self.stop_nodes()
-        self.start_masternodes()
-        # First group
-        connect_nodes_bi(self.nodes, 0, 1)
-        connect_nodes_bi(self.nodes, 1, 2)
-        connect_nodes_bi(self.nodes, 2, 3)
-        connect_nodes_bi(self.nodes, 3, 4)
-        connect_nodes_bi(self.nodes, 4, 0)
-        # Second group
-        connect_nodes_bi(self.nodes, 5, 6)
-        connect_nodes_bi(self.nodes, 6, 7)
-        connect_nodes_bi(self.nodes, 7, 8)
-        connect_nodes_bi(self.nodes, 8, 9)
-        connect_nodes_bi(self.nodes, 9, 5)
-        self.sync_nodes(0, 5)
-        self.sync_nodes(5, 10)
-        time.sleep(5)
-        [assert_equal(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
-        [assert_equal(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
-        [assert_equal(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
-        tx1 = self.create_transaction(1, self.nodes[9].getnewaddress(), 4.4, True)
-        tx2 = self.create_transaction(6, self.nodes[0].getnewaddress(), 4.4, True)
-        time.sleep(2)
-        self.nodes[2].generate(1)
-        self.nodes[7].generate(1)
-        time.sleep(2)
-        self.sync_nodes(0, 5)
-        self.sync_nodes(5, 10)
-        vblocks = [node.dpos_listviceblocks() for node in self.nodes]
-        rdvotes = [node.dpos_listroundvotes() for node in self.nodes]
-        txvotes = [node.dpos_listtxvotes() for node in self.nodes]
-        print(rdvotes)
-        [assert_greater_than(len(x), 0) for x in vblocks]
-        [assert_greater_than(len(x), 0) for x in rdvotes]
-        [assert_greater_than(len(x), 0) for x in txvotes]
-        vblocks_left = vblocks[0:len(vblocks)/2]
-        vblocks_right = vblocks[len(vblocks)/2:]
-        assert_equal(len(vblocks_left), len(vblocks_right))
-        rdvotes_left = rdvotes[0:len(rdvotes)/2]
-        rdvotes_right = rdvotes[len(rdvotes)/2:]
-        assert_equal(len(rdvotes_left), len(rdvotes_right))
-        txvotes_left = vblocks[0:len(txvotes)/2]
-        txvotes_right = vblocks[len(rdvotes)/2:]
-        assert_equal(len(txvotes_left), len(txvotes_right))
-        assert_equal(vblocks_left, vblocks_right)
-        assert_equal(rdvotes_left, rdvotes_right)
-        assert_equal(txvotes_left, txvotes_right)
-        print("left", vblocks_left)
-        print("---------------------------------")
-        print("right", vblocks_right)
 
     def run_test(self):
         super(dPoS_PositiveTest, self).run_test()
