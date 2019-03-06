@@ -18,6 +18,15 @@ struct CDposVote
     Round nRound = 0;
     BlockHash tip;
     CVoteChoice choice;
+
+    uint256 GetHash() const {
+        CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
+        ss << voter
+           << tip
+           << nRound
+           << choice;
+        return Hash(ss.begin(), ss.end());
+    }
 };
 bool operator==(const CDposVote& l, const CDposVote& r);
 bool operator!=(const CDposVote& l, const CDposVote& r);
@@ -32,10 +41,15 @@ bool operator!=(const CRoundVote& l, const CRoundVote& r);
 
 struct CTxVotingDistribution
 {
-    size_t pro = 0; //< yes
-    size_t contra = 0; //< no
-    size_t abstinendi = 0; //< pass
-    size_t totus() const; //< total
+    struct Distribution {
+        size_t pro = 0; //< yes
+        size_t contra = 0; //< no
+        size_t abstinendi = 0; //< pass
+        size_t totus() const; //< total
+    };
+
+    Distribution effective; // including PASS virtual votes, created via votes exhaustion rule
+    Distribution real;
 };
 
 struct CRoundVotingDistribution
@@ -93,6 +107,7 @@ public:
     */
     struct VotingState
     {
+        std::map<CMasternode::ID, std::vector<CTxVote> > mnTxVotes;
         std::map<Round, std::map<TxId, std::map<CMasternode::ID, CTxVote> > > txVotes;
         std::map<Round, std::map<CMasternode::ID, CRoundVote> > roundVotes;
 
@@ -123,6 +138,10 @@ public:
     size_t minQuorum;
     size_t numOfVoters;
 
+    size_t offlineVoters; // don't wait for votes from those nodes
+    size_t maxNotVotedTxsToKeep;
+    size_t maxTxVotesFromVoter;
+
     explicit CDposVoter(Callbacks world);
 
     /**
@@ -141,8 +160,6 @@ public:
     Output applyTx(const CTransaction& tx);
     Output applyTxVote(const CTxVote& vote);
     Output applyRoundVote(const CRoundVote& vote);
-
-    void pruneTxVote(const CTxVote& vote);
 
     Output requestMissingTxs();
 
@@ -179,6 +196,8 @@ public:
 
     CTxVotingDistribution calcTxVotingStats(TxId txid, Round nRound) const;
     CRoundVotingDistribution calcRoundVotingStats(Round nRound) const;
+
+    bool verifyVotingState() const;
 
 protected:
     Output misbehavingErr(const std::string& msg) const;

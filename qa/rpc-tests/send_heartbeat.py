@@ -123,17 +123,17 @@ class SendHeartbeatTest(BitcoinTestFramework):
         for node in self.nodes:
             assert_equal(node.getblockcount(), self.num_nodes)
         for node in self.nodes:
-            assert_equal(node.heartbeat_read_messages(), before_messages)
+            assert_equal(node.mn_readheartbeats(), before_messages)
 
         # Check that all nodes recieved heartbeat
-        msg = self.nodes[sender_idx].heartbeat_send_message(_WALLET_KEYS[sender_idx][1], hb_msg[0])
+        msg = self.nodes[sender_idx].mn_sendheartbeat(_WALLET_KEYS[sender_idx][1], hb_msg[0])
         assert_equal(msg["timestamp"], hb_msg[0])
         assert_equal(msg["signature"], hb_msg[2])
         assert_equal(msg["hash"], hb_msg[1])
         time.sleep(1)
         rv = before_messages + [msg]
         for n in range(self.num_nodes):
-            assert_equal(self.nodes[n].heartbeat_read_messages(), rv)
+            assert_equal(self.nodes[n].mn_readheartbeats(), rv)
         return rv
 
     def check_heartbeat_sync(self):

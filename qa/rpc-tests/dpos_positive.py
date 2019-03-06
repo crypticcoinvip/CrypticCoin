@@ -57,14 +57,13 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             toaddr = self.nodes[next_idx].getnewaddress()
             tx = self.create_transaction(n, toaddr, 20.2, True)
             zdst = [{ "address": toaddr, "amount": 3.3 }]
-            self.nodes[n].sendtoaddress(self.operators[next_idx], 15.5)
             ztx = self.nodes[n].z_sendmany(self.operators[n], zdst, 1, 0.0001, True)
-            time.sleep(2)
+            time.sleep(4)
             ztx = self.nodes[n].z_getoperationstatus([ztx])
             assert_equal(ztx[0]["status"], "success")
             self.sync_all()
             for node in self.nodes:
-                txs = {tx["hash"] for tx in node.list_instant_transactions()}
+                txs = {tx["hash"] for tx in node.i_listtransactions()}
                 assert_equal(len(txs), 2)
                 assert_equal(txs, {tx, ztx[0]["result"]["txid"]})
             self.nodes[self.num_nodes - n - 1].generate(1)
@@ -85,11 +84,12 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             tx2 = self.create_transaction(n, toaddr2, 25.25, True)
             self.nodes[n].sendtoaddress(self.operators[next_idx], 30.3)
             ztx = self.nodes[n].z_sendmany(self.operators[n], zdst, 1, 0.0001, True)
-            time.sleep(3)
+            time.sleep(5)
             ztx = self.nodes[n].z_getoperationstatus([ztx])
             self.sync_all()
             for node in self.nodes:
-                txs = {tx["hash"] for tx in node.list_instant_transactions()}
+                print(n, node, len(node.i_listtransactions()))
+                txs = {tx["hash"] for tx in node.i_listtransactions()}
                 assert_equal(len(txs), 3)
                 assert_equal(txs, {tx1, tx2, ztx[0]["result"]["txid"]})
             self.nodes[self.num_nodes - n - 1].generate(1)
@@ -99,30 +99,30 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             self.check_nodes_block_count(blockCount)
 
     def check_restart(self):
-        vblocks_before = [node.listdposviceblocks() for node in self.nodes]
-        rdvotes_before = [node.listdposroundvotes() for node in self.nodes]
-        txvotes_before = [node.listdpostxvotes() for node in self.nodes]
+        vblocks_before = [node.dpos_listviceblocks() for node in self.nodes]
+        rdvotes_before = [node.dpos_listroundvotes() for node in self.nodes]
+        txvotes_before = [node.dpos_listtxvotes() for node in self.nodes]
         self.stop_nodes()
         self.start_masternodes()
         self.connect_nodes()
-        vblocks_after = [node.listdposviceblocks() for node in self.nodes]
-        rdvotes_after = [node.listdposroundvotes() for node in self.nodes]
-        txvotes_after = [node.listdpostxvotes() for node in self.nodes]
+        vblocks_after = [node.dpos_listviceblocks() for node in self.nodes]
+        rdvotes_after = [node.dpos_listroundvotes() for node in self.nodes]
+        txvotes_after = [node.dpos_listtxvotes() for node in self.nodes]
         assert_equal(vblocks_before, vblocks_after)
         assert_equal(rdvotes_before, rdvotes_after)
         assert_equal(txvotes_before, txvotes_after)
 
     def check_reindex(self):
-        [assert_greater_than(len(node.listdposviceblocks()), 0) for node in self.nodes]
-        [assert_greater_than(len(node.listdposroundvotes()), 0) for node in self.nodes]
-        [assert_greater_than(len(node.listdpostxvotes()), 0) for node in self.nodes]
+        [assert_greater_than(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
+        [assert_greater_than(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
+        [assert_greater_than(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
         self.stop_nodes()
         self.start_masternodes([['-reindex']] * self.num_nodes)
         self.connect_nodes()
         time.sleep(15)
-        [assert_equal(len(node.listdposviceblocks()), 0) for node in self.nodes]
-        [assert_equal(len(node.listdposroundvotes()), 0) for node in self.nodes]
-        [assert_equal(len(node.listdpostxvotes()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
 
     def run_test(self):
         super(dPoS_PositiveTest, self).run_test()

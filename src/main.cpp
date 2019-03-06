@@ -2351,7 +2351,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             }
         }
         // process transaction revert for masternodes.
-        mnview.OnUndo(hash);
+        mnview.OnUndo(pindex->nHeight, hash);
     }
 
     // set the old best Sprout anchor back
@@ -2552,8 +2552,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
 
+    // Disable dPoS if mns are offline
+    const bool fBigGapBetweenBlocks = pindex->pprev != nullptr && (pindex->GetBlockTime() > (pindex->pprev->GetBlockTime() + chainparams.GetConsensus().dpos.nMaxTimeBetweenBlocks));
+
     const size_t nCurrentTeamSize = mnview.ReadDposTeam(pindex->nHeight - 1).size();
-    const bool fDposActive = nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize;
+    const bool fDposActive = !fBigGapBetweenBlocks && (nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize);
 
     bool fExpensiveChecks = true;
     if (fCheckpointsEnabled) {
@@ -2693,41 +2696,32 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
         if (dvr.fCheckInstSection)
         {
-            if (fDposActive)
-            {
-                // check txs order
-                if (tx.fInstant && tx.IsCoinBase()) // instant tx too early
-                        return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
-                                         REJECT_INVALID, "bad-blk-order");
-                if (tx.fInstant && i < instSectionStart) // instant tx too early
+            // check txs order
+            if (tx.fInstant && tx.IsCoinBase()) // instant tx too early
                     return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
                                      REJECT_INVALID, "bad-blk-order");
-                if (!tx.fInstant && i >= instSectionStart && instSectionEnd == 0) // not instant tx, then instant section is passed
-                    instSectionEnd = i;
-                if (tx.fInstant && instSectionEnd != 0) // instant tx, but instant section is passed
-                    return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
-                                     REJECT_INVALID, "bad-blk-order");
+            if (tx.fInstant && i < instSectionStart) // instant tx too early
+                return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                 REJECT_INVALID, "bad-blk-order");
+            if (!tx.fInstant && i >= instSectionStart && instSectionEnd == 0) // not instant tx, then instant section is passed
+                instSectionEnd = i;
+            if (tx.fInstant && instSectionEnd != 0) // instant tx, but instant section is passed
+                return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                 REJECT_INVALID, "bad-blk-order");
 
-                // check instant txs size, sigops
-                if (tx.fInstant)
-                {
-                    nSigOps_inst += GetLegacySigOpCount(tx);
-                    nSigOps_inst += GetP2SHSigOpCount(tx, view);
-                    if (nSigOps > dvr.nMaxInstsSigops)
-                        return state.DoS(100, error("ConnectBlock(): too many sigops in instant section"),
-                                         REJECT_INVALID, "bad-blk-sigops");
-                    const size_t txSize = ::GetSerializeSize(tx, SER_NETWORK, tx.nVersion);
-                    nSize_inst += txSize;
-                    if (nSize_inst > dvr.nMaxInstsSize)
-                        return state.DoS(100, error("ConnectBlock(): too big instant section"),
-                                         REJECT_INVALID, "bad-blk-inst-size");
-                }
-            }
-            else
+            // check instant txs size, sigops
+            if (tx.fInstant)
             {
-                if (tx.fInstant)
-                    return state.DoS(100, error("ConnectBlock(): instant tx when dPoS is disabled"),
-                                     REJECT_INVALID, "bad-blk-inst-unexpected");
+                nSigOps_inst += GetLegacySigOpCount(tx);
+                nSigOps_inst += GetP2SHSigOpCount(tx, view);
+                if (nSigOps > dvr.nMaxInstsSigops)
+                    return state.DoS(100, error("ConnectBlock(): too many sigops in instant section"),
+                                     REJECT_INVALID, "bad-blk-sigops");
+                const size_t txSize = ::GetSerializeSize(tx, SER_NETWORK, tx.nVersion);
+                nSize_inst += txSize;
+                if (nSize_inst > dvr.nMaxInstsSize)
+                    return state.DoS(100, error("ConnectBlock(): too big instant section"),
+                                     REJECT_INVALID, "bad-blk-inst-size");
             }
         }
 
@@ -2869,8 +2863,20 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     LogPrint("bench", "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
 
 
-    // If we are here - everything is OK - lets make real DB movements
-    ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight);
+    // If we are here - everything is OK - lets make real DB movements. It should fail only on DB write, so it is critical
+    if (!ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight))
+    {
+        return AbortNode("Failed to process masternodes' data!");
+    }
+    // Prune old MN data
+    if (pindex->nHeight % 100 == 0)
+    {
+        int pruneHeight = pindex->nHeight - std::max(300u, MAX_REORG_LENGTH);
+        if (mnview.PruneMasternodesOlder(pruneHeight) && mnview.PruneUndoesOlder(pruneHeight) && mnview.PruneTeamsOlder(pruneHeight) == false)
+        {
+            return AbortNode("Failed to prune masternodes' data!");
+        }
+    }
     return true;
 }
 
@@ -5102,6 +5108,7 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
             return recentRejects->contains(inv.hash) ||
                    mempool.exists(inv.hash) ||
+//                   dpos::getController()->findTx(inv.hash, nullptr) ||
                    mapOrphanTransactions.count(inv.hash) ||
                    pcoinsTip->HaveCoins(inv.hash);
         }
@@ -6775,29 +6782,43 @@ bool CheckMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, Conse
     return result;
 }
 
-void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int height)
+bool ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int height)
 {
+    bool result(true);
     for (unsigned int i = 0; i < block.vtx.size(); ++i)
     {
-        CheckMasternodeTx(mnview, block.vtx[i], Params().GetConsensus(), height);
+        result = result && CheckMasternodeTx(mnview, block.vtx[i], Params().GetConsensus(), height);
     }
     mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
-    mnview.CommitBatch();
+    if (result)
+    {
+        mnview.CommitBatch();
+    }
+    else
+    {
+        mnview.DropBatch();
+    }
+    return result;
 }
 
-void ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height)
+// Unused, but may be helpful later
+bool ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height)
 {
-    if (!NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
-    {
-        return;
-    }
-
+    bool result(true);
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; --i)
     {
-        mnview.OnUndo(block.vtx[i].GetHash());
+        result = result && mnview.OnUndo(height, block.vtx[i].GetHash());
     }
-    mnview.CommitBatch();
+    if (result)
+    {
+        mnview.CommitBatch();
+    }
+    else
+    {
+        mnview.DropBatch();
+    }
+    return result;
 }
 
 CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
@@ -6829,16 +6850,18 @@ CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
  */
 bool CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int height)
 {
+    bool result(true);
     for (uint32_t i = 0; i < tx.vin.size(); ++i)
     {
         COutPoint const & prevout = tx.vin[i].prevout;
         // Checks if it was collateral output.
         if (prevout.n == 1 && mnview.ExistMasternode(prevout.hash))
         {
-            return mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
+            // i - unused
+            result = result && mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
         }
     }
-    return true;
+    return result;
 }
 
 /*
@@ -6910,7 +6933,7 @@ bool CheckDismissVoteTx(CMasternodesView & mnview, CTransaction const & tx, int 
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     CDismissVote vote(tx, metadata); // note that 'from' is empty!
-    return mnview.OnDismissVote(tx.GetHash(), vote, auth);
+    return mnview.OnDismissVote(tx.GetHash(), vote, auth, height);
 }
 
 bool CheckDismissVoteRecallTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)

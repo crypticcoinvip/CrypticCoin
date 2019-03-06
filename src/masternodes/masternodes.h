@@ -218,7 +218,7 @@ public:
         CKeyID ownerAuthAddress;
     };
     // 'multi' used only in to ways: for collateral spent and voting finalization (to save deactivated votes)
-    typedef std::multimap<uint256, std::pair<uint256, MasternodesTxType> > CTxUndo;
+    typedef std::multimap<std::pair<int, uint256>, std::pair<uint256, MasternodesTxType> > CTxUndo;
     typedef std::map<uint256, COperatorUndoRec> COperatorUndo;
 
     enum class AuthIndex { ByOwner, ByOperator };
@@ -298,14 +298,13 @@ public:
 
     bool OnMasternodeAnnounce(uint256 const & nodeId, CMasternode const & node);
     bool OnMasternodeActivate(uint256 const & txid, uint256 const & nodeId, CKeyID const & operatorId, int height);
-    bool OnDismissVote(uint256 const & txid, CDismissVote const & vote, CKeyID const & operatorId);
+    bool OnDismissVote(uint256 const & txid, CDismissVote const & vote, CKeyID const & operatorId, int height);
     bool OnDismissVoteRecall(uint256 const & txid, uint256 const & against, CKeyID const & operatorId, int height);
     bool OnFinalizeDismissVoting(uint256 const & txid, uint256 const & nodeId, int height);
     bool OnSetOperatorReward(uint256 const & txid, CKeyID const & ownerId, CKeyID
                              const & newOperatorId, CScript const & newOperatorRewardAddress, CAmount newOperatorRewardRatio, int height);
 
-//    bool HasUndo(uint256 const & txid) const;
-    bool OnUndo(uint256 const & txid);
+    bool OnUndo(int height, uint256 const & txid);
 
     bool IsTeamMember(int height, CKeyID const & operatorAuth) const;
     CTeam CalcNextDposTeam(CActiveMasternodes const & activeNodes, CMasternodes const & allNodes, uint256 const & blockHash, int height);
@@ -319,6 +318,10 @@ public:
 
     void CommitBatch();
     void DropBatch();
+
+    bool PruneMasternodesOlder(int height);
+    bool PruneUndoesOlder(int height);
+    bool PruneTeamsOlder(int height);
 
 private:
     boost::optional<CMasternodeIDs> AmI(AuthIndex where) const;
