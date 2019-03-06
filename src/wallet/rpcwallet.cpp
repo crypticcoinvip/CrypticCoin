@@ -2560,7 +2560,7 @@ UniValue z_listunspent(const UniValue& params, bool fHelp)
 }
 
 
-UniValue instant_listunspent(const UniValue& params, bool fHelp)
+UniValue i_listunspent(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp)) {
         return NullUniValue;
@@ -2568,7 +2568,7 @@ UniValue instant_listunspent(const UniValue& params, bool fHelp)
 
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "instant_listunspent\n"
+            "i_listunspent\n"
             "\nReturns array of unspent instant transaction outputs\n"
             "\nResult\n"
             "[                   (array of json object)\n"
@@ -2583,7 +2583,7 @@ UniValue instant_listunspent(const UniValue& params, bool fHelp)
                             "  ,...\n"
                             "]\n"
                             "\nExamples\n" +
-            HelpExampleCli("instant_listunspent", "") + HelpExampleRpc("instant_listunspent", ""));
+            HelpExampleCli("i_listunspent", "") + HelpExampleRpc("i_listunspent", ""));
     }
 
     UniValue rv{UniValue::VARR};
