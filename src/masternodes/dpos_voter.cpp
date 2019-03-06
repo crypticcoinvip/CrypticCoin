@@ -111,7 +111,8 @@ void CDposVoter::updateTip(BlockHash tip)
 
     LogPrintf("dpos: %s: Change current tip from %s to %s\n", __func__, this->tip.GetHex(), tip.GetHex());
 
-    assert(verifyVotingState() == true);
+    if (!verifyVotingState())
+        assert(!"dPoS database is corrupted (voting state verification failed)! Please restart with -reindex to recover.");
 
     // filter invalid (typically finalized txs from prev. block) and rejected txs
     const Round nRound = getCurrentRound();
@@ -139,6 +140,12 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
     if (viceBlock.nRound <= 0 || !viceBlock.vSig.empty() || !viceBlock.hashReserved1.IsNull() || !viceBlock.hashReserved2.IsNull()) {
         return misbehavingErr("vice-block is malformed");
     }
+
+    if (v[viceBlock.hashPrevBlock].viceBlocks.count(viceBlock.GetHash()) > 0) {
+        LogPrintf("dpos: %s: Ignoring duplicating vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
+        return {};
+    }
+
     if (!world.validateBlock(viceBlock, {}, true)) {
         return misbehavingErr("vice-block validation failed");
     }
@@ -148,10 +155,7 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
         return {};
     }
 
-    if (!v[viceBlock.hashPrevBlock].viceBlocks.emplace(viceBlock.GetHash(), viceBlock).second) {
-        LogPrintf("dpos: %s: Ignoring duplicating vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
-        return {};
-    }
+    v[viceBlock.hashPrevBlock].viceBlocks.emplace(viceBlock.GetHash(), viceBlock);
 
     if (viceBlock.nRound != getCurrentRound()) {
         LogPrintf("dpos: %s: Ignoring vice-block from prev. round: %s \n", __func__, viceBlock.GetHash().GetHex());
@@ -223,7 +227,7 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
     // Check misbehaving or duplicating
     if (txVoting.count(vote.voter) > 0) {
         if (txVoting[vote.voter] != vote) {
-            LogPrintf("dpos: %s: MISBEHAVING MASTERNODE! doublesign. tx voting,  vote for %s, from %s \n",
+            LogPrintf("dpos: %s: MISBEHAVING MASTERNODE! doublesign. tx voting, vote for %s, from %s \n",
                       __func__,
                       txid.GetHex(),
                       vote.voter.GetHex());
@@ -233,7 +237,7 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
         return {};
     }
     if (v[vote.tip].mnTxVotes[vote.voter].size() >= maxTxVotesFromVoter) {
-        LogPrintf("dpos: %s: MISBEHAVING MASTERNODE! too much votes. tx voting,  vote for %s, from %s \n",
+        LogPrintf("dpos: %s: MISBEHAVING MASTERNODE! too much votes. tx voting, vote for %s, from %s \n",
                   __func__,
                   txid.GetHex(),
                   vote.voter.GetHex());
@@ -711,7 +715,7 @@ CDposVoter::ApprovedByMeTxsList CDposVoter::listApprovedByMe_txs() const
     return res;
 }
 
-    CTxVotingDistribution CDposVoter::calcTxVotingStats(TxId txid, Round nRound) const
+CTxVotingDistribution CDposVoter::calcTxVotingStats(TxId txid, Round nRound) const
 {
     CTxVotingDistribution stats{};
 
@@ -739,18 +743,15 @@ CDposVoter::ApprovedByMeTxsList CDposVoter::listApprovedByMe_txs() const
             switch (vote.choice.decision) {
             case CVoteChoice::Decision::YES:
                 stats.real.pro++;
-                stats.effective.pro++;
                 exhaustedVoters.erase(vote_p.first);
                 break;
             case CVoteChoice::Decision::NO:
                 stats.real.contra++;
-                stats.effective.contra++;
                 exhaustedVoters.erase(vote_p.first);
                 break;
             case CVoteChoice::Decision::PASS:
                 if (vote.nRound == nRound) { // count PASS votes only from specified round
                     stats.real.abstinendi++;
-                    stats.effective.abstinendi++;
                     exhaustedVoters.erase(vote_p.first);
                 }
                 break;
@@ -761,6 +762,7 @@ CDposVoter::ApprovedByMeTxsList CDposVoter::listApprovedByMe_txs() const
         }
     }
 
+    stats.effective = stats.real;
     // Insert virtual votes via exhaustion rule
     stats.effective.abstinendi += exhaustedVoters.size();
 
@@ -882,24 +884,6 @@ void CDposVoter::filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Ro
         auto stats = calcTxVotingStats(txid, nRound);
         if (nRound <= 0)
             stats.effective.abstinendi = 0;
-
-        const bool notCommittable = checkTxNotCommittable(stats);
-        const bool committed = stats.effective.pro >= minQuorum;
-        const bool finished = notCommittable || committed;
-
-        if (finished)
-            it = txs_f.erase(it);
-        else
-            it++;
-    }
-}
-void CDposVoter::filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nRound) const
-{
-    for (auto it = txs_f.begin(); it != txs_f.end();) {
-        const TxId txid = it->first;
-        auto stats = calcTxVotingStats(txid, nRound);
-        if (nRound == 0) // round starts with 1, so we didn't accept any votes for round 0. yes/no votes could come from any round.
-            assert(stats.effective.abstinendi == 0);
 
         const bool notCommittable = checkTxNotCommittable(stats);
         const bool committed = stats.effective.pro >= minQuorum;
