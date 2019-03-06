@@ -193,11 +193,6 @@ void CDposController::runEventLoop()
 
                 if (now - lastSyncT > syncPeriod) {
                     lastSyncT = now;
-                    {
-                        LOCK(cs_main);
-                        // periodically rm waste data from old blocks
-                        self->cleanUpDb();
-                    }
 
                     const auto nodes = getNodes(); // protected by cs inside
                     if (!nodes.empty()) {
@@ -339,6 +334,9 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
 
         this->voter->updateTip(tip);
         handleVoterOutput(this->voter->requestMissingTxs() + this->voter->doTxsVoting() + this->voter->doRoundVoting());
+
+        // periodically rm waste data from old blocks
+        self->cleanUpDb();
     }
 }
 
