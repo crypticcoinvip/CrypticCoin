@@ -2552,8 +2552,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
 
+    // Disable dPoS if mns are offline
+    const bool fBigGapBetweenBlocks = pindex->pprev != nullptr && (pindex->GetBlockTime() > (pindex->pprev->GetBlockTime() + chainparams.GetConsensus().dpos.nMaxTimeBetweenBlocks));
+
     const size_t nCurrentTeamSize = mnview.ReadDposTeam(pindex->nHeight - 1).size();
-    const bool fDposActive = nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize;
+    const bool fDposActive = !fBigGapBetweenBlocks && (nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize);
 
     bool fExpensiveChecks = true;
     if (fCheckpointsEnabled) {
@@ -2693,41 +2696,32 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
         if (dvr.fCheckInstSection)
         {
-            if (fDposActive)
-            {
-                // check txs order
-                if (tx.fInstant && tx.IsCoinBase()) // instant tx too early
-                        return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
-                                         REJECT_INVALID, "bad-blk-order");
-                if (tx.fInstant && i < instSectionStart) // instant tx too early
+            // check txs order
+            if (tx.fInstant && tx.IsCoinBase()) // instant tx too early
                     return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
                                      REJECT_INVALID, "bad-blk-order");
-                if (!tx.fInstant && i >= instSectionStart && instSectionEnd == 0) // not instant tx, then instant section is passed
-                    instSectionEnd = i;
-                if (tx.fInstant && instSectionEnd != 0) // instant tx, but instant section is passed
-                    return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
-                                     REJECT_INVALID, "bad-blk-order");
+            if (tx.fInstant && i < instSectionStart) // instant tx too early
+                return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                 REJECT_INVALID, "bad-blk-order");
+            if (!tx.fInstant && i >= instSectionStart && instSectionEnd == 0) // not instant tx, then instant section is passed
+                instSectionEnd = i;
+            if (tx.fInstant && instSectionEnd != 0) // instant tx, but instant section is passed
+                return state.DoS(100, error("ConnectBlock(): wrong txs order, must be: coinbase | instant txs section | not instant txs section"),
+                                 REJECT_INVALID, "bad-blk-order");
 
-                // check instant txs size, sigops
-                if (tx.fInstant)
-                {
-                    nSigOps_inst += GetLegacySigOpCount(tx);
-                    nSigOps_inst += GetP2SHSigOpCount(tx, view);
-                    if (nSigOps > dvr.nMaxInstsSigops)
-                        return state.DoS(100, error("ConnectBlock(): too many sigops in instant section"),
-                                         REJECT_INVALID, "bad-blk-sigops");
-                    const size_t txSize = ::GetSerializeSize(tx, SER_NETWORK, tx.nVersion);
-                    nSize_inst += txSize;
-                    if (nSize_inst > dvr.nMaxInstsSize)
-                        return state.DoS(100, error("ConnectBlock(): too big instant section"),
-                                         REJECT_INVALID, "bad-blk-inst-size");
-                }
-            }
-            else
+            // check instant txs size, sigops
+            if (tx.fInstant)
             {
-                if (tx.fInstant)
-                    return state.DoS(100, error("ConnectBlock(): instant tx when dPoS is disabled"),
-                                     REJECT_INVALID, "bad-blk-inst-unexpected");
+                nSigOps_inst += GetLegacySigOpCount(tx);
+                nSigOps_inst += GetP2SHSigOpCount(tx, view);
+                if (nSigOps > dvr.nMaxInstsSigops)
+                    return state.DoS(100, error("ConnectBlock(): too many sigops in instant section"),
+                                     REJECT_INVALID, "bad-blk-sigops");
+                const size_t txSize = ::GetSerializeSize(tx, SER_NETWORK, tx.nVersion);
+                nSize_inst += txSize;
+                if (nSize_inst > dvr.nMaxInstsSize)
+                    return state.DoS(100, error("ConnectBlock(): too big instant section"),
+                                     REJECT_INVALID, "bad-blk-inst-size");
             }
         }
 
@@ -5102,6 +5096,7 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
             return recentRejects->contains(inv.hash) ||
                    mempool.exists(inv.hash) ||
+                   dpos::getController()->findTx(inv.hash, nullptr) ||
                    mapOrphanTransactions.count(inv.hash) ||
                    pcoinsTip->HaveCoins(inv.hash);
         }

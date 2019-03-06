@@ -65,6 +65,9 @@ void initVoters(std::vector<CMasternode::ID>& masternodeIds,
     for (uint64_t i = 0; i < 1; i++) {
         voters[i].minQuorum = 23;
         voters[i].numOfVoters = 32;
+        voters[i].maxNotVotedTxsToKeep = 500;
+        voters[i].maxTxVotesFromVoter = 500;
+        voters[i].offlineVoters = 0;
         voters[i].updateTip(tip);
         voters[i].setVoting(true, masternodeIds[i]);
     }
@@ -290,77 +293,77 @@ TEST(dPoS_calls, TestStats)
     ASSERT_EQ(stats2.abstinendi, 0);
 
     { // txs round 1
-        ASSERT_EQ(stats0_1.pro, 100);
-        ASSERT_EQ(stats0_1.abstinendi, 0);
-        ASSERT_EQ(stats0_1.contra, 0);
+        ASSERT_EQ(stats0_1.real.pro, 100);
+        ASSERT_EQ(stats0_1.real.abstinendi, 0);
+        ASSERT_EQ(stats0_1.real.contra, 0);
 
-        ASSERT_EQ(stats1_1.totus(), 0);
+        ASSERT_EQ(stats1_1.real.totus(), 0);
 
-        ASSERT_EQ(stats2_1.pro, 0);
-        ASSERT_EQ(stats2_1.abstinendi, 0);
-        ASSERT_EQ(stats2_1.contra, 100);
+        ASSERT_EQ(stats2_1.real.pro, 0);
+        ASSERT_EQ(stats2_1.real.abstinendi, 0);
+        ASSERT_EQ(stats2_1.real.contra, 100);
 
-        ASSERT_EQ(stats3_1.totus(), 23);
-        ASSERT_EQ(stats3_1.pro, 22);
-        ASSERT_EQ(stats3_1.abstinendi, 0);
-        ASSERT_EQ(stats3_1.contra, 1);
+        ASSERT_EQ(stats3_1.real.totus(), 23);
+        ASSERT_EQ(stats3_1.real.pro, 22);
+        ASSERT_EQ(stats3_1.real.abstinendi, 0);
+        ASSERT_EQ(stats3_1.real.contra, 1);
 
-        ASSERT_EQ(stats4_1.pro, 0);
-        ASSERT_EQ(stats4_1.abstinendi, 0);
-        ASSERT_EQ(stats4_1.contra, 23);
+        ASSERT_EQ(stats4_1.real.pro, 0);
+        ASSERT_EQ(stats4_1.real.abstinendi, 0);
+        ASSERT_EQ(stats4_1.real.contra, 23);
 
-        ASSERT_EQ(stats5_1.totus(), 0);
+        ASSERT_EQ(stats5_1.real.totus(), 0);
     }
 
 
     { // txs round 2
-        ASSERT_EQ(stats0_2.pro, 100);
-        ASSERT_EQ(stats0_2.abstinendi, 0);
-        ASSERT_EQ(stats0_2.contra, 0);
+        ASSERT_EQ(stats0_2.real.pro, 100);
+        ASSERT_EQ(stats0_2.real.abstinendi, 0);
+        ASSERT_EQ(stats0_2.real.contra, 0);
 
-        ASSERT_EQ(stats1_2.totus(), 100);
-        ASSERT_EQ(stats1_2.abstinendi, 100);
+        ASSERT_EQ(stats1_2.real.totus(), 100);
+        ASSERT_EQ(stats1_2.real.abstinendi, 100);
 
-        ASSERT_EQ(stats2_2.pro, 0);
-        ASSERT_EQ(stats2_2.abstinendi, 0);
-        ASSERT_EQ(stats2_2.contra, 100);
+        ASSERT_EQ(stats2_2.real.pro, 0);
+        ASSERT_EQ(stats2_2.real.abstinendi, 0);
+        ASSERT_EQ(stats2_2.real.contra, 100);
 
-        ASSERT_EQ(stats3_2.totus(), 23);
-        ASSERT_EQ(stats3_2.pro, 22);
-        ASSERT_EQ(stats3_2.abstinendi, 0);
-        ASSERT_EQ(stats3_2.contra, 1);
+        ASSERT_EQ(stats3_2.real.totus(), 23);
+        ASSERT_EQ(stats3_2.real.pro, 22);
+        ASSERT_EQ(stats3_2.real.abstinendi, 0);
+        ASSERT_EQ(stats3_2.real.contra, 1);
 
-        ASSERT_EQ(stats4_2.pro, 0);
-        ASSERT_EQ(stats4_2.abstinendi, 0);
-        ASSERT_EQ(stats4_2.contra, 23);
+        ASSERT_EQ(stats4_2.real.pro, 0);
+        ASSERT_EQ(stats4_2.real.abstinendi, 0);
+        ASSERT_EQ(stats4_2.real.contra, 23);
 
-        ASSERT_EQ(stats5_2.pro, 0);
-        ASSERT_EQ(stats5_2.abstinendi, 23);
-        ASSERT_EQ(stats5_2.contra, 0);
+        ASSERT_EQ(stats5_2.real.pro, 0);
+        ASSERT_EQ(stats5_2.real.abstinendi, 23);
+        ASSERT_EQ(stats5_2.real.contra, 0);
     }
 
 
     { // txs round 3
-        ASSERT_EQ(stats0_3.pro, 100);
-        ASSERT_EQ(stats0_3.abstinendi, 0);
-        ASSERT_EQ(stats0_3.contra, 0);
+        ASSERT_EQ(stats0_3.real.pro, 100);
+        ASSERT_EQ(stats0_3.real.abstinendi, 0);
+        ASSERT_EQ(stats0_3.real.contra, 0);
 
-        ASSERT_EQ(stats1_3.totus(), 0);
+        ASSERT_EQ(stats1_3.real.totus(), 0);
 
-        ASSERT_EQ(stats2_3.pro, 0);
-        ASSERT_EQ(stats2_3.abstinendi, 0);
-        ASSERT_EQ(stats2_3.contra, 100);
+        ASSERT_EQ(stats2_3.real.pro, 0);
+        ASSERT_EQ(stats2_3.real.abstinendi, 0);
+        ASSERT_EQ(stats2_3.real.contra, 100);
 
-        ASSERT_EQ(stats3_3.totus(), 23);
-        ASSERT_EQ(stats3_3.pro, 22);
-        ASSERT_EQ(stats3_3.abstinendi, 0);
-        ASSERT_EQ(stats3_3.contra, 1);
+        ASSERT_EQ(stats3_3.real.totus(), 23);
+        ASSERT_EQ(stats3_3.real.pro, 22);
+        ASSERT_EQ(stats3_3.real.abstinendi, 0);
+        ASSERT_EQ(stats3_3.real.contra, 1);
 
-        ASSERT_EQ(stats4_3.pro, 0);
-        ASSERT_EQ(stats4_3.abstinendi, 0);
-        ASSERT_EQ(stats4_3.contra, 23);
+        ASSERT_EQ(stats4_3.real.pro, 0);
+        ASSERT_EQ(stats4_3.real.abstinendi, 0);
+        ASSERT_EQ(stats4_3.real.contra, 23);
 
-        ASSERT_EQ(stats5_3.totus(), 0);
+        ASSERT_EQ(stats5_3.real.totus(), 0);
     }
 
     // test txHasAnyVote, wasTxLost
@@ -399,6 +402,9 @@ TEST(dPoS_calls, TestRoundStalamate)
     dpos::CDposVoterTesting voter(dpos::CDposVoterTesting::Callbacks{});
     voter.minQuorum = 23;
     voter.numOfVoters = 32;
+    voter.maxNotVotedTxsToKeep = 500;
+    voter.maxTxVotesFromVoter = 500;
+    voter.offlineVoters = 0;
 
     dpos::CRoundVotingDistribution stats;
     ASSERT_FALSE(voter.priv_checkRoundStalemate(stats));
@@ -435,37 +441,40 @@ TEST(dPoS_calls, TestNotCommitable)
     dpos::CDposVoterTesting voter(dpos::CDposVoterTesting::Callbacks{});
     voter.minQuorum = 23;
     voter.numOfVoters = 32;
+    voter.maxNotVotedTxsToKeep = 500;
+    voter.maxTxVotesFromVoter = 500;
+    voter.offlineVoters = 0;
 
     dpos::CTxVotingDistribution stats;
     ASSERT_FALSE(voter.priv_checkTxNotCommittable(stats));
 
-    stats.abstinendi = 9;
+    stats.effective.abstinendi = 9;
     ASSERT_FALSE(voter.priv_checkTxNotCommittable(stats));
 
-    stats.abstinendi = 10;
+    stats.effective.abstinendi = 10;
     ASSERT_TRUE(voter.priv_checkTxNotCommittable(stats));
 
-    stats.abstinendi = 10;
-    stats.pro = 22;
+    stats.effective.abstinendi = 10;
+    stats.effective.pro = 22;
     ASSERT_TRUE(voter.priv_checkTxNotCommittable(stats));
 
-    stats.abstinendi = 9;
-    stats.pro = 22;
+    stats.effective.abstinendi = 9;
+    stats.effective.pro = 22;
     ASSERT_FALSE(voter.priv_checkTxNotCommittable(stats));
 
-    stats.contra = 22;
-    stats.pro = 22;
+    stats.effective.contra = 22;
+    stats.effective.pro = 22;
     ASSERT_TRUE(voter.priv_checkTxNotCommittable(stats));
 
-    stats.contra = 22;
-    stats.pro = 23;
+    stats.effective.contra = 22;
+    stats.effective.pro = 23;
     ASSERT_FALSE(voter.priv_checkTxNotCommittable(stats));
 
-    stats.contra = 22;
-    stats.pro = 100;
+    stats.effective.contra = 22;
+    stats.effective.pro = 100;
     ASSERT_FALSE(voter.priv_checkTxNotCommittable(stats));
 
-    stats.contra = 100;
-    stats.pro = 100;
+    stats.effective.contra = 100;
+    stats.effective.pro = 100;
     ASSERT_FALSE(voter.priv_checkTxNotCommittable(stats));
 }
