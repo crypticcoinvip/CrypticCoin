@@ -50,7 +50,7 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         self.is_network_split=False
 
     def announce_mn(self, i):
-        self.mns[i].id = self.nodes[i].createraw_mn_announce([], {
+        self.mns[i].id = self.nodes[i].mn_announce([], {
             "name": self.mns[i].name,
             "ownerAuthAddress": self.mns[i].owner,
             "operatorAuthAddress": self.mns[i].operator,
@@ -62,16 +62,16 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         return self.mns[i].id
 
     def activate_mn(self, i):
-        return self.nodes[i].createraw_mn_activate([])
+        return self.nodes[i].mn_activate([])
 
     def dismissvote_mn(self, frm, against, reason_code = 1, reason_desc = ""):
-        return self.nodes[frm].createraw_mn_dismissvote([], {"against": self.mns[against].id, "reason_code": reason_code, "reason_desc": reason_desc})
+        return self.nodes[frm].mn_dismissvote([], {"against": self.mns[against].id, "reason_code": reason_code, "reason_desc": reason_desc})
 
     def finalizedismissvoting_mn(self, frm, against):
-        return self.nodes[frm].createraw_mn_finalizedismissvoting([], {"against": self.mns[against].id })
+        return self.nodes[frm].mn_finalizedismissvoting([], {"against": self.mns[against].id })
 
     def dump_mn(self, i):
-        return self.nodes[0].dumpmns([ self.mns[i].id ])[0]
+        return self.nodes[0].mn_list([ self.mns[i].id ], True)[0]
 
     def run_test (self):
         pp = pprint.PrettyPrinter(indent=4)
@@ -199,8 +199,6 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         assert_equal(dump3['mn']['counterVotesAgainst'], 0)
         assert_equal(dump3['mn']['counterVotesFrom'], 0)
         assert_equal(dump3['status'], "active")
-
-#        pp.pprint(self.nodes[0].dumpmns())
 
         print "Done"
 

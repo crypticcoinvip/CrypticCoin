@@ -13,7 +13,7 @@ from test_framework.util import assert_equal, assert_greater_than, \
 from decimal import Decimal
 import pprint
 
-class MasternodesRpcAnnounceTest (BitcoinTestFramework):
+class MasternodesRpcSetOperatorTest (BitcoinTestFramework):
 
     def start_nodes(self, args = []):
         if len(args) == 0:
@@ -45,7 +45,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         operatorReward0 = self.nodes[0].getnewaddress()
         operatorRewardRatio0 = 0.25
 
-        idnode0 = self.nodes[0].createraw_mn_announce([], {
+        idnode0 = self.nodes[0].mn_announce([], {
             "name": "node0",
             "ownerAuthAddress": owner0,
             "operatorAuthAddress": operator0,
@@ -59,7 +59,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         self.nodes[0].sendtoaddress(operator0, 5)
         self.nodes[0].sendtoaddress(owner0, 5)
         self.nodes[0].generate(1)
-        assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([idnode0])[0]['status'], "announced")
 
         # Generate blocks for activation height
         self.nodes[0].generate(10)
@@ -70,7 +70,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         self.start_nodes([[ "-masternode_operator="+operator0, "-masternode_owner="+owner0 ], []])
 
         # Check old operator info
-        mn = self.nodes[0].dumpmns([idnode0])[0]['mn']
+        mn = self.nodes[0].mn_list([idnode0], True)[0]['mn']
         assert_equal(mn['operatorAuthAddress'], operator0)
         assert_equal(mn['operatorRewardAddress']['addresses'][0], operatorReward0)
         assert_equal(mn['operatorRewardRatio'], operatorRewardRatio0)
@@ -80,7 +80,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         operatorReward0new = self.nodes[0].getnewaddress()
         operatorRewardRatio0new = 0.5
 
-        self.nodes[0].createraw_set_operator_reward([], {
+        self.nodes[0].mn_setoperator([], {
             "operatorAuthAddress": operator0new,
             "operatorRewardAddress": operatorReward0new,
             "operatorRewardRatio": operatorRewardRatio0new
@@ -88,7 +88,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         self.nodes[0].generate(1)
 
         # Check new operator info
-        mn = self.nodes[0].dumpmns([idnode0])[0]['mn']
+        mn = self.nodes[0].mn_list([idnode0], True)[0]['mn']
         assert_equal(mn['operatorAuthAddress'], operator0new)
         assert_equal(mn['operatorRewardAddress']['addresses'][0], operatorReward0new)
         assert_equal(mn['operatorRewardRatio'], operatorRewardRatio0new)
@@ -100,9 +100,9 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         # Activate node from NEW operator
         self.nodes[0].sendtoaddress(operator0new, 5)
         self.nodes[0].generate(1)
-        self.nodes[0].createraw_mn_activate([])
+        self.nodes[0].mn_activate([])
         self.nodes[0].generate(1)
-        assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "active")
+        assert_equal(self.nodes[0].mn_list([idnode0])[0]['status'], "active")
 
         # Reverting state of node0 by mining at node1
         self.nodes[1].generate(5)
@@ -110,15 +110,15 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         sync_blocks([self.nodes[0], self.nodes[1]])
 
         # Check old operator info
-        mn = self.nodes[0].dumpmns([idnode0])[0]['mn']
+        mn = self.nodes[0].mn_list([idnode0], True)[0]['mn']
         assert_equal(mn['operatorAuthAddress'], operator0)
         assert_equal(mn['operatorRewardAddress']['addresses'][0], operatorReward0)
         assert_equal(mn['operatorRewardRatio'], operatorRewardRatio0)
 
-        assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([idnode0])[0]['status'], "announced")
 
         print "Done"
 
 
 if __name__ == '__main__':
-    MasternodesRpcAnnounceTest ().main ()
+    MasternodesRpcSetOperatorTest ().main ()

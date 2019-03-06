@@ -65,7 +65,7 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             assert_equal(ztx[0]["status"], "success")
             self.sync_all()
             for node in self.nodes:
-                txs = {tx["hash"] for tx in node.list_instant_transactions()}
+                txs = {tx["hash"] for tx in node.i_listtransactions()}
                 assert_equal(len(txs), 2)
                 assert_equal(txs, {tx, ztx[0]["result"]["txid"]})
             self.nodes[self.num_nodes - n - 1].generate(1)
@@ -90,7 +90,7 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             ztx = self.nodes[n].z_getoperationstatus([ztx])
             self.sync_all()
             for node in self.nodes:
-                txs = {tx["hash"] for tx in node.list_instant_transactions()}
+                txs = {tx["hash"] for tx in node.i_listtransactions()}
                 assert_equal(len(txs), 3)
                 assert_equal(txs, {tx1, tx2, ztx[0]["result"]["txid"]})
             self.nodes[self.num_nodes - n - 1].generate(1)
@@ -100,29 +100,29 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             self.check_nodes_block_count(blockCount)
 
     def check_restart(self):
-        vblocks_before = [node.listdposviceblocks() for node in self.nodes]
-        rdvotes_before = [node.listdposroundvotes() for node in self.nodes]
-        txvotes_before = [node.listdpostxvotes() for node in self.nodes]
+        vblocks_before = [node.dpos_listviceblocks() for node in self.nodes]
+        rdvotes_before = [node.dpos_listroundvotes() for node in self.nodes]
+        txvotes_before = [node.dpos_listtxvotes() for node in self.nodes]
         self.stop_nodes()
         self.start_masternodes()
         self.connect_nodes()
-        vblocks_after = [node.listdposviceblocks() for node in self.nodes]
-        rdvotes_after = [node.listdposroundvotes() for node in self.nodes]
-        txvotes_after = [node.listdpostxvotes() for node in self.nodes]
+        vblocks_after = [node.dpos_listviceblocks() for node in self.nodes]
+        rdvotes_after = [node.dpos_listroundvotes() for node in self.nodes]
+        txvotes_after = [node.dpos_listtxvotes() for node in self.nodes]
         assert_equal(vblocks_before, vblocks_after)
         assert_equal(rdvotes_before, rdvotes_after)
         assert_equal(txvotes_before, txvotes_after)
 
     def check_reindex(self):
-        [assert_greater_than(len(node.listdposviceblocks()), 0) for node in self.nodes]
-        [assert_greater_than(len(node.listdposroundvotes()), 0) for node in self.nodes]
-        [assert_greater_than(len(node.listdpostxvotes()), 0) for node in self.nodes]
+        [assert_greater_than(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
+        [assert_greater_than(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
+        [assert_greater_than(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
         self.stop_nodes()
         self.start_masternodes([['-reindex']] * self.num_nodes)
         self.connect_nodes()
-        [assert_equal(len(node.listdposviceblocks()), 0) for node in self.nodes]
-        [assert_equal(len(node.listdposroundvotes()), 0) for node in self.nodes]
-        [assert_equal(len(node.listdpostxvotes()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
         self.stop_nodes()
         self.start_masternodes()
         # First group
@@ -140,9 +140,9 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         self.sync_nodes(0, 5)
         self.sync_nodes(5, 10)
         time.sleep(5)
-        [assert_equal(len(node.listdposviceblocks()), 0) for node in self.nodes]
-        [assert_equal(len(node.listdposroundvotes()), 0) for node in self.nodes]
-        [assert_equal(len(node.listdpostxvotes()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
         tx1 = self.create_transaction(1, self.nodes[9].getnewaddress(), 4.4, True)
         tx2 = self.create_transaction(6, self.nodes[0].getnewaddress(), 4.4, True)
         time.sleep(2)
@@ -151,9 +151,9 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         time.sleep(2)
         self.sync_nodes(0, 5)
         self.sync_nodes(5, 10)
-        vblocks = [node.listdposviceblocks() for node in self.nodes]
-        rdvotes = [node.listdposroundvotes() for node in self.nodes]
-        txvotes = [node.listdpostxvotes() for node in self.nodes]
+        vblocks = [node.dpos_listviceblocks() for node in self.nodes]
+        rdvotes = [node.dpos_listroundvotes() for node in self.nodes]
+        txvotes = [node.dpos_listtxvotes() for node in self.nodes]
         print(rdvotes)
         [assert_greater_than(len(x), 0) for x in vblocks]
         [assert_greater_than(len(x), 0) for x in rdvotes]
