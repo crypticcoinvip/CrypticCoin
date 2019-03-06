@@ -1028,11 +1028,11 @@ UniValue reconsiderblock(const UniValue& params, bool fHelp)
 }
 
 
-UniValue listdposviceblocks(const UniValue& params, bool fHelp)
+UniValue dpos_listviceblocks(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "listdposviceblocks\n"
+            "dpos_listviceblocks\n"
             "\nReturns an array of json object containing progenitor block values."
             "\nResult:\n"
             "[\n"
@@ -1051,8 +1051,8 @@ UniValue listdposviceblocks(const UniValue& params, bool fHelp)
             "  ...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("listdposviceblocks", "")
-            + HelpExampleRpc("listdposviceblocks", "")
+            + HelpExampleCli("dpos_listviceblocks", "")
+            + HelpExampleRpc("dpos_listviceblocks", "")
         );
     }
 
@@ -1075,11 +1075,11 @@ UniValue listdposviceblocks(const UniValue& params, bool fHelp)
 }
 
 
-UniValue listdposroundvotes(const UniValue& params, bool fHelp)
+UniValue dpos_listroundvotes(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "listdposroundvotes\n"
+            "dpos_listroundvotes\n"
             "\nReturns an array of json object containing progenitor vote values."
             "\nResult:\n"
             "[\n"
@@ -1094,8 +1094,8 @@ UniValue listdposroundvotes(const UniValue& params, bool fHelp)
             "  ...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("listdposroundvotes", "")
-            + HelpExampleRpc("listdposroundvotes", "")
+            + HelpExampleCli("dpos_listroundvotes", "")
+            + HelpExampleRpc("dpos_listroundvotes", "")
         );
     }
 
@@ -1115,11 +1115,11 @@ UniValue listdposroundvotes(const UniValue& params, bool fHelp)
 }
 
 
-UniValue listdpostxvotes(const UniValue& params, bool fHelp)
+UniValue dpos_listtxvotes(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "listdpostxvotes\n"
+            "dpos_listtxvotes\n"
             "\nReturns an array of json object containing dpos-transaction vote values."
             "\nResult:\n"
             "[\n"
@@ -1134,8 +1134,8 @@ UniValue listdpostxvotes(const UniValue& params, bool fHelp)
             "  ...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("listdpostxvotes", "")
-            + HelpExampleRpc("listdpostxvotes", "")
+            + HelpExampleCli("dpos_listtxvotes", "")
+            + HelpExampleRpc("dpos_listtxvotes", "")
         );
     }
 
@@ -1173,9 +1173,9 @@ static const CRPCCommand commands[] =
     { "blockchain",         "gettxout",               &gettxout,               true  },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        true  },
     { "blockchain",         "verifychain",            &verifychain,            true  },
-    { "blockchain",         "listdposviceblocks",     &listdposviceblocks,     true  },
-    { "blockchain",         "listdposroundvotes",     &listdposroundvotes,     true  },
-    { "blockchain",         "listdpostxvotes",        &listdpostxvotes,        true  },
+    { "blockchain",         "dpos_listviceblocks",     &dpos_listviceblocks,     true  },
+    { "blockchain",         "dpos_listroundvotes",     &dpos_listroundvotes,     true  },
+    { "blockchain",         "dpos_listtxvotes",        &dpos_listtxvotes,        true  },
 
     /* Not shown in help */
     { "hidden",             "invalidateblock",        &invalidateblock,        true  },

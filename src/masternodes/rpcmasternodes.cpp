@@ -233,11 +233,11 @@ void ProvideAuthOfFirstInput(CKeyID const & auth, UniValue & inputs)
  *
  *  Issued by: any
 */
-UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
+UniValue mn_announce(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
         throw std::runtime_error(
-            "createraw_mn_announce [{\"txid\":\"id\",\"vout\":n},...] {\"address\":amount,...}\n"
+            "mn_announce [{\"txid\":\"id\",\"vout\":n},...] {\"address\":amount,...}\n"
             "\nCreates (and submits to local node and network) a masternode announcement transaction with given metadata, spending the given inputs.\n"
             "\nArguments:\n"
             "1. \"transactions\"        (string, required) A json array of json objects\n"
@@ -260,8 +260,8 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
             "\nResult:\n"
             "\"hex\"             (string) The transaction hash in hex\n"
 //            "\nExamples\n"
-//            + HelpExampleCli("createraw_mn_announce", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\" \"{\\\"address\\\":0.01}\"")
-//            + HelpExampleRpc("createraw_mn_announce", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\", \"{\\\"address\\\":0.01}\"")
+//            + HelpExampleCli("mn_announce", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\" \"{\\\"address\\\":0.01}\"")
+//            + HelpExampleRpc("mn_announce", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\", \"{\\\"address\\\":0.01}\"")
         );
     EnsureSaplingUpgrade();
 
@@ -390,7 +390,7 @@ UniValue createraw_mn_announce(UniValue const & params, bool fHelp)
  *
  *  Issued by: operator
 */
-UniValue createraw_mn_activate(UniValue const & params, bool fHelp)
+UniValue mn_activate(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw std::runtime_error("@todo: Help"
@@ -454,7 +454,7 @@ UniValue createraw_mn_activate(UniValue const & params, bool fHelp)
  *
  *  Issued by: active operator
 */
-UniValue createraw_mn_dismissvote(UniValue const & params, bool fHelp)
+UniValue mn_dismissvote(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
         throw std::runtime_error("@todo: Help"
@@ -538,7 +538,7 @@ UniValue createraw_mn_dismissvote(UniValue const & params, bool fHelp)
  *
  *  Issued by: active operator
 */
-UniValue createraw_mn_dismissvoterecall(UniValue const & params, bool fHelp)
+UniValue mn_dismissvoterecall(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
         throw std::runtime_error("@todo: Help"
@@ -606,7 +606,7 @@ UniValue createraw_mn_dismissvoterecall(UniValue const & params, bool fHelp)
  *
  *  Issued by: any
 */
-UniValue createraw_mn_finalizedismissvoting(UniValue const & params, bool fHelp)
+UniValue mn_finalizedismissvoting(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() == 0)
         throw std::runtime_error("@todo: Help"
@@ -673,7 +673,7 @@ UniValue createraw_mn_finalizedismissvoting(UniValue const & params, bool fHelp)
  *
  *  Issued by: owner
 */
-UniValue createraw_set_operator_reward(UniValue const & params, bool fHelp)
+UniValue mn_setoperator(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() == 0)
         throw std::runtime_error("@todo: Help"
@@ -759,7 +759,7 @@ UniValue createraw_set_operator_reward(UniValue const & params, bool fHelp)
 }
 
 
-UniValue resign_mn(UniValue const & params, bool fHelp)
+UniValue mn_resign(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
         throw std::runtime_error("@todo: Help"
@@ -836,39 +836,6 @@ UniValue resign_mn(UniValue const & params, bool fHelp)
     return sendrawtransaction(sendparams, false);
 }
 
-UniValue listmns(UniValue const & params, bool fHelp)
-{
-    if (fHelp || params.size() != 0)
-        throw std::runtime_error("@todo: Help"
-    );
-    EnsureSaplingUpgrade();
-
-    UniValue ret(UniValue::VARR);
-
-    CMasternodes const & mns = pmasternodesview->GetMasternodes();
-    for (auto it = mns.begin(); it != mns.end(); ++it)
-    {
-        ret.push_back(it->first.GetHex());
-    }
-    return ret;
-}
-
-UniValue listactivemns(UniValue const & params, bool fHelp)
-{
-    if (fHelp || params.size() != 0)
-        throw std::runtime_error("@todo: Help"
-    );
-    EnsureSaplingUpgrade();
-
-    UniValue ret(UniValue::VARR);
-
-    CActiveMasternodes const & mns = pmasternodesview->GetActiveMasternodes();
-    for (auto const & mn : mns)
-    {
-        ret.push_back(mn.GetHex());
-    }
-    return ret;
-}
 
 // Here (but not a class method) just by similarity with other '..ToJSON'
 UniValue mnToJSON(CMasternode const & node)
@@ -902,28 +869,38 @@ UniValue mnToJSON(CMasternode const & node)
     return ret;
 }
 
-UniValue dumpnode(uint256 const & id, CMasternode const & node)
+UniValue dumpnode(uint256 const & id, CMasternode const & node, bool verbose)
 {
     UniValue entry(UniValue::VOBJ);
     entry.push_back(Pair("id", id.GetHex()));
     entry.push_back(Pair("status", node.GetHumanReadableStatus()));
-    entry.push_back(Pair("mn", mnToJSON(node)));
+    if (verbose)
+    {
+        entry.push_back(Pair("mn", mnToJSON(node)));
+    }
     return entry;
 }
 
-UniValue dumpmns(UniValue const & params, bool fHelp)
+UniValue mn_list(UniValue const & params, bool fHelp)
 {
-    if (fHelp || params.size() > 1)
+    if (fHelp || params.size() > 2)
         throw std::runtime_error("@todo: Help"
     );
     EnsureSaplingUpgrade();
 
-    RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
+    LOCK(cs_main);
+
+    RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR)(UniValue::VBOOL), true);
 
     UniValue inputs(UniValue::VARR);
     if (params.size() > 0)
     {
         inputs = params[0].get_array();
+    }
+    bool verbose = false;
+    if (params.size() > 1)
+    {
+        verbose = params[1].get_bool();
     }
 
     UniValue ret(UniValue::VARR);
@@ -933,7 +910,7 @@ UniValue dumpmns(UniValue const & params, bool fHelp)
         // Dumps all!
         for (auto it = mns.begin(); it != mns.end(); ++it)
         {
-            ret.push_back(dumpnode(it->first, it->second));
+            ret.push_back(dumpnode(it->first, it->second, verbose));
         }
     }
     else
@@ -944,7 +921,54 @@ UniValue dumpmns(UniValue const & params, bool fHelp)
             auto const & node = pmasternodesview->ExistMasternode(id);
             if (node)
             {
-                ret.push_back(dumpnode(id, *node));
+                ret.push_back(dumpnode(id, *node, verbose));
+            }
+        }
+    }
+    return ret;
+}
+
+UniValue mn_listactive(UniValue const & params, bool fHelp)
+{
+    if (fHelp || params.size() > 2)
+        throw std::runtime_error("@todo: Help"
+    );
+    EnsureSaplingUpgrade();
+
+    LOCK(cs_main);
+
+    RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR)(UniValue::VBOOL), true);
+
+    UniValue inputs(UniValue::VARR);
+    if (params.size() > 0)
+    {
+        inputs = params[0].get_array();
+    }
+    bool verbose = false;
+    if (params.size() > 1)
+    {
+        verbose = params[1].get_bool();
+    }
+
+    UniValue ret(UniValue::VARR);
+    CActiveMasternodes const & mns = pmasternodesview->GetActiveMasternodes();
+    if (inputs.empty())
+    {
+        // Dumps all!
+        for (auto id : mns)
+        {
+            ret.push_back(dumpnode(id, *pmasternodesview->ExistMasternode(id), verbose));
+        }
+    }
+    else
+    {
+        for (size_t idx = 0; idx < inputs.size(); ++idx)
+        {
+            uint256 id = ParseHashV(inputs[idx], "masternode id");
+            auto const & node = pmasternodesview->ExistMasternode(id);
+            if (node && node->IsActive())
+            {
+                ret.push_back(dumpnode(id, *node, verbose));
             }
         }
     }
@@ -965,7 +989,6 @@ UniValue dumpvote(uint256 const & voteid, CDismissVote const & vote)
 UniValue dumpnodevotes(uint256 const & nodeId, CMasternode const & node)
 {
     // 'node' is for counters or smth
-
     UniValue votesFrom(UniValue::VARR);
     {
         auto const & range = pmasternodesview->GetActiveVotesFrom().equal_range(nodeId);
@@ -993,14 +1016,16 @@ UniValue dumpnodevotes(uint256 const & nodeId, CMasternode const & node)
     return entry;
 }
 
-UniValue getdismissvotes(UniValue const & params, bool fHelp)
+UniValue mn_listdismissvotes(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
         throw std::runtime_error("@todo: Help"
     );
     EnsureSaplingUpgrade();
 
-    RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR), true);
+    LOCK(cs_main);
+
+    RPCTypeCheck(params, boost::assign::list_of(UniValue::VARR)(UniValue::VBOOL), true);
 
     UniValue inputs(UniValue::VARR);
     if (params.size() > 0)
@@ -1034,23 +1059,21 @@ UniValue getdismissvotes(UniValue const & params, bool fHelp)
 }
 
 static const CRPCCommand commands[] =
-{ //  category          name                                    actor (function)                    okSafeMode
-  //  ----------------- ------------------------                -----------------------             ----------
-    { "masternodes",    "createraw_mn_announce",                &createraw_mn_announce,             true  },
-    { "masternodes",    "createraw_mn_activate",                &createraw_mn_activate,             true  },
-    { "masternodes",    "createraw_mn_dismissvote",             &createraw_mn_dismissvote,          true  },
-    { "masternodes",    "createraw_mn_dismissvoterecall",       &createraw_mn_dismissvoterecall,    true  },
-    { "masternodes",    "createraw_mn_finalizedismissvoting",   &createraw_mn_finalizedismissvoting,true  },
-    { "masternodes",    "createraw_set_operator_reward",        &createraw_set_operator_reward,     true  },
-    { "masternodes",    "resign_mn",                            &resign_mn,                         true  },
+{ //  category          name                          actor (function)              okSafeMode
+  //  ----------------- ------------------------      -----------------------       ----------
+    { "masternodes",    "mn_announce",                &mn_announce,                 true  },
+    { "masternodes",    "mn_activate",                &mn_activate,                 true  },
+    { "masternodes",    "mn_dismissvote",             &mn_dismissvote,              true  },
+    { "masternodes",    "mn_dismissvoterecall",       &mn_dismissvoterecall,        true  },
+    { "masternodes",    "mn_finalizedismissvoting",   &mn_finalizedismissvoting,    true  },
+    { "masternodes",    "mn_setoperator",             &mn_setoperator,              true  },
 
-    { "masternodes",    "listmns",                          &listmns,                               true  },
-    { "masternodes",    "listactivemns",                    &listactivemns,                         true  },
-    { "masternodes",    "dumpmns",                          &dumpmns,                               true  },
-    { "masternodes",    "getdismissvotes",                  &getdismissvotes,                       true  },
+    { "masternodes",    "mn_list",                    &mn_list,                     true  },
+    { "masternodes",    "mn_listactive",              &mn_listactive,               true  },
+    { "masternodes",    "mn_listdismissvotes",        &mn_listdismissvotes,         true  },
 
     /* Not shown in help */
-//    { "hidden",         "createraw_mn_resign",              &createraw_mn_resign,           true  },
+    { "hidden",         "mn_resign",                  &mn_resign,                   true  },
 };
 
 void RegisterMasternodesRPCCommands(CRPCTable &tableRPC)
