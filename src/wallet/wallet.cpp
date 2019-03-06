@@ -3559,8 +3559,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
         LogPrintf("CommitTransaction:\n%s", wtxNew.ToString());
 
         {
-            const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
-            const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+            const bool fDposActive = dpos::getController()->isEnabled(chainActive.Tip()->nHeight);
             if (wtxNew.fInstant && !fDposActive) {
                 LogPrintf("CommitTransaction(): Error: dPoS isn't active, instant tx cannot be committed \n");
                 return false;
