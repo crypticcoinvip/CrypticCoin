@@ -251,8 +251,8 @@ public:
         consensus.nMasternodesHeartbeatPeriod = 30;
 
         // dPoS
-        consensus.dpos.nTeamSize = 6;
-        consensus.dpos.nMinQuorum = 4;
+        consensus.dpos.nTeamSize = 2;
+        consensus.dpos.nMinQuorum = 2;
         consensus.dpos.nDelayIBD = 60 * 60;
         consensus.dpos.nPollingPeriod = 3 * 60;
         consensus.dpos.nRoundTooLong = 2 * 60;
