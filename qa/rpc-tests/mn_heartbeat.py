@@ -162,10 +162,10 @@ class MasternodesHeartbeatTest(BitcoinTestFramework):
         self.create_masternodes()
 
         for node in self.nodes:
-            assert_equal(len(node.heartbeat_read_messages()), 0)
+            assert_equal(len(node.mn_readheartbeats()), 0)
         time.sleep(10)
         for node in self.nodes:
-            assert_equal(len(node.heartbeat_read_messages()), 2)
+            assert_equal(len(node.mn_readheartbeats()), 2)
 
         for node in self.nodes:
             assert_equal(len(node.heartbeat_filter_masternodes("recently")), 2)
