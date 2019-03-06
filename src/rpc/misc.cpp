@@ -510,18 +510,18 @@ UniValue setmocktime(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
-UniValue p2p_get_tx_votes(const UniValue& params, bool fHelp)
+UniValue dpos_gettxvotes(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 1) {
         throw runtime_error(
-                    "p2p_get_tx_votes ([ \"txid\",... ])\n"
+                    "dpos_gettxvotes ([ \"txid\",... ])\n"
                     "\nSends p2p message get_tx_votes to all connected nodes\n"
                     "\nArguments:\n"
                     "1. [\"intersected_txid\", ...] (array, optional) Array of txids of interested transactions."
                     "If empty, all the votes are interested\n"
                     "\nExamples:\n"
-                    + HelpExampleCli("p2p_get_tx_votes", "")
-                    + HelpExampleRpc("p2p_get_tx_votes", ""));
+                    + HelpExampleCli("dpos_gettxvotes", "")
+                    + HelpExampleRpc("dpos_gettxvotes", ""));
     }
 
     std::vector<uint256> interestedTxs{};
@@ -542,15 +542,15 @@ UniValue p2p_get_tx_votes(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
-UniValue p2p_get_round_votes(const UniValue& params, bool fHelp)
+UniValue dpos_getroundvotes(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-                    "p2p_get_round_votes\n"
+                    "dpos_getroundvotes\n"
                     "\nSends p2p message get_round_votes to all connected nodes\n"
                     "\nExamples:\n"
-                    + HelpExampleCli("p2p_get_round_votes", "")
-                    + HelpExampleRpc("p2p_get_round_votes", ""));
+                    + HelpExampleCli("dpos_getroundvotes", "")
+                    + HelpExampleRpc("dpos_getroundvotes", ""));
     }
     LOCK(cs_vNodes);
     for(const auto& node : vNodes) {
@@ -560,7 +560,7 @@ UniValue p2p_get_round_votes(const UniValue& params, bool fHelp)
 }
 
 
-UniValue heartbeat_send_message(const UniValue& params, bool fHelp)
+UniValue mn_sendheartbeat(const UniValue& params, bool fHelp)
 {
     if (pwalletMain == nullptr) {
         if (!fHelp) {
@@ -570,7 +570,7 @@ UniValue heartbeat_send_message(const UniValue& params, bool fHelp)
     }
     if (fHelp) {
         throw runtime_error(
-            "heartbeat_send_message ( \"address\" timestamp )\n"
+            "mn_sendheartbeat ( \"address\" timestamp )\n"
             "\nSends heartbeat p2p message with provided timestamp value.\n"
             "\nArguments:\n"
             "1. \"address\"  (string, optional, default="") The operator authentication address. If empty then default wallet address will be used.\n"
@@ -582,8 +582,8 @@ UniValue heartbeat_send_message(const UniValue& params, bool fHelp)
             "\t\"hash\": xxx         (string) The hash of the heartbeat message\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\" 1548923902519")
-            + HelpExampleRpc("heartbeat_send_message", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\", 1548923902519")
+            + HelpExampleCli("mn_sendheartbeat", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\" 1548923902519")
+            + HelpExampleRpc("mn_sendheartbeat", "\"tmYuhEjp35CA75LV9VPdDe8rNnL6gV2r8p6\", 1548923902519")
         );
     }
 
@@ -620,11 +620,11 @@ UniValue heartbeat_send_message(const UniValue& params, bool fHelp)
     return rv;
 }
 
-UniValue heartbeat_read_messages(const UniValue& params, bool fHelp)
+UniValue mn_readheartbeats(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "heartbeat_read_messages\n"
+            "mn_readheartbeats\n"
             "\nReads heartbeat p2p messages.\n"
             "\nResult:\n"
             "[\n"
@@ -635,8 +635,8 @@ UniValue heartbeat_read_messages(const UniValue& params, bool fHelp)
             "\t},...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("heartbeat_read_messages", "")
-            + HelpExampleRpc("heartbeat_read_messages", "")
+            + HelpExampleCli("mn_readheartbeats", "")
+            + HelpExampleRpc("mn_readheartbeats", "")
         );
     }
 
@@ -652,11 +652,11 @@ UniValue heartbeat_read_messages(const UniValue& params, bool fHelp)
 }
 
 
-UniValue heartbeat_filter_masternodes(const UniValue& params, bool fHelp)
+UniValue mn_filterheartbeats(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1) {
         throw runtime_error(
-            "heartbeat_filter_masternodes \"filter_name\"\n"
+            "mn_filterheartbeats \"filter_name\"\n"
             "\nFilters masternodes by theirs heartbeat statistics.\n"
             "\nArguments:\n"
             "1. \"filter_name\"  (string, required) The filter name. Can be one of the following values: recently, stale, outdated.\n"
@@ -669,8 +669,8 @@ UniValue heartbeat_filter_masternodes(const UniValue& params, bool fHelp)
             "\t},...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("heartbeat_filter_masternodes", "\"outdated\"")
-            + HelpExampleRpc("heartbeat_filter_masternodes", "\"outdated\"")
+            + HelpExampleCli("mn_filterheartbeats", "\"outdated\"")
+            + HelpExampleRpc("mn_filterheartbeats", "\"outdated\"")
         );
     }
 
@@ -696,11 +696,11 @@ UniValue heartbeat_filter_masternodes(const UniValue& params, bool fHelp)
     return rv;
 }
 
-UniValue list_instant_transactions(const UniValue& params, bool fHelp)
+UniValue i_listtransactions(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "list_instant_transactions\n"
+            "i_listtransactions\n"
             "\nLists committed instant transactions.\n"
             "\nResult:\n"
             "[\n"
@@ -711,8 +711,8 @@ UniValue list_instant_transactions(const UniValue& params, bool fHelp)
             "\t},...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("list_instant_transactions", "")
-            + HelpExampleRpc("list_instant_transactions", "")
+            + HelpExampleCli("i_listtransactions", "")
+            + HelpExampleRpc("i_listtransactions", "")
         );
     }
 
@@ -738,14 +738,14 @@ static const CRPCCommand commands[] =
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            true  },
-    { "hidden",             "p2p_get_tx_votes",       &p2p_get_tx_votes,       true  },
-    { "hidden",             "p2p_get_round_votes",    &p2p_get_round_votes,    true  },
+    { "hidden",             "dpos_gettxvotes",       &dpos_gettxvotes,       true  },
+    { "hidden",             "dpos_getroundvotes",    &dpos_getroundvotes,    true  },
     /* heartbeat */
-    { "hidden",     "heartbeat_send_message",       &heartbeat_send_message,        true  },
-    { "hidden",     "heartbeat_read_messages",      &heartbeat_read_messages,       true  },
-    { "hidden",     "heartbeat_filter_masternodes", &heartbeat_filter_masternodes,  true  },
+    { "hidden",             "mn_sendheartbeat",       &mn_sendheartbeat,        true  },
+    { "hidden",             "mn_readheartbeats",      &mn_readheartbeats,       true  },
+    { "hidden",             "mn_filterheartbeats", &mn_filterheartbeats,  true  },
     /* dPoS */
-    { "hidden",     "list_instant_transactions",    &list_instant_transactions,     true  },
+    { "hidden",             "i_listtransactions",    &i_listtransactions,     true  },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &tableRPC)

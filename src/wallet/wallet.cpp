@@ -3559,8 +3559,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
         LogPrintf("CommitTransaction:\n%s", wtxNew.ToString());
 
         {
-            const size_t nCurrentTeamSize = pmasternodesview->ReadDposTeam(chainActive.Tip()->nHeight).size();
-            const bool fDposActive = nCurrentTeamSize == Params().GetConsensus().dpos.nTeamSize;
+            const bool fDposActive = dpos::getController()->isEnabled(chainActive.Tip()->nHeight);
             if (wtxNew.fInstant && !fDposActive) {
                 LogPrintf("CommitTransaction(): Error: dPoS isn't active, instant tx cannot be committed \n");
                 return false;
@@ -4423,7 +4422,9 @@ int CMerkleTx::GetBlocksToMaturity() const
 bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree, bool fRejectAbsurdFee)
 {
     CValidationState state;
-    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, fRejectAbsurdFee);
+    // May be we don't need to check here against MN tx at all
+    CMasternodesView mnview(*pmasternodesview);
+    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3), fRejectAbsurdFee);
 }
 
 /**

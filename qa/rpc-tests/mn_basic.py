@@ -13,12 +13,15 @@ from test_framework.util import assert_equal, assert_true, assert_greater_than, 
 from decimal import Decimal
 import pprint
 
-class MasternodesRpcAnnounceTest (BitcoinTestFramework):
+class MasternodesRpcBasicTest (BitcoinTestFramework):
 
     def start_nodes(self, args = []):
         if len(args) == 0:
             args = [[]] * self.num_nodes
-        for i in range(self.num_nodes): args[i].append("-nuparams=76b809bb:200")
+        for i in range(len(args)):
+            args[i] = args[i][:]
+            args[i] += ['-nuparams=76b809bb:200']
+
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
         connect_nodes_bi(self.nodes, 0, 1)
 
@@ -40,7 +43,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         operator0 = self.nodes[0].getnewaddress()
         collateral0 = self.nodes[0].getnewaddress()
 
-        idnode0 = self.nodes[0].createraw_mn_announce([], {
+        idnode0 = self.nodes[0].mn_announce([], {
             "name": "node0",
             "ownerAuthAddress": owner0,
             "operatorAuthAddress": operator0,
@@ -54,7 +57,7 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         operator1 = self.nodes[1].getnewaddress()
         collateral1 = self.nodes[1].getnewaddress()
 
-        idnode1 = self.nodes[1].createraw_mn_announce([], {
+        idnode1 = self.nodes[1].mn_announce([], {
             "name": "node1",
             "ownerAuthAddress": owner1,
             "operatorAuthAddress": operator1,
@@ -69,8 +72,8 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
-        assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "announced")
-        assert_equal(self.nodes[0].dumpmns([idnode1])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([idnode0])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([idnode1])[0]['status'], "announced")
 
         # Check locked collateral:
         # (total-11) is Ok, but (total-10) should fail! (cause locked collateral)
@@ -93,14 +96,14 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
 
 
         # Activate nodes
-        act0id = self.nodes[0].createraw_mn_activate([])
-        act1id = self.nodes[1].createraw_mn_activate([])
+        act0id = self.nodes[0].mn_activate([])
+        act1id = self.nodes[1].mn_activate([])
 
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
-        assert_equal(self.nodes[0].dumpmns([idnode0])[0]['status'], "active")
-        assert_equal(self.nodes[0].dumpmns([idnode1])[0]['status'], "active")
+        assert_equal(self.nodes[0].mn_list([idnode0])[0]['status'], "active")
+        assert_equal(self.nodes[0].mn_list([idnode1])[0]['status'], "active")
 
         # Check for correct auth change
         act0 = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(act0id))
@@ -117,17 +120,17 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
 
 
         # Voting against each other
-        self.nodes[0].createraw_mn_dismissvote([], {"against": idnode1, "reason_code": 1, "reason_desc": "go away!"})
-        self.nodes[1].createraw_mn_dismissvote([], {"against": idnode0, "reason_code": 1, "reason_desc": "noooo"})
+        self.nodes[0].mn_dismissvote([], {"against": idnode1, "reason_code": 1, "reason_desc": "go away!"})
+        self.nodes[1].mn_dismissvote([], {"against": idnode0, "reason_code": 1, "reason_desc": "noooo"})
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
 
-        node0dump = self.nodes[0].dumpmns([idnode0])
+        node0dump = self.nodes[0].mn_list([idnode0], True)
         assert_equal(node0dump[0]['mn']['counterVotesAgainst'], 1)
         assert_equal(node0dump[0]['mn']['counterVotesFrom'], 1)
 
-        node1dump = self.nodes[0].dumpmns([idnode1])
+        node1dump = self.nodes[0].mn_list([idnode1], True)
         assert_equal(node1dump[0]['mn']['counterVotesAgainst'], 1)
         assert_equal(node1dump[0]['mn']['counterVotesFrom'], 1)
 
@@ -135,22 +138,20 @@ class MasternodesRpcAnnounceTest (BitcoinTestFramework):
         # Resign node0
         collateral0out = self.nodes[0].getnewaddress()
 
-        self.nodes[0].resign_mn(idnode0, collateral0out)
+        self.nodes[0].mn_resign(idnode0, collateral0out)
         self.nodes[0].generate(1)
         self.sync_all()
-        node0dump = self.nodes[0].dumpmns([idnode0])
+        node0dump = self.nodes[0].mn_list([idnode0], True)
         assert_equal(node0dump[0]['status'], "activated, resigned")
         assert_equal(node0dump[0]['mn']['counterVotesAgainst'], 0)
         assert_equal(node0dump[0]['mn']['counterVotesFrom'], 0)
-        node1dump = self.nodes[0].dumpmns([idnode1])
+        node1dump = self.nodes[0].mn_list([idnode1], True)
         assert_equal(node1dump[0]['status'], "active")
         assert_equal(node1dump[0]['mn']['counterVotesAgainst'], 0)
         assert_equal(node1dump[0]['mn']['counterVotesFrom'], 0)
-
-#        pp.pprint(self.nodes[0].dumpmns())
 
         print "Done"
 
 
 if __name__ == '__main__':
-    MasternodesRpcAnnounceTest ().main ()
+    MasternodesRpcBasicTest ().main ()

@@ -6,6 +6,7 @@
 # Base class for dPoS integration tests
 #
 import sys
+import time
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import \
     assert_equal, \
@@ -137,7 +138,7 @@ class dPoS_BaseTest(BitcoinTestFramework):
             if n in indexes:
                 owner = self.nodes[n].getnewaddress()
                 collateral = self.nodes[n].getnewaddress()
-                idnode = self.nodes[n].createraw_mn_announce([], {
+                idnode = self.nodes[n].mn_announce([], {
                     "name": "node%d" % n,
                     "ownerAuthAddress": owner,
                     "operatorAuthAddress": self.operators[n],
@@ -161,7 +162,7 @@ class dPoS_BaseTest(BitcoinTestFramework):
         for node in self.nodes:
             for idnode in rv:
                 if idnode:
-                    assert_equal(node.dumpmns([idnode])[0]['status'], "announced")
+                    assert_equal(node.mn_list([idnode])[0]['status'], "announced")
 
         # Generate blocks for activation height
         for n in range(self.num_nodes):
@@ -172,14 +173,15 @@ class dPoS_BaseTest(BitcoinTestFramework):
 
         # Activate nodes
         for i in indexes:
-            self.nodes[i].createraw_mn_activate([])
+            self.nodes[i].mn_activate([])
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
+        time.sleep(4)
         for node in self.nodes:
             for idnode in rv:
                 if idnode:
-                    assert_equal(node.dumpmns([idnode])[0]['status'], "active")
+                    assert_equal(node.mn_list([idnode])[0]['status'], "active")
         self.check_nodes_block_count(INITIAL_BLOCK_COUNT + 10 * self.num_nodes + self.num_nodes + 1)
         return rv
 

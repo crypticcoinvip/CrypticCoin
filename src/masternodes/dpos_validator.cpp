@@ -19,6 +19,8 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
 
     {
         // tx is already included into a block
+        if (pcoinsTip->HaveCoins(tx.GetHash()))
+            return false;
         BlockHash txBlockHash{};
         CTransaction notUsed;
         if (GetTransaction(tx.GetHash(), notUsed, txBlockHash, false) && !txBlockHash.IsNull())
@@ -26,11 +28,16 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
     }
 
     CValidationState state;
+    std::vector<unsigned char> metadata;
     int nextBlockHeight = chainActive.Height() + 1;
 
     auto verifier = libzcash::ProofVerifier::Strict();
+
     if (!CheckTransaction(tx, state, verifier))
         return error("validateTx: CheckTransaction failed");
+
+    if (GuessMasternodeTxType(tx, metadata) != MasternodesTxType::None)
+        return error("validateTx: GuessMasternodeTxType failed");
 
     // Check transaction contextually against the set of consensus rules which apply in the next block to be mined.
     if (!ContextualCheckTransaction(tx, state, nextBlockHeight, 10)) {
@@ -41,6 +48,7 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
     if (IsExpiringSoonTx(tx, nextBlockHeight)) {
         return state.DoS(0, error("validateTx(): transaction is expiring soon"), REJECT_INVALID, "tx-expiring-soon");
     }
+
 
     return true;
 }

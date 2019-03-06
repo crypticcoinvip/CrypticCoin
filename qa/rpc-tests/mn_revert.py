@@ -28,7 +28,10 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
     def start_nodes(self, args = []):
         if len(args) == 0:
             args = [[]] * self.num_nodes
-        for i in range(self.num_nodes): args[i].append("-nuparams=76b809bb:200")
+        for i in range(len(args)):
+            args[i] = args[i][:]
+            args[i] += ['-nuparams=76b809bb:200']
+
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
 
     def stop_nodes(self):
@@ -40,7 +43,7 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
         self.is_network_split=False
 
     def announce_mn(self, i):
-        self.mns[i].id = self.nodes[i].createraw_mn_announce([], {
+        self.mns[i].id = self.nodes[i].mn_announce([], {
             "name": self.mns[i].name,
             "ownerAuthAddress": self.mns[i].owner,
             "operatorAuthAddress": self.mns[i].operator,
@@ -52,19 +55,19 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
         return self.mns[i].id
 
     def activate_mn(self, i):
-        return self.nodes[i].createraw_mn_activate([])
+        return self.nodes[i].mn_activate([])
 
     def dismissvote_mn(self, frm, against, reason_code = 1, reason_desc = ""):
-        return self.nodes[frm].createraw_mn_dismissvote([], {"against": self.mns[against].id, "reason_code": reason_code, "reason_desc": reason_desc})
+        return self.nodes[frm].mn_dismissvote([], {"against": self.mns[against].id, "reason_code": reason_code, "reason_desc": reason_desc})
 
     def dismissvoterecall_mn(self, frm, against, reason_code = 1, reason_desc = ""):
-        return self.nodes[frm].createraw_mn_dismissvoterecall([], {"against": self.mns[against].id })
+        return self.nodes[frm].mn_dismissvoterecall([], {"against": self.mns[against].id })
 
     def finalizedismissvoting_mn(self, frm, against):
-        return self.nodes[frm].createraw_mn_finalizedismissvoting([], {"against": self.mns[against].id })
+        return self.nodes[frm].mn_finalizedismissvoting([], {"against": self.mns[against].id })
 
     def dump_mn(self, i):
-        return self.nodes[i].dumpmns([ self.mns[i].id ])[0]
+        return self.nodes[i].mn_list([ self.mns[i].id ], True)[0]
 
     def run_test (self):
         pp = pprint.PrettyPrinter(indent=4)
@@ -120,51 +123,64 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
 
 
         # Check dimissvoterecall
-        assert_equal(self.nodes[0].dumpmns([self.mns[0].id])[0]['mn']['counterVotesFrom'], 1)
-        assert_equal(self.nodes[0].dumpmns([self.mns[2].id])[0]['mn']['counterVotesAgainst'], 2)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 2)
         self.dismissvoterecall_mn(0, 2)
         self.nodes[0].generate(1) #(total +14)
-        assert_equal(self.nodes[0].dumpmns([self.mns[0].id])[0]['mn']['counterVotesFrom'], 0)
-        assert_equal(self.nodes[0].dumpmns([self.mns[2].id])[0]['mn']['counterVotesAgainst'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 0)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 1)
         self.dismissvote_mn(0, 2)
         self.nodes[0].generate(1) #(total +15)
-        assert_equal(self.nodes[0].dumpmns([self.mns[0].id])[0]['mn']['counterVotesFrom'], 1)
-        assert_equal(self.nodes[0].dumpmns([self.mns[2].id])[0]['mn']['counterVotesAgainst'], 2)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 2)
 
 
         print "Node 0 finalize dismiss voting against #2 (offline)"
-        assert_equal(self.nodes[0].dumpmns([self.mns[2].id])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['status'], "announced")
         self.finalizedismissvoting_mn(0, 2)
         self.nodes[0].generate(1) #(total +16)
 
         # Check that node #2 dismissed and counters decreased
-        assert_equal(self.nodes[0].dumpmns([self.mns[0].id])[0]['mn']['counterVotesFrom'], 0)
-        assert_equal(self.nodes[0].dumpmns([self.mns[2].id])[0]['mn']['counterVotesAgainst'], 0)
-        assert_equal(self.nodes[0].dumpmns([self.mns[2].id])[0]['status'], "announced, dismissed")
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 0)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 0)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['status'], "announced, dismissed")
         sync_blocks([self.nodes[0], self.nodes[1]])
 
 
         print "Restarting nodes. Node #2 mines forward, reverting dismissed status and all votes"
+        nodesOld = self.nodes[0].mn_list([], True)
+        votesOld = self.nodes[0].mn_listdismissvotes()
+
         self.stop_nodes()
         self.start_nodes([[ "-masternode_operator="+self.mns[i].operator] for i in range(self.num_nodes) ] )
+
+        nodesNew = self.nodes[0].mn_list([], True)
+        votesNew = self.nodes[0].mn_listdismissvotes()
+        assert_equal(nodesOld, nodesNew)
+        assert_equal(votesOld, votesNew)
+#        pp.pprint(nodesOld)
+#        pp.pprint(nodesNew)
+#        pp.pprint(votesOld)
+#        pp.pprint(votesNew)
+
         self.nodes[2].generate(16) #(total +17)
         connect_nodes_bi(self.nodes, 0, 2)
         sync_blocks([self.nodes[0], self.nodes[2]])
-        assert_equal(self.nodes[0].dumpmns([self.mns[0].id])[0]['status'], "announced")
-        assert_equal(self.nodes[0].dumpmns([self.mns[1].id])[0]['status'], "announced")
-        assert_equal(self.nodes[0].dumpmns([self.mns[2].id])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([self.mns[1].id])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id])[0]['status'], "announced")
 
 
         print "Resigning node 1, reverting node #2 work"
         collateral1out = self.nodes[1].getnewaddress()
-        self.nodes[1].resign_mn(self.mns[1].id, collateral1out)
+        self.nodes[1].mn_resign(self.mns[1].id, collateral1out)
         self.nodes[1].generate(2) #(total +18??)
 
         connect_nodes_bi(self.nodes, 0, 1)
         sync_blocks([self.nodes[0], self.nodes[1]])
-        assert_equal(self.nodes[0].dumpmns([self.mns[0].id])[0]['status'], "active")
-        assert_equal(self.nodes[0].dumpmns([self.mns[1].id])[0]['status'], "activated, resigned")
-        assert_equal(self.nodes[0].dumpmns([self.mns[2].id])[0]['status'], "announced, dismissed")
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id])[0]['status'], "active")
+        assert_equal(self.nodes[0].mn_list([self.mns[1].id])[0]['status'], "activated, resigned")
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id])[0]['status'], "announced, dismissed")
 
 
         print "Restarting all nodes (+ #3). Node #3 reverts to 'no masternodes at all'"
@@ -179,9 +195,7 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
         connect_nodes_bi(self.nodes, 2, 3)
         connect_nodes_bi(self.nodes, 3, 0)
         sync_blocks(self.nodes)
-        assert_equal(len(self.nodes[0].listactivemns()), 0)
-
-#        pp.pprint(self.nodes[0].dumpmns())
+        assert_equal(len(self.nodes[0].mn_listactive()), 0)
 
         print "Done"
 

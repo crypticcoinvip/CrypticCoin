@@ -1048,7 +1048,10 @@ UniValue sendrawtransaction(const UniValue& params, bool fHelp)
         // push to local node and sync with wallets
         CValidationState state;
         bool fMissingInputs;
-        if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs, !fOverrideFees)) {
+
+        // We don't want any movements in masternodes DB here:
+        CMasternodesView mnview(*pmasternodesview);
+        if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3), !fOverrideFees)) {
             if (state.IsInvalid()) {
                 throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
             } else {

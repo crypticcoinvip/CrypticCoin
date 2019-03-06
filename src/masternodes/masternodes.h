@@ -4,12 +4,14 @@
 #ifndef MASTERNODES_H
 #define MASTERNODES_H
 
+#include "mntypes.h"
+
 #include "amount.h"
 #include "primitives/transaction.h"
 #include "pubkey.h"
 #include "script/script.h"
 #include "serialize.h"
-#include "dbwrapper.h"
+#include "txdb.h"
 #include "uint256.h"
 
 #include <map>
@@ -185,16 +187,23 @@ public:
     friend bool operator!=(CDismissVote const & a, CDismissVote const & b);
 };
 
-/// @todo @mn refactor: hide this typedefs into CMasternodesView
-typedef std::map<uint256, CMasternode> CMasternodes;  // nodeId -> masternode object,
-typedef std::set<uint256> CActiveMasternodes;         // just nodeId's,
-typedef std::map<CKeyID, uint256> CMasternodesByAuth; // for two indexes, owner->nodeId, operator->nodeId
+struct COperatorUndoRec
+{
+    CKeyID operatorAuthAddress;
+    CScript operatorRewardAddress;
+    int32_t operatorRewardRatio;
 
-typedef std::map<uint256, std::pair<int32_t, CKeyID> > CTeam;   // nodeId -> <joinHeight, operatorId> - masternodes' team
+    // for DB serialization
+    ADD_SERIALIZE_METHODS;
 
-typedef std::map<uint256, CDismissVote> CDismissVotes;
-typedef std::multimap<uint256, uint256> CDismissVotesIndex; // just index, from->against or against->from
-
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action)
+    {
+        READWRITE(operatorAuthAddress);
+        READWRITE(*(CScriptBase*)(&operatorRewardAddress));
+        READWRITE(operatorRewardRatio);
+    }
+};
 
 class CMasternodesDB;
 
@@ -208,23 +217,6 @@ public:
         CKeyID operatorAuthAddress;
         CKeyID ownerAuthAddress;
     };
-    struct COperatorUndoRec
-    {
-        CKeyID operatorAuthAddress;
-        CScript operatorRewardAddress;
-        int32_t operatorRewardRatio;
-
-        // for DB serialization
-        ADD_SERIALIZE_METHODS;
-
-        template <typename Stream, typename Operation>
-        inline void SerializationOp(Stream& s, Operation ser_action)
-        {
-            READWRITE(operatorAuthAddress);
-            READWRITE(*(CScriptBase*)(&operatorRewardAddress));
-            READWRITE(operatorRewardRatio);
-        }
-    };
     // 'multi' used only in to ways: for collateral spent and voting finalization (to save deactivated votes)
     typedef std::multimap<uint256, std::pair<uint256, MasternodesTxType> > CTxUndo;
     typedef std::map<uint256, COperatorUndoRec> COperatorUndo;
@@ -233,8 +225,7 @@ public:
     enum class VoteIndex { From, Against };
 
 private:
-    CMasternodesDB & db;
-//    boost::scoped_ptr<CDBBatch> currentBatch;
+    CMasternodesDB db;
 
     CMasternodes allNodes;
     CActiveMasternodes activeNodes;
@@ -249,7 +240,7 @@ private:
     COperatorUndo operatorUndo;
 
 public:
-    CMasternodesView(CMasternodesDB & mndb) : db(mndb) {}
+    CMasternodesView(size_t nCacheSize, bool fMemory = false, bool fWipe = false) : db(nCacheSize, fMemory, fWipe) {}
     CMasternodesView(CMasternodesView const & other);
 
     CMasternodesView & operator=(CMasternodesView const & other) = delete;

@@ -52,7 +52,7 @@ class CHeartBeatTracker
 {
     using LockGuard = std::lock_guard<std::mutex>;
     using MessageList = std::list<CHeartBeatMessage>;
-    static constexpr std::int64_t maxHeartbeatInFuture{4444};
+    static constexpr std::int64_t maxHeartbeatInFuture{2 * 60 * 60 * 1000ll};
 
 public:
     enum AgeFilter {RECENTLY, STALE, OUTDATED};

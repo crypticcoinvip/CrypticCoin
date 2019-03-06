@@ -119,6 +119,12 @@ struct Params {
         int64_t nDelayIBD;
         int64_t nPollingPeriod;
         int64_t nRoundTooLong;
+
+        size_t nMaxNotVotedTxsToKeep;
+        size_t nMaxTxVotesFromVoter;
+
+        int64_t nMaxTimeBetweenBlocks;
+        int64_t nVotersWaitingTimeout;
     };
     dPoS dpos;
     /** dPOS announcement fee */

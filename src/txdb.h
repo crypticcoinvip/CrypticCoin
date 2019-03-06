@@ -9,7 +9,7 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
-#include "masternodes/masternodes.h" // TODO refactor, use forward declaration
+#include "masternodes/mntypes.h"
 
 #include <map>
 #include <string>
@@ -19,9 +19,6 @@
 class CBlockFileInfo;
 class CBlockIndex;
 struct CDiskTxPos;
-class uint256;
-class CMasternode;
-class CDismissVote;
 
 namespace dpos{ class CRoundVote_p2p; }
 namespace dpos{ class CTxVote_p2p; }
@@ -138,8 +135,8 @@ public:
     void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType);
     void EraseUndo(uint256 const & txid, uint256 const & affectedItem);
 
-    void ReadOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec & value);
-    void WriteOperatorUndo(uint256 const & txid, CMasternodesView::COperatorUndoRec const & value);
+    void ReadOperatorUndo(uint256 const & txid, COperatorUndoRec & value);
+    void WriteOperatorUndo(uint256 const & txid, COperatorUndoRec const & value);
     void EraseOperatorUndo(uint256 const & txid);
 
     bool ReadTeam(int blockHeight, CTeam & team) const;
