@@ -605,8 +605,8 @@ CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Para
 
 //////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
 bool CheckMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, const Consensus::Params& consensusParams, int height);
-void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int nHeight);
-void ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height);
+bool ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int nHeight);
+bool ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height);
 
 bool CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int nHeight);
 //! Deep check (and write)

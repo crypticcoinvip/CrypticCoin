@@ -132,8 +132,11 @@ public:
     void WriteVote(uint256 const & txid, CDismissVote const & vote);
     void EraseVote(uint256 const & txid);
 
-    void WriteUndo(uint256 const & txid, uint256 const & affectedNode, char undoType);
-    void EraseUndo(uint256 const & txid, uint256 const & affectedItem);
+    void WriteDeadIndex(int height, uint256 const & txid, char type);
+    void EraseDeadIndex(int height, uint256 const & txid);
+
+    void WriteUndo(int height, uint256 const & txid, uint256 const & affectedNode, char undoType);
+    void EraseUndo(int height, uint256 const & txid, uint256 const & affectedItem);
 
     void ReadOperatorUndo(uint256 const & txid, COperatorUndoRec & value);
     void WriteOperatorUndo(uint256 const & txid, COperatorUndoRec const & value);
@@ -144,8 +147,13 @@ public:
     bool EraseTeam(int blockHeight);
 
     bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode) const;
-    bool LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote) const;
-    bool LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo) const;
+    bool LoadVotes(std::function<void(uint256 const &, CDismissVote const &)> onVote) const;
+    bool LoadUndo(std::function<void(int, uint256 const &, uint256 const &, char)> onUndo) const;
+
+    bool PruneMasternodesOlder(int height, std::function<void(int, uint256 const &, char)> onErase);
+    bool PruneUndoesOlder(int height, std::function<void(int, uint256 const &, uint256 const &, char)> onErase);
+    bool PruneTeamsOlder(int height);
+
 };
 
 
