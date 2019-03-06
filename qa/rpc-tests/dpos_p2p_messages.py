@@ -44,8 +44,8 @@ class dPoS_p2pMessagesTest(dPoS_BaseTest):
         tx1 = self.create_transaction(1, self.nodes[9].getnewaddress(), 4.4, True)
         tx2 = self.create_transaction(6, self.nodes[0].getnewaddress(), 4.4, True)
         time.sleep(2)
-        txs1 = self.nodes[2].list_instant_transactions()
-        txs2 = self.nodes[7].list_instant_transactions()
+        txs1 = self.nodes[2].i_listtransactions()
+        txs2 = self.nodes[7].i_listtransactions()
         assert_equal(len(txs1), 1)
         assert_equal(len(txs2), 0)
         assert_equal(txs1[0]["hash"], tx1)
@@ -57,7 +57,6 @@ class dPoS_p2pMessagesTest(dPoS_BaseTest):
         vblocks = [node.dpos_listviceblocks() for node in self.nodes]
         rdvotes = [node.dpos_listroundvotes() for node in self.nodes]
         txvotes = [node.dpos_listtxvotes() for node in self.nodes]
-        sys.stdin.readline()
         vblocks_left = vblocks[0:len(vblocks)/2]
         vblocks_right = vblocks[len(vblocks)/2:]
         assert_equal(len(vblocks_left), len(vblocks_right))
