@@ -57,7 +57,6 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             toaddr = self.nodes[next_idx].getnewaddress()
             tx = self.create_transaction(n, toaddr, 20.2, True)
             zdst = [{ "address": toaddr, "amount": 3.3 }]
-            self.nodes[n].sendtoaddress(self.operators[next_idx], 15.5)
             ztx = self.nodes[n].z_sendmany(self.operators[n], zdst, 1, 0.0001, True)
             time.sleep(2)
             ztx = self.nodes[n].z_getoperationstatus([ztx])
