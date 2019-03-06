@@ -2351,7 +2351,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             }
         }
         // process transaction revert for masternodes.
-        mnview.OnUndo(hash);
+        mnview.OnUndo(pindex->nHeight, hash);
     }
 
     // set the old best Sprout anchor back
@@ -2863,8 +2863,20 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     LogPrint("bench", "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
 
 
-    // If we are here - everything is OK - lets make real DB movements
-    ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight);
+    // If we are here - everything is OK - lets make real DB movements. It should fail only on DB write, so it is critical
+    if (!ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight))
+    {
+        return AbortNode("Failed to process masternodes' data!");
+    }
+    // Prune old MN data
+    if (pindex->nHeight % 100 == 0)
+    {
+        int pruneHeight = pindex->nHeight - std::max(300u, MAX_REORG_LENGTH);
+        if (mnview.PruneMasternodesOlder(pruneHeight) && mnview.PruneUndoesOlder(pruneHeight) && mnview.PruneTeamsOlder(pruneHeight) == false)
+        {
+            return AbortNode("Failed to prune masternodes' data!");
+        }
+    }
     return true;
 }
 
@@ -6770,29 +6782,43 @@ bool CheckMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, Conse
     return result;
 }
 
-void ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int height)
+bool ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int height)
 {
+    bool result(true);
     for (unsigned int i = 0; i < block.vtx.size(); ++i)
     {
-        CheckMasternodeTx(mnview, block.vtx[i], Params().GetConsensus(), height);
+        result = result && CheckMasternodeTx(mnview, block.vtx[i], Params().GetConsensus(), height);
     }
     mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
-    mnview.CommitBatch();
+    if (result)
+    {
+        mnview.CommitBatch();
+    }
+    else
+    {
+        mnview.DropBatch();
+    }
+    return result;
 }
 
-void ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height)
+// Unused, but may be helpful later
+bool ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height)
 {
-    if (!NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
-    {
-        return;
-    }
-
+    bool result(true);
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; --i)
     {
-        mnview.OnUndo(block.vtx[i].GetHash());
+        result = result && mnview.OnUndo(height, block.vtx[i].GetHash());
     }
-    mnview.CommitBatch();
+    if (result)
+    {
+        mnview.CommitBatch();
+    }
+    else
+    {
+        mnview.DropBatch();
+    }
+    return result;
 }
 
 CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
@@ -6824,16 +6850,18 @@ CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
  */
 bool CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int height)
 {
+    bool result(true);
     for (uint32_t i = 0; i < tx.vin.size(); ++i)
     {
         COutPoint const & prevout = tx.vin[i].prevout;
         // Checks if it was collateral output.
         if (prevout.n == 1 && mnview.ExistMasternode(prevout.hash))
         {
-            return mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
+            // i - unused
+            result = result && mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
         }
     }
-    return true;
+    return result;
 }
 
 /*
@@ -6905,7 +6933,7 @@ bool CheckDismissVoteTx(CMasternodesView & mnview, CTransaction const & tx, int 
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     CDismissVote vote(tx, metadata); // note that 'from' is empty!
-    return mnview.OnDismissVote(tx.GetHash(), vote, auth);
+    return mnview.OnDismissVote(tx.GetHash(), vote, auth, height);
 }
 
 bool CheckDismissVoteRecallTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
