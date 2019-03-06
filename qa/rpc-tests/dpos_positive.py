@@ -57,9 +57,8 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             toaddr = self.nodes[next_idx].getnewaddress()
             tx = self.create_transaction(n, toaddr, 20.2, True)
             zdst = [{ "address": toaddr, "amount": 3.3 }]
-            self.nodes[n].sendtoaddress(self.operators[next_idx], 15.5)
             ztx = self.nodes[n].z_sendmany(self.operators[n], zdst, 1, 0.0001, True)
-            time.sleep(2)
+            time.sleep(4)
             ztx = self.nodes[n].z_getoperationstatus([ztx])
             assert_equal(ztx[0]["status"], "success")
             self.sync_all()
@@ -85,10 +84,11 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             tx2 = self.create_transaction(n, toaddr2, 25.25, True)
             self.nodes[n].sendtoaddress(self.operators[next_idx], 30.3)
             ztx = self.nodes[n].z_sendmany(self.operators[n], zdst, 1, 0.0001, True)
-            time.sleep(3)
+            time.sleep(5)
             ztx = self.nodes[n].z_getoperationstatus([ztx])
             self.sync_all()
             for node in self.nodes:
+                print(n, node, len(node.i_listtransactions()))
                 txs = {tx["hash"] for tx in node.i_listtransactions()}
                 assert_equal(len(txs), 3)
                 assert_equal(txs, {tx1, tx2, ztx[0]["result"]["txid"]})

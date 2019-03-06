@@ -38,14 +38,14 @@ class dPoS_p2pMessagesTest(dPoS_BaseTest):
         self.sync_nodes(0, 5)
         self.sync_nodes(5, 10)
         time.sleep(15)
-        [assert_equal(len(node.listdposviceblocks()), 0) for node in self.nodes]
-        [assert_equal(len(node.listdposroundvotes()), 0) for node in self.nodes]
-        [assert_equal(len(node.listdpostxvotes()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
+        [assert_equal(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
         tx1 = self.create_transaction(1, self.nodes[9].getnewaddress(), 4.4, True)
         tx2 = self.create_transaction(6, self.nodes[0].getnewaddress(), 4.4, True)
         time.sleep(2)
-        txs1 = self.nodes[2].list_instant_transactions()
-        txs2 = self.nodes[7].list_instant_transactions()
+        txs1 = self.nodes[2].i_listtransactions()
+        txs2 = self.nodes[7].i_listtransactions()
         assert_equal(len(txs1), 1)
         assert_equal(len(txs2), 0)
         assert_equal(txs1[0]["hash"], tx1)
@@ -54,10 +54,9 @@ class dPoS_p2pMessagesTest(dPoS_BaseTest):
         time.sleep(2)
         self.sync_nodes(0, 5)
         self.sync_nodes(5, 10)
-        vblocks = [node.listdposviceblocks() for node in self.nodes]
-        rdvotes = [node.listdposroundvotes() for node in self.nodes]
-        txvotes = [node.listdpostxvotes() for node in self.nodes]
-        sys.stdin.readline()
+        vblocks = [node.dpos_listviceblocks() for node in self.nodes]
+        rdvotes = [node.dpos_listroundvotes() for node in self.nodes]
+        txvotes = [node.dpos_listtxvotes() for node in self.nodes]
         vblocks_left = vblocks[0:len(vblocks)/2]
         vblocks_right = vblocks[len(vblocks)/2:]
         assert_equal(len(vblocks_left), len(vblocks_right))

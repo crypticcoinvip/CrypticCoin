@@ -157,6 +157,10 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
 
     TxId txid = tx.GetHash();
 
+    if (txs.count(txid) != 0) {
+        return {};
+    }
+
     if (!world.validateTx(tx)) {
         LogPrintf("dpos: %s: Received invalid tx %s \n", __func__, txid.GetHex());
         // clear tx, even if we had it
