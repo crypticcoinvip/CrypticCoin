@@ -336,7 +336,7 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
         handleVoterOutput(this->voter->requestMissingTxs() + this->voter->doTxsVoting() + this->voter->doRoundVoting());
 
         // periodically rm waste data from old blocks
-        self->cleanUpDb();
+        this->cleanUpDb();
     }
 }
 
