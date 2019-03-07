@@ -368,7 +368,6 @@ UniValue mn_announce(UniValue const & params, bool fHelp)
 
     CScript scriptMeta;
     scriptMeta << OP_RETURN << ToByteVector(metadata);
-    CScript scriptCollateral = GetScriptForDestination(collateralDest);
 
     // Current height + (1 day blocks) to avoid rejection;
     CAmount const blockSubsidy = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
@@ -377,7 +376,7 @@ UniValue mn_announce(UniValue const & params, bool fHelp)
 
     UniValue vouts(UniValue::VOBJ);
     vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptMeta)), ValueFromAmount(GetMnAnnouncementFee(blockSubsidy, targetHeight, targetMnCount))));
-    vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptCollateral)), ValueFromAmount(GetMnCollateralAmount())));
+    vouts.push_back(Pair(EncodeDestination(collateralDest), ValueFromAmount(GetMnCollateralAmount())));
 
     UniValue newparams(UniValue::VARR);
     newparams.push_back(params[0]);

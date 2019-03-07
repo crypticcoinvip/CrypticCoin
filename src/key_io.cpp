@@ -79,8 +79,11 @@ CTxDestination DecodeDestination(const std::string& str, const CChainParams& par
 //        if (std::equal(prefix.begin(), prefix.end(), data.begin())) {
 //            return CScript(data.begin() + prefix.size(), data.end());
 //        }
-        /// @attention DO NOT use CScript(vector), cause it calls operator<<() !!!
-        return CScript(data.begin(), data.end());
+        if (data.size() > 0 && data[0] == 0x6a) /// @todo Refactor it for better case. Now it's a dirty hack! (OP_RETURN)
+        {
+            /// @attention DO NOT use CScript(vector), cause it calls operator<<() !!!
+            return CScript(data.begin(), data.end());
+        }
     }
     return CNoDestination();
 }
