@@ -17,6 +17,8 @@
 #include <string.h>
 #include <algorithm>
 
+static const std::string RawScriptMarker = "RawScript";
+
 namespace
 {
 class DestinationEncoder : public boost::static_visitor<std::string>
@@ -43,11 +45,9 @@ public:
 
     std::string operator()(const CScript& rawscript) const
     {
-        /// @todo @mn trying w/o any prefixes!
-//        std::vector<unsigned char> data = m_params.Base58Prefix(CChainParams::MNTX_MARKER);
-//        data.insert(data.end(), rawscript.begin(), rawscript.end());
-//        return EncodeBase58Check(data);
-        return EncodeBase58Check(std::vector<unsigned char>(rawscript.begin(), rawscript.end()));
+        std::vector<unsigned char> data(RawScriptMarker.begin(), RawScriptMarker.end());
+        data.insert(data.end(), rawscript.begin(), rawscript.end());
+        return EncodeBase58Check(data);
     }
 
     std::string operator()(const CNoDestination& no) const { return {}; }
@@ -73,16 +73,9 @@ CTxDestination DecodeDestination(const std::string& str, const CChainParams& par
             std::copy(data.begin() + script_prefix.size(), data.end(), hash.begin());
             return CScriptID(hash);
         }
-        /// @todo @mn trying w/o any prefixes!
-        // base58-encoded serialized Masternodes metadata, prefixed by 'MnTx' marker (and prefixed by it again, inside base58 to distinguish MN info from common 'op_return')
-//        const std::vector<unsigned char>& prefix = params.Base58Prefix(CChainParams::MNTX_MARKER);
-//        if (std::equal(prefix.begin(), prefix.end(), data.begin())) {
-//            return CScript(data.begin() + prefix.size(), data.end());
-//        }
-        if (data.size() > 0 && data[0] == 0x6a) /// @todo Refactor it for better case. Now it's a dirty hack! (OP_RETURN)
-        {
-            /// @attention DO NOT use CScript(vector), cause it calls operator<<() !!!
-            return CScript(data.begin(), data.end());
+        // base58-encoded serialized raw CScript with "RawScript" prefix
+        if (data.size() > RawScriptMarker.size() && std::equal(RawScriptMarker.begin(), RawScriptMarker.end(), data.begin())) {
+            return CScript(data.begin() + RawScriptMarker.size(), data.end());
         }
     }
     return CNoDestination();
