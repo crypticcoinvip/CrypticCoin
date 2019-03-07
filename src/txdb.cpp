@@ -46,6 +46,7 @@ static const char DB_MASTERNODESUNDO = 'U';
 static const char DB_SETOPERATORUNDO = 'u';
 static const char DB_DISMISSVOTES = 'V';
 static const char DB_TEAM = 'T';
+static const char DB_PRUNEDEAD = 'D';
 
 // Prefixes to the dpos database (dpos/)
 static const char DB_DPOS_TX_VOTES = 't';
@@ -454,14 +455,24 @@ void CMasternodesDB::EraseVote(uint256 const & txid)
     BatchErase(make_pair(DB_DISMISSVOTES, txid));
 }
 
-void CMasternodesDB::WriteUndo(uint256 const & txid, uint256 const & affectedItem, char undoType)
+void CMasternodesDB::WriteDeadIndex(int height, uint256 const & txid, char type)
 {
-    BatchWrite(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem), undoType);
+    BatchWrite(make_pair(make_pair(DB_PRUNEDEAD, static_cast<int32_t>(height)), txid), type);
 }
 
-void CMasternodesDB::EraseUndo(uint256 const & txid, uint256 const & affectedItem)
+void CMasternodesDB::EraseDeadIndex(int height, uint256 const & txid)
 {
-    BatchErase(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedItem));
+    BatchErase(make_pair(make_pair(DB_PRUNEDEAD, static_cast<int32_t>(height)), txid));
+}
+
+void CMasternodesDB::WriteUndo(int height, uint256 const & txid, uint256 const & affectedItem, char undoType)
+{
+    BatchWrite(make_pair(make_pair(DB_MASTERNODESUNDO, static_cast<int32_t>(height)), make_pair(txid, affectedItem)), undoType);
+}
+
+void CMasternodesDB::EraseUndo(int height, uint256 const & txid, uint256 const & affectedItem)
+{
+    BatchErase(make_pair(make_pair(DB_MASTERNODESUNDO, static_cast<int32_t>(height)), make_pair(txid, affectedItem)));
 }
 
 void CMasternodesDB::ReadOperatorUndo(const uint256 & txid, COperatorUndoRec & value)
@@ -483,12 +494,12 @@ bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team) const
 {
     team.clear();
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&*db)->NewIterator());
-    pcursor->Seek(make_pair(DB_TEAM, blockHeight));
+    pcursor->Seek(make_pair(DB_TEAM, static_cast<int32_t>(blockHeight)));
 
     while (pcursor->Valid())
     {
         boost::this_thread::interruption_point();
-        std::pair<std::pair<char, int>, uint256> key;
+        std::pair<std::pair<char, int32_t>, uint256> key;
         if (pcursor->GetKey(key) && key.first.first == DB_TEAM && key.first.second == blockHeight)
         {
             std::pair<int32_t, CKeyID> value;
@@ -524,7 +535,7 @@ bool CMasternodesDB::WriteTeam(int blockHeight, CTeam const & team)
     CDBBatch batch(*db);
     for (CTeam::const_iterator it = team.begin(); it != team.end(); ++it)
     {
-        batch.Write(make_pair(make_pair(DB_TEAM, blockHeight), it->first), it->second);
+        batch.Write(make_pair(make_pair(DB_TEAM, static_cast<int32_t>(blockHeight)), it->first), it->second);
     }
     return erased && db->WriteBatch(batch);
 }
@@ -539,15 +550,15 @@ bool CMasternodesDB::EraseTeam(int blockHeight)
     /// cause i'm not sure that 'erasing' and then 'writing' in one batch will lead to the expected result
     CDBBatch batch(*db);
     boost::scoped_ptr<CDBIterator> pcursor(db->NewIterator());
-    pcursor->Seek(make_pair(DB_TEAM, blockHeight));
+    pcursor->Seek(make_pair(DB_TEAM, static_cast<int32_t>(blockHeight)));
 
     while (pcursor->Valid())
     {
         boost::this_thread::interruption_point();
-        std::pair<std::pair<char, int>, uint256> key;
-        if (pcursor->GetKey(key) && key.first.first == DB_TEAM && key.first.second == blockHeight)
+        std::pair<std::pair<char, int32_t>, uint256> key;
+        if (pcursor->GetKey(key) && key.first.first == DB_TEAM && key.first.second == static_cast<int32_t>(blockHeight))
         {
-            batch.Erase(make_pair(make_pair(DB_TEAM, blockHeight), key.second));
+            batch.Erase(make_pair(make_pair(DB_TEAM, static_cast<int32_t>(blockHeight)), key.second));
         }
         else
         {
@@ -589,7 +600,7 @@ bool CMasternodesDB::LoadMasternodes(std::function<void(uint256 &, CMasternode &
     return true;
 }
 
-bool CMasternodesDB::LoadVotes(std::function<void(uint256 &, CDismissVote &)> onVote) const
+bool CMasternodesDB::LoadVotes(std::function<void(uint256 const &, CDismissVote const &)> onVote) const
 {
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&*db)->NewIterator());
     pcursor->Seek(DB_DISMISSVOTES);
@@ -619,7 +630,7 @@ bool CMasternodesDB::LoadVotes(std::function<void(uint256 &, CDismissVote &)> on
     return true;
 }
 
-bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> onUndo) const
+bool CMasternodesDB::LoadUndo(std::function<void(int, uint256 const &, uint256 const &, char)> onUndo) const
 {
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&*db)->NewIterator());
     pcursor->Seek(DB_MASTERNODESUNDO);
@@ -627,14 +638,14 @@ bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> on
     while (pcursor->Valid())
     {
         boost::this_thread::interruption_point();
-        std::pair<std::pair<char, uint256>, uint256> key;
+        // key = make_pair(make_pair(DB_MASTERNODESUNDO, static_cast<uint32_t>(height)), make_pair(txid, affectedItem))
+        std::pair<std::pair<char, int32_t>, std::pair<uint256, uint256> > key;
         if (pcursor->GetKey(key) && key.first.first == DB_MASTERNODESUNDO)
         {
-//            batch.Write(make_pair(make_pair(DB_MASTERNODESUNDO, txid), affectedNode), undoType);
             char undoType;
             if (pcursor->GetValue(undoType))
             {
-                onUndo(key.first.second, key.second, undoType);
+                onUndo(key.first.second, key.second.first, key.second.second, undoType);
             }
             else
             {
@@ -650,6 +661,100 @@ bool CMasternodesDB::LoadUndo(std::function<void(uint256 &, uint256 &, char)> on
     return true;
 }
 
+bool CMasternodesDB::PruneMasternodesOlder(int height, std::function<void (int, uint256 const &, char)> onErase)
+{
+    boost::scoped_ptr<CDBIterator> pcursor(db->NewIterator());
+    pcursor->Seek(DB_PRUNEDEAD);
+
+    while (pcursor->Valid())
+    {
+        boost::this_thread::interruption_point();
+        //    rec = (make_pair(make_pair(DB_PRUNEDEAD, height), txid), type);
+        std::pair<char, std::pair<int32_t, uint256> > key;
+        if (pcursor->GetKey(key) && key.first == DB_PRUNEDEAD && key.second.first < static_cast<int32_t>(height))
+        {
+            char type;
+            if (pcursor->GetValue(type))
+            {
+                onErase(key.second.first, key.second.second, type);
+            }
+            else
+            {
+                DropBatch();
+                return error("CMasternodesDB::PruneMasternodesOlder() : unable to read value");
+            }
+        }
+        else
+        {
+            break;
+        }
+        pcursor->Next();
+    }
+    CommitBatch();
+    return true;
+}
+
+bool CMasternodesDB::PruneUndoesOlder(int height, std::function<void (int, uint256 const &, uint256 const &, char)> onErase)
+{
+    boost::scoped_ptr<CDBIterator> pcursor(db->NewIterator());
+    pcursor->Seek(DB_MASTERNODESUNDO);
+
+    while (pcursor->Valid())
+    {
+        boost::this_thread::interruption_point();
+        //    rec = (make_pair(make_pair(DB_MASTERNODESUNDO, static_cast<int32_t>(height)), make_pair(txid, affectedItem)), undoType);
+        std::pair<std::pair<char, int32_t>, std::pair<uint256, uint256> > key;
+        if (pcursor->GetKey(key) && key.first.first == DB_MASTERNODESUNDO && key.first.second < static_cast<int32_t>(height))
+        {
+            char undoType;
+            if (pcursor->GetValue(undoType))
+            {
+                onErase(key.first.second, key.second.first, key.second.second, undoType);
+            }
+            else
+            {
+                DropBatch();
+                return error("CMasternodesDB::PruneUndoesOlder() : unable to read value");
+            }
+        }
+        else
+        {
+            break;
+        }
+        pcursor->Next();
+    }
+    CommitBatch();
+    return true;
+}
+
+bool CMasternodesDB::PruneTeamsOlder(int height)
+{
+    if (readOnly)
+    {
+        return true;
+    }
+    CDBBatch batch(*db);
+    boost::scoped_ptr<CDBIterator> pcursor(db->NewIterator());
+    pcursor->Seek(DB_TEAM);
+
+    while (pcursor->Valid())
+    {
+        boost::this_thread::interruption_point();
+        std::pair<std::pair<char, int32_t>, uint256> key;
+        if (pcursor->GetKey(key) && key.first.first == DB_TEAM && key.first.second < static_cast<int32_t>(height))
+        {
+            batch.Erase(make_pair(make_pair(DB_TEAM, static_cast<int32_t>(height)), key.second));
+        }
+        else
+        {
+            break;
+        }
+        pcursor->Next();
+    }
+    return db->WriteBatch(batch);
+
+    return true;
+}
 
 
 CDposDB::CDposDB(size_t nCacheSize, bool fMemory, bool fWipe) :

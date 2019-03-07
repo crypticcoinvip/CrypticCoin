@@ -130,8 +130,8 @@ public:
         consensus.dpos.nRoundTooLong = 5 * 60;
         consensus.dpos.nMaxNotVotedTxsToKeep = 2048;
         consensus.dpos.nMaxTxVotesFromVoter = 1024;
-        consensus.dpos.nMaxTimeBetweenBlocks = 20 * 60;
-        consensus.dpos.nVotersWaitingTimeout = 10 * 60;
+        consensus.dpos.nMaxTimeBetweenBlocks = 24 * 60 * 60;
+        consensus.dpos.nVotersWaitingTimeout = 6 * 60 * 60;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);

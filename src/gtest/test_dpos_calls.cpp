@@ -41,11 +41,6 @@ public:
     {
         return checkTxNotCommittable(stats);
     }
-
-    void priv_filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nRound) const
-    {
-        filterFinishedTxs(txs_f, nRound);
-    }
 };
 
 }
@@ -374,27 +369,6 @@ TEST(dPoS_calls, TestStats)
     }
     ASSERT_FALSE(voters[0].priv_txHasAnyVote(TxId{}));
     ASSERT_FALSE(voters[0].priv_wasTxLost(TxId{}));
-
-    // test filterFinishedTxs
-    std::map<TxId, CTransaction> txs_f;
-    txs_f = {
-        {vTxs[0], CTransaction{}},
-        {vTxs[1], CTransaction{}},
-        {TxId{}, CTransaction{}}
-    };
-    ASSERT_EQ(txs_f.size(), 3);
-    voters[0].priv_filterFinishedTxs(txs_f, 2);
-    ASSERT_EQ(txs_f.size(), 1);
-    ASSERT_EQ(txs_f.begin()->first, TxId{});
-
-    txs_f = {
-        {vTxs[0], CTransaction{}},
-        {vTxs[1], CTransaction{}},
-        {TxId{}, CTransaction{}}
-    };
-    ASSERT_EQ(txs_f.size(), 3);
-    voters[0].priv_filterFinishedTxs(txs_f, 0);
-    ASSERT_EQ(txs_f.size(), 2);
 }
 
 TEST(dPoS_calls, TestRoundStalamate)

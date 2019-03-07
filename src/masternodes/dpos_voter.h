@@ -223,7 +223,6 @@ protected:
      * @return false if all my txs are either committed or not committable, or if one of my txs is missing
      */
     void filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Round nRound) const;
-    void filterFinishedTxs(std::map<TxId, CTransaction>& txs_f, Round nRound) const;
 protected:
     CMasternode::ID me;
     BlockHash tip;

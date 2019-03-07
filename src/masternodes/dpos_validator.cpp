@@ -28,7 +28,6 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
     }
 
     CValidationState state;
-    std::vector<unsigned char> metadata;
     int nextBlockHeight = chainActive.Height() + 1;
 
     auto verifier = libzcash::ProofVerifier::Strict();
@@ -36,8 +35,9 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
     if (!CheckTransaction(tx, state, verifier))
         return error("validateTx: CheckTransaction failed");
 
-    if (GuessMasternodeTxType(tx, metadata) != MasternodesTxType::None)
-        return error("validateTx: GuessMasternodeTxType failed");
+    std::vector<unsigned char> metadata_dummy;
+    if (GuessMasternodeTxType(tx, metadata_dummy) != MasternodesTxType::None)
+        return error("validateTx: masternode-specific txs cannot be instant");
 
     // Check transaction contextually against the set of consensus rules which apply in the next block to be mined.
     if (!ContextualCheckTransaction(tx, state, nextBlockHeight, 10)) {
