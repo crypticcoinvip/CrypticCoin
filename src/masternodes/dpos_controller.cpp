@@ -744,35 +744,32 @@ void CDposController::cleanUpDb()
     AssertLockHeld(cs_main);
     const auto tipHeight{chainActive.Height()};
 
-    for (const auto it{this->receivedRoundVotes.begin()}; it != this->receivedRoundVotes.end();) {
-        const int voteTipHeight{Validator::computeBlockHeight(it->second.tip, MIN_BLOCKS_TO_KEEP)};
-        if (voteTipHeight > 0 && tipHeight - voteTipHeight > MIN_BLOCKS_TO_KEEP) {
-            this->voter->v[it->second.tip].roundVotes.clear();
-            pdposdb->EraseRoundVote(it->first);
-            it = this->receivedRoundVotes.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    for (const auto it{this->receivedTxVotes.begin()}; it != this->receivedTxVotes.end();) {
-        const int voteTipHeight{Validator::computeBlockHeight(it->second.tip, MIN_BLOCKS_TO_KEEP)};
-        if (voteTipHeight > 0 && tipHeight - voteTipHeight > MIN_BLOCKS_TO_KEEP) {
-            this->voter->v[it->second.tip].txVotes.clear();
-            pdposdb->EraseTxVote(pair.first);
-            it = this->receivedTxVotes.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    for (const auto it{this->voter->v.begin()}; it != this->voter->v.end();) {
-        const int vblockTipHeight{Validator::computeBlockHeight(it->first, MIN_BLOCKS_TO_KEEP)};
+    for (auto itV{this->voter->v.begin()}; itV != this->voter->v.end();) {
+        const int vblockTipHeight{Validator::computeBlockHeight(itV->first, MIN_BLOCKS_TO_KEEP)};
+
         if (vblockTipHeight > 0 && tipHeight - vblockTipHeight > MIN_BLOCKS_TO_KEEP) {
-            for (const auto& bpair: it->second.viceBlocks) {
+            for (auto it{this->receivedRoundVotes.begin()}; it != this->receivedRoundVotes.end();) {
+                if (it->second.tip == itV->first) {
+                    pdposdb->EraseRoundVote(it->first);
+                    it = this->receivedRoundVotes.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+            for (auto it{this->receivedTxVotes.begin()}; it != this->receivedTxVotes.end();) {
+                if (it->second.tip == itV->first) {
+                    pdposdb->EraseTxVote(it->first);
+                    it = this->receivedTxVotes.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+            for (const auto& bpair: itV->second.viceBlocks) {
                 pdposdb->EraseViceBlock(bpair.first);
             }
-            it = this->voter->v.erase(it);
+            itV = this->voter->v.erase(itV);
         } else {
-            ++it;
+            ++itV;
         }
     }
 }
