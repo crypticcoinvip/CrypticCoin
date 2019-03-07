@@ -741,29 +741,35 @@ void CDposController::cleanUpDb()
     AssertLockHeld(cs_main);
     const auto tipHeight{chainActive.Height()};
 
-    for (const auto& pair: this->receivedRoundVotes) {
-        const int voteTipHeight{Validator::computeBlockHeight(pair.second.tip, MIN_BLOCKS_TO_KEEP)};
+    for (const auto it{this->receivedRoundVotes.begin()}; it != this->receivedRoundVotes.end();) {
+        const int voteTipHeight{Validator::computeBlockHeight(it->second.tip, MIN_BLOCKS_TO_KEEP)};
         if (voteTipHeight > 0 && tipHeight - voteTipHeight > MIN_BLOCKS_TO_KEEP) {
-            this->voter->v[pair.second.tip].roundVotes.clear();
-            this->receivedRoundVotes.erase(pair.first);
-            pdposdb->EraseRoundVote(pair.first);
+            this->voter->v[it->second.tip].roundVotes.clear();
+            pdposdb->EraseRoundVote(it->first);
+            it = this->receivedRoundVotes.erase(it);
+        } else {
+            ++it;
         }
     }
-    for (const auto& pair: this->receivedTxVotes) {
-        const int voteTipHeight{Validator::computeBlockHeight(pair.second.tip, MIN_BLOCKS_TO_KEEP)};
+    for (const auto it{this->receivedTxVotes.begin()}; it != this->receivedTxVotes.end();) {
+        const int voteTipHeight{Validator::computeBlockHeight(it->second.tip, MIN_BLOCKS_TO_KEEP)};
         if (voteTipHeight > 0 && tipHeight - voteTipHeight > MIN_BLOCKS_TO_KEEP) {
-            this->receivedRoundVotes.erase(pair.first);
-            this->voter->v[pair.second.tip].txVotes.clear();
+            this->voter->v[it->second.tip].txVotes.clear();
             pdposdb->EraseTxVote(pair.first);
+            it = this->receivedTxVotes.erase(it);
+        } else {
+            ++it;
         }
     }
-    for (auto&& vpair: this->voter->v) {
-        const int vblockTipHeight{Validator::computeBlockHeight(vpair.first, MIN_BLOCKS_TO_KEEP)};
+    for (const auto it{this->voter->v.begin()}; it != this->voter->v.end();) {
+        const int vblockTipHeight{Validator::computeBlockHeight(it->first, MIN_BLOCKS_TO_KEEP)};
         if (vblockTipHeight > 0 && tipHeight - vblockTipHeight > MIN_BLOCKS_TO_KEEP) {
-            for (const auto& bpair: vpair.second.viceBlocks) {
+            for (const auto& bpair: it->second.viceBlocks) {
                 pdposdb->EraseViceBlock(bpair.first);
             }
-            this->voter->v.erase(vpair.first);
+            it = this->voter->v.erase(it);
+        } else {
+            ++it;
         }
     }
 }
