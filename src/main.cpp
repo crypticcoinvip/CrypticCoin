@@ -2080,6 +2080,18 @@ bool CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoins
                 }
             }
 
+            // check that instant txs spends only P2PKH inputs
+            // (@egorl actually, it'd be enough to forbid CHECKLOCKTIMEVERIFY opcode in scriptPubKey/scriptSig, but let's keep instant txs straightforward until future releases)
+            if (tx.fInstant)
+            {
+                txnouttype prevoutType{};
+                std::vector<std::vector<unsigned char> > vSolutionsRet_dummy;
+                if (!Solver(coins->vout[prevout.n].scriptPubKey, prevoutType, vSolutionsRet_dummy) || prevoutType != txnouttype::TX_PUBKEYHASH) {
+                    return state.DoS(100, error("CheckInputs(): instant tx can spend only P2PKH inputs"),
+                                     REJECT_INVALID, "bad-txn-inst-p2pkh");
+                }
+            }
+
             // Check for negative or overflow input values
             nValueIn += coins->vout[prevout.n].nValue;
             if (!MoneyRange(coins->vout[prevout.n].nValue) || !MoneyRange(nValueIn))
