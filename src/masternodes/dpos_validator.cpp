@@ -8,36 +8,43 @@
 namespace dpos
 {
 
-/// @return false if tx cannot or shouldn't be added into a block
+/// @return false if tx is unusable in any future block
 bool CDposController::Validator::validateTx(const CTransaction& tx)
 {
     AssertLockHeld(cs_main);
-    ScopedNoLogging noLogging;
+    ScopedNoLogging noLogging; // suppress logs
 
     if (!tx.fInstant)
         return false;
 
+    // check inputs if prevout is already included into a block
+    for (auto&& in : tx.vin) {
+        BlockHash blockHash{};
+        CTransaction dummy;
+        const bool knownTxInView = pcoinsTip->HaveCoins(in.prevout.hash);
+        const bool knownTx = knownTxInView || (GetTransaction(in.prevout.hash, dummy, blockHash, false) && !blockHash.IsNull());
+
+        if (knownTx) { // check inputs only for known txs, because if tx isn't known, it may depend on another instant tx, which is checked by validateTxs()
+            const CCoins* coins = pcoinsTip->AccessCoins(in.prevout.hash);
+            if (!coins || !coins->IsAvailable(in.prevout.n)) {
+                return false;
+            }
+        }
+    }
+
     {
-        // tx is already included into a block
-        if (pcoinsTip->HaveCoins(tx.GetHash()))
-            return false;
-        BlockHash txBlockHash{};
-        CTransaction notUsed;
-        if (GetTransaction(tx.GetHash(), notUsed, txBlockHash, false) && !txBlockHash.IsNull())
-            return false;
+        std::vector<unsigned char> metadata_dummy;
+        if (GuessMasternodeTxType(tx, metadata_dummy) != MasternodesTxType::None)
+            return error("validateTx: masternode-specific txs cannot be instant");
     }
 
     CValidationState state;
-    int nextBlockHeight = chainActive.Height() + 1;
+    const int nextBlockHeight = chainActive.Height() + 1;
 
     auto verifier = libzcash::ProofVerifier::Strict();
 
     if (!CheckTransaction(tx, state, verifier))
         return error("validateTx: CheckTransaction failed");
-
-    std::vector<unsigned char> metadata_dummy;
-    if (GuessMasternodeTxType(tx, metadata_dummy) != MasternodesTxType::None)
-        return error("validateTx: masternode-specific txs cannot be instant");
 
     // Check transaction contextually against the set of consensus rules which apply in the next block to be mined.
     if (!ContextualCheckTransaction(tx, state, nextBlockHeight, 10)) {
@@ -49,15 +56,14 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
         return state.DoS(0, error("validateTx(): transaction is expiring soon"), REJECT_INVALID, "tx-expiring-soon");
     }
 
-
     return true;
 }
 
-/// @return false if tx cannot be added into a block
+/// @return false if txs cannot be added into next block
 bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransaction>& txMap)
 {
     AssertLockHeld(cs_main);
-    ScopedNoLogging noLogging;
+    ScopedNoLogging noLogging; // suppress logs
 
     // create dummy block
     CBlock block;
@@ -105,10 +111,11 @@ bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransac
     //return TestBlockValidity(state, block, chainActive.Tip(), false, false, dvr);
 }
 
+/// @return false if the block cannot be connected
 bool CDposController::Validator::validateBlock(const CBlock& block, const std::map<TxIdSorted, CTransaction>& instantTxsExpected, bool fJustCheckPoW)
 {
     AssertLockHeld(cs_main);
-    ScopedNoLogging noLogging;
+    ScopedNoLogging noLogging; // suppress logs
     CValidationState state;
 
     if (fJustCheckPoW) {
