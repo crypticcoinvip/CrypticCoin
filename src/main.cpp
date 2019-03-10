@@ -5120,7 +5120,7 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
             return recentRejects->contains(inv.hash) ||
                    mempool.exists(inv.hash) ||
-//                   dpos::getController()->findTx(inv.hash, nullptr) ||
+//                   dpos::getController()->findTx(inv.hash, nullptr) || @todo @egorl ensure that it doesn't break mempool syncing
                    mapOrphanTransactions.count(inv.hash) ||
                    pcoinsTip->HaveCoins(inv.hash);
         }
@@ -5765,12 +5765,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         pfrom->setAskFor.erase(inv.hash);
         mapAlreadyAskedFor.erase(inv);
 
+        const bool areadyHad = AlreadyHave(inv);
+
         // accept to dPoS controller
         if (tx.fInstant)
             dpos::getController()->proceedTransaction(tx);
 
         CMasternodesView mnview(*pmasternodesview);
-        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3)))
+        if (!areadyHad && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3)))
         {
             mempool.check(pcoinsTip);
             RelayTransaction(tx);
