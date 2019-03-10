@@ -114,8 +114,8 @@ void CDposVoter::updateTip(BlockHash tip)
     if (!verifyVotingState())
         assert(!"dPoS database is corrupted (voting state verification failed)! Please restart with -reindex to recover.");
 
-    // filter invalid (typically finalized txs from prev. block) and rejected txs
     const Round nRound = getCurrentRound();
+    // filter rejected txs
     for (auto it = this->txs.begin(); it != this->txs.end();) {
         const TxId txid = it->first;
         auto stats = calcTxVotingStats(txid, nRound);
@@ -125,8 +125,16 @@ void CDposVoter::updateTip(BlockHash tip)
         else
             it++;
     }
+    // filter invalid (typically finalized txs from prev. block) txs
     for (auto it = this->txs.begin(); it != this->txs.end();) {
         if (!world.validateTx(it->second))
+            it = this->txs.erase(it);
+        else
+            it++;
+    }
+    // filter txs without votes, so txs.size <= maxNotVotedTxsToKeep
+    for (auto it = this->txs.begin(); it != this->txs.end() && this->txs.size() > maxNotVotedTxsToKeep;) {
+        if (!txHasAnyVote(it->first))
             it = this->txs.erase(it);
         else
             it++;
