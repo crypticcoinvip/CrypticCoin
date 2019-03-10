@@ -145,7 +145,7 @@ void CDposVoter::updateTip(BlockHash tip)
 
 CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
 {
-    if (viceBlock.nRound <= 0 || !viceBlock.vSig.empty() || !viceBlock.hashReserved1.IsNull() || !viceBlock.hashReserved2.IsNull()) {
+    if (viceBlock.nRound <= 0 || !viceBlock.vSig.empty()) {
         return misbehavingErr("vice-block is malformed");
     }
 

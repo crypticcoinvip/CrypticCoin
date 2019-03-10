@@ -3708,6 +3708,10 @@ bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, unsigne
 
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool fCheckPOW)
 {
+    // Check hashReserved1/hashReserved2 are 0
+    if (!block.hashReserved1.IsNull() || !block.hashReserved2.IsNull())
+        return state.DoS(100, error("CheckBlockHeader(): malformed reserved hashes"),
+                         REJECT_INVALID, "malformed");
     // Check block version
     if (block.nVersion < MIN_BLOCK_VERSION)
         return state.DoS(100, error("CheckBlockHeader(): block version too low"),
