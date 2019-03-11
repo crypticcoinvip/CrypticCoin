@@ -2566,9 +2566,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // Disable dPoS if mns are offline
     const bool fBigGapBetweenBlocks = pindex->pprev != nullptr && (pindex->GetBlockTime() > (pindex->pprev->GetBlockTime() + chainparams.GetConsensus().dpos.nMaxTimeBetweenBlocks));
-
-    const size_t nCurrentTeamSize = mnview.ReadDposTeam(pindex->nHeight - 1).size();
+    const int nHeightPrev = (pindex->pprev != nullptr ? pindex->pprev->nHeight : 0);
+    const size_t nCurrentTeamSize = mnview.ReadDposTeam(nHeightPrev).size();
     const bool fDposActive = !fBigGapBetweenBlocks && (nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize);
+    const bool isSapling = NetworkUpgradeActive(nHeightPrev, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING);
 
     bool fExpensiveChecks = true;
     if (fCheckpointsEnabled) {
@@ -2579,10 +2580,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
     }
 
-    if (NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING) &&
-        block.nVersion < CBlockHeader::SAPLING_BLOCK_VERSION)
-    {
-        return state.DoS(100, error("CheckBlock(): invalid block version"),
+    if (isSapling && block.nVersion < CBlockHeader::SAPLING_BLOCK_VERSION) {
+        return state.DoS(100, error("ConnectBlock(): invalid block version"),
                          REJECT_INVALID, "bad-block-version", true);
     }
 

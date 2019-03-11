@@ -673,7 +673,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
         pindexPrev = pindexPrevNew;
     }
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
-    if (NetworkUpgradeActive((pindexPrev != nullptr ? pindexPrev->nHeight + 1: 0), Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
+    if (!NetworkUpgradeActive(chainActive.Height() + 1, Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
         pblock->nVersion = CBlockHeader::SAPLING_BLOCK_VERSION - 1;
     }
 
