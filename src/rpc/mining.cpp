@@ -833,6 +833,14 @@ UniValue submitblock(const UniValue& params, bool fHelp)
         }
     }
 
+    if (dpos::getController()->isEnabled(block.hashPrevBlock)) {
+        LogPrintf("%s: dPoS is active, submit block %s as vice-block \n", __func__, block.GetHash().GetHex());
+        dpos::getController()->proceedViceBlock(block);
+        return NullUniValue;
+    }
+
+    LogPrintf("%s: dPoS isn't active, submit block %s directly \n", __func__, block.GetHash().GetHex());
+    // Process this block the same as if we had received it from another node
     CValidationState state;
     submitblock_StateCatcher sc(block.GetHash());
     RegisterValidationInterface(&sc);
