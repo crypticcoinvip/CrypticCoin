@@ -2080,6 +2080,18 @@ bool CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoins
                 }
             }
 
+            // check that instant txs spends only P2PKH inputs
+            // (@egorl actually, it'd be enough to forbid CHECKLOCKTIMEVERIFY opcode in scriptPubKey/scriptSig, but let's keep instant txs straightforward until future releases)
+            if (tx.fInstant)
+            {
+                txnouttype prevoutType{};
+                std::vector<std::vector<unsigned char> > vSolutionsRet_dummy;
+                if (!Solver(coins->vout[prevout.n].scriptPubKey, prevoutType, vSolutionsRet_dummy) || prevoutType != txnouttype::TX_PUBKEYHASH) {
+                    return state.DoS(100, error("CheckInputs(): instant tx can spend only P2PKH inputs"),
+                                     REJECT_INVALID, "bad-txn-inst-p2pkh");
+                }
+            }
+
             // Check for negative or overflow input values
             nValueIn += coins->vout[prevout.n].nValue;
             if (!MoneyRange(coins->vout[prevout.n].nValue) || !MoneyRange(nValueIn))
@@ -3703,6 +3715,10 @@ bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, unsigne
 
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool fCheckPOW)
 {
+    // Check hashReserved1/hashReserved2 are 0
+    if (!block.hashReserved1.IsNull() || !block.hashReserved2.IsNull())
+        return state.DoS(100, error("CheckBlockHeader(): malformed reserved hashes"),
+                         REJECT_INVALID, "malformed");
     // Check block version
     if (block.nVersion < MIN_BLOCK_VERSION)
         return state.DoS(100, error("CheckBlockHeader(): block version too low"),
@@ -5115,7 +5131,7 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
             return recentRejects->contains(inv.hash) ||
                    mempool.exists(inv.hash) ||
-//                   dpos::getController()->findTx(inv.hash, nullptr) ||
+//                   dpos::getController()->findTx(inv.hash, nullptr) || @todo @egorl ensure that it doesn't break mempool syncing
                    mapOrphanTransactions.count(inv.hash) ||
                    pcoinsTip->HaveCoins(inv.hash);
         }
@@ -5760,12 +5776,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         pfrom->setAskFor.erase(inv.hash);
         mapAlreadyAskedFor.erase(inv);
 
+        const bool areadyHad = AlreadyHave(inv);
+
         // accept to dPoS controller
         if (tx.fInstant)
             dpos::getController()->proceedTransaction(tx);
 
         CMasternodesView mnview(*pmasternodesview);
-        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3)))
+        if (!areadyHad && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3)))
         {
             mempool.check(pcoinsTip);
             RelayTransaction(tx);
