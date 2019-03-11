@@ -673,11 +673,14 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
         pindexPrev = pindexPrevNew;
     }
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
+    if (NetworkUpgradeActive((pindexPrev != nullptr ? pindexPrev->nHeight + 1: 0), Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
+        pblock->nVersion = CBlockHeader::SAPLING_BLOCK_VERSION - 1;
+    }
 
     // Update nTime
     UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
+    pblock->nRound = dpos::getController()->getCurrentVotingRound(pindexPrev->nHeight + 1);
     pblock->nNonce = uint256();
-
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
 
     UniValue txCoinbase = NullUniValue;
@@ -758,6 +761,9 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     result.push_back(Pair("curtime", pblock->GetBlockTime()));
     result.push_back(Pair("bits", strprintf("%08x", pblock->nBits)));
     result.push_back(Pair("height", (int64_t)(pindexPrev->nHeight+1)));
+    if (pblock->nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
+        result.push_back(Pair("round", static_cast<int64_t>(pblock->nRound)));
+    }
 
     return result;
 }

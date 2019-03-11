@@ -145,16 +145,22 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     CAmount nFees_inst = 0;
 
     const std::vector<CTransaction> committedList = dpos::getController()->listCommittedTxs();
-    pblock->nRound = dpos::getController()->getCurrentVotingRound();
     {
         LOCK2(cs_main, mempool.cs);
         CBlockIndex* pindexPrev = chainActive.Tip();
         const int nHeight = pindexPrev->nHeight + 1;
         uint32_t consensusBranchId = CurrentEpochBranchId(nHeight, chainparams.GetConsensus());
         pblock->nTime = GetAdjustedTime();
+        pblock->nRound = dpos::getController()->getCurrentVotingRound(nHeight);
         const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
         CCoinsViewCache view(pcoinsTip);
         CMasternodesView mnview(*pmasternodesview);
+
+        if (!NetworkUpgradeActive(nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING) && 
+            !chainparams.MineBlocksOnDemand()) 
+        {
+            pblock->nVersion = CBlockHeader::SAPLING_BLOCK_VERSION - 1;
+        }
 
         SaplingMerkleTree sapling_tree;
         assert(view.GetSaplingAnchorAt(view.GetBestAnchor(SAPLING), sapling_tree));

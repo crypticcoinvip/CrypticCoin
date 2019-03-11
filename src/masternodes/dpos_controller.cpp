@@ -343,10 +343,10 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
     }
 }
 
-Round CDposController::getCurrentVotingRound() const
+Round CDposController::getCurrentVotingRound(int tipHeight) const
 {
-    if (isEnabled()) {
-        LOCK(cs_main);
+    AssertLockHeld(cs_main);
+    if (isEnabled(tipHeight)) {
         return voter->getCurrentRound();
     }
     return 0;

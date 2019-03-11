@@ -2567,6 +2567,14 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
     }
 
+    if (NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING)
+        ? block.nVersion < CBlockHeader::SAPLING_BLOCK_VERSION
+        : block.nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION)
+    {
+        return state.DoS(100, error("CheckBlock(): invalid block version"),
+                         REJECT_INVALID, "bad-block-version", true);
+    }
+
     auto verifier = libzcash::ProofVerifier::Strict();
     auto disabledVerifier = libzcash::ProofVerifier::Disabled();
 

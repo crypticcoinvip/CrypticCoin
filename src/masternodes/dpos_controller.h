@@ -34,7 +34,7 @@ public:
     void loadDB();
     void onChainTipUpdated(const BlockHash& tipHash);
 
-    Round getCurrentVotingRound() const;
+    Round getCurrentVotingRound(int tipHeight = -1) const;
 
     void proceedViceBlock(const CBlock& viceBlock);
     void proceedTransaction(const CTransaction& tx);
