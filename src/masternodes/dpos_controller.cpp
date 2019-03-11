@@ -141,7 +141,7 @@ void CDposController::runEventLoop()
         boost::this_thread::interruption_point();
 
         const BlockHash tip{getTipHash()};
-        if (self->isEnabled(tip)) {
+        if (self->isEnabled(GetTimeMillis(), tip)) {
             const auto now{GetTimeMillis()};
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
                 if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
@@ -220,16 +220,22 @@ void CDposController::runEventLoop()
     }
 }
 
-bool CDposController::isEnabled(int tipHeight) const
+bool CDposController::isEnabled(int64_t blockTime, int tipHeight) const
 {
     const Consensus::Params& params{Params().GetConsensus()};
+    AssertLockHeld(cs_main);
+
     if (tipHeight < 0) {
-        LOCK(cs_main);
         tipHeight = chainActive.Height();
     }
 
     // Disable dPoS if mns are offline
-    const bool fBigGapBetweenBlocks = (GetAdjustedTime() - chainActive.Tip()->GetBlockTime()) > params.dpos.nMaxTimeBetweenBlocks;
+    if (chainActive[tipHeight] == nullptr) {
+        blockTime = 0;
+    } else {
+        blockTime -= chainActive[tipHeight]->GetBlockTime();
+    }
+    const bool fBigGapBetweenBlocks = blockTime > params.dpos.nMaxTimeBetweenBlocks;
 
     const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
     return NetworkUpgradeActive(tipHeight, params, Consensus::UPGRADE_SAPLING) &&
@@ -237,16 +243,16 @@ bool CDposController::isEnabled(int tipHeight) const
            !fBigGapBetweenBlocks;
 }
 
-bool CDposController::isEnabled(const BlockHash& tipHash) const
+bool CDposController::isEnabled(int64_t blockTime, const BlockHash& tipHash) const
 {
     int height{-1};
+    AssertLockHeld(cs_main);
 
     if (!tipHash.IsNull()) {
-        LOCK(cs_main);
         height = Validator::computeBlockHeight(tipHash);
     }
 
-    return isEnabled(height);
+    return isEnabled(blockTime, height);
 }
 
 CValidationInterface* CDposController::getValidator()
@@ -321,7 +327,7 @@ void CDposController::loadDB()
 
 void CDposController::onChainTipUpdated(const BlockHash& tip)
 {
-    if (isEnabled(tip)) {
+    if (isEnabled(GetTimeMillis(), tip)) {
         const auto mnId{findMyMasternodeId()};
         LOCK(cs_main);
 

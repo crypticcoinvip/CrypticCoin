@@ -27,8 +27,8 @@ public:
     static CDposController& getInstance();
     static void runEventLoop();
 
-    bool isEnabled(int tipHeight = -1) const;
-    bool isEnabled(const BlockHash& tipHash) const;
+    bool isEnabled(int64_t blockTime, int tipHeight = -1) const;
+    bool isEnabled(int64_t blockTime, const BlockHash& tipHash) const;
 
     CValidationInterface* getValidator();
     void loadDB();

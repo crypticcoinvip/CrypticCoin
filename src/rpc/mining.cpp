@@ -833,7 +833,7 @@ UniValue submitblock(const UniValue& params, bool fHelp)
         }
     }
 
-    if (dpos::getController()->isEnabled(block.hashPrevBlock)) {
+    if (dpos::getController()->isEnabled(block.GetBlockTime(), block.hashPrevBlock)) {
         LogPrintf("%s: dPoS is active, submit block %s as vice-block \n", __func__, block.GetHash().GetHex());
         dpos::getController()->proceedViceBlock(block);
         return NullUniValue;
