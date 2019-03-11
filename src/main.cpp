@@ -2580,7 +2580,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
     }
 
-    if (isSapling && block.nVersion < CBlockHeader::SAPLING_BLOCK_VERSION) {
+    if ((isSapling ? block.nVersion < CBlockHeader::SAPLING_BLOCK_VERSION : block.nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION)) {
         return state.DoS(100, error("ConnectBlock(): invalid block version"),
                          REJECT_INVALID, "bad-block-version", true);
     }
