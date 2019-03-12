@@ -2566,10 +2566,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // Disable dPoS if mns are offline
     const bool fBigGapBetweenBlocks = pindex->pprev != nullptr && (pindex->GetBlockTime() > (pindex->pprev->GetBlockTime() + chainparams.GetConsensus().dpos.nMaxTimeBetweenBlocks));
-    const int nHeightPrev = (pindex->pprev != nullptr ? pindex->pprev->nHeight : 0);
-    const size_t nCurrentTeamSize = mnview.ReadDposTeam(nHeightPrev).size();
+    const size_t nCurrentTeamSize = mnview.ReadDposTeam(pindex->nHeight - 1).size();
     const bool fDposActive = !fBigGapBetweenBlocks && (nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize);
-    const bool isSapling = NetworkUpgradeActive(nHeightPrev, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING);
+    const bool isSapling = NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING);
 
     bool fExpensiveChecks = true;
     if (fCheckpointsEnabled) {
