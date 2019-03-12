@@ -141,8 +141,10 @@ void CDposController::runEventLoop()
         boost::this_thread::interruption_point();
 
         const BlockHash tip{getTipHash()};
-        if (self->isEnabled(tip)) {
-            const auto now{GetTimeMillis()};
+        const int64_t now_sec = GetAdjustedTime();
+        const int64_t now{GetTimeMillis()};
+
+        if (self->isEnabled(now_sec, tip)) {
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
                 if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
                     initialBlocksDownloadPassedT = now;
@@ -160,7 +162,7 @@ void CDposController::runEventLoop()
             { // maintenance under cs_main
                 LOCK(cs_main);
                 {
-                    const std::pair<BlockHash, Round> currentRound{self->voter->getTip(), self->getCurrentVotingRound()};
+                    const std::pair<BlockHash, Round> currentRound{self->voter->getTip(), self->getCurrentVotingRound(now_sec)};
 
                     if ((now - lastRoundChangeT) > (params.dpos.nRoundTooLong * 1000) && lastRound == currentRound) {
                         self->handleVoterOutput(self->voter->onRoundTooLong());
@@ -220,16 +222,16 @@ void CDposController::runEventLoop()
     }
 }
 
-bool CDposController::isEnabled(int tipHeight) const
+bool CDposController::isEnabled(int64_t time, int tipHeight) const
 {
     const Consensus::Params& params{Params().GetConsensus()};
+    LOCK(cs_main);
     if (tipHeight < 0) {
-        LOCK(cs_main);
         tipHeight = chainActive.Height();
     }
 
     // Disable dPoS if mns are offline
-    const bool fBigGapBetweenBlocks = (GetAdjustedTime() - chainActive.Tip()->GetBlockTime()) > params.dpos.nMaxTimeBetweenBlocks;
+    const bool fBigGapBetweenBlocks = time > (chainActive.Tip()->GetBlockTime() + params.dpos.nMaxTimeBetweenBlocks);
 
     const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
     return NetworkUpgradeActive(tipHeight, params, Consensus::UPGRADE_SAPLING) &&
@@ -237,16 +239,16 @@ bool CDposController::isEnabled(int tipHeight) const
            !fBigGapBetweenBlocks;
 }
 
-bool CDposController::isEnabled(const BlockHash& tipHash) const
+bool CDposController::isEnabled(int64_t time, const BlockHash& tipHash) const
 {
     int height{-1};
+    LOCK(cs_main);
 
     if (!tipHash.IsNull()) {
-        LOCK(cs_main);
         height = Validator::computeBlockHeight(tipHash);
     }
 
-    return isEnabled(height);
+    return isEnabled(time, height);
 }
 
 CValidationInterface* CDposController::getValidator()
@@ -321,7 +323,7 @@ void CDposController::loadDB()
 
 void CDposController::onChainTipUpdated(const BlockHash& tip)
 {
-    if (isEnabled(tip)) {
+    if (isEnabled(GetAdjustedTime(), tip)) {
         const auto mnId{findMyMasternodeId()};
         LOCK(cs_main);
 
@@ -343,10 +345,10 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
     }
 }
 
-Round CDposController::getCurrentVotingRound() const
+Round CDposController::getCurrentVotingRound(int64_t time) const
 {
-    if (isEnabled()) {
-        LOCK(cs_main);
+    LOCK(cs_main);
+    if (isEnabled(time)) {
         return voter->getCurrentRound();
     }
     return 0;

@@ -145,13 +145,13 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     CAmount nFees_inst = 0;
 
     const std::vector<CTransaction> committedList = dpos::getController()->listCommittedTxs();
-    pblock->nRound = dpos::getController()->getCurrentVotingRound();
+    pblock->nTime = GetAdjustedTime();
+    pblock->nRound = dpos::getController()->getCurrentVotingRound(pblock->nTime);
     {
         LOCK2(cs_main, mempool.cs);
         CBlockIndex* pindexPrev = chainActive.Tip();
         const int nHeight = pindexPrev->nHeight + 1;
         uint32_t consensusBranchId = CurrentEpochBranchId(nHeight, chainparams.GetConsensus());
-        pblock->nTime = GetAdjustedTime();
         const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
         CCoinsViewCache view(pcoinsTip);
         CMasternodesView mnview(*pmasternodesview);
@@ -562,7 +562,7 @@ static bool ProcessBlockFound(CBlock* pblock)
 //        wallet.mapRequestCount[pblock->GetHash()] = 0;
 //    }
 #endif
-    if (dpos::getController()->isEnabled(pblock->hashPrevBlock)) {
+    if (dpos::getController()->isEnabled(pblock->GetBlockTime(), pblock->hashPrevBlock)) {
         LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
             dpos::getController()->proceedViceBlock(*pblock);
     } else {

@@ -2546,7 +2546,7 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
             LogPrintf("CheckDposSigs(): the same signature is written twice \n");
             return false;
         }
-        knownSigs.insert(pubKey.GetID());
+        knownSigs.insert(operatorAuth);
     }
 
     return true;
