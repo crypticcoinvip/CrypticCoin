@@ -21,7 +21,7 @@ class CBlockHeader
 {
 public:
     // header
-    static const size_t HEADER_SIZE=4+32+32+32+4+4+32+32+32+2; // excluding Equihash solution
+    static const size_t HEADER_SIZE=4+32+32+32+4+4+32+32+32+4; // excluding Equihash solution
     static const int32_t CURRENT_VERSION=5;
     static const int32_t SAPLING_BLOCK_VERSION=CURRENT_VERSION;
     int32_t nVersion;
