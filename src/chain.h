@@ -184,8 +184,6 @@ public:
     unsigned int nBits;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
-    uint256 hashReserved1;
-    uint256 hashReserved2;
     uint32_t nRound;
 
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
@@ -219,8 +217,6 @@ public:
         nBits          = 0;
         nNonce         = uint256();
         nSolution.clear();
-        hashReserved1  = uint256();
-        hashReserved2  = uint256();
         nRound         = 0;
     }
 
@@ -240,8 +236,6 @@ public:
         nBits          = block.nBits;
         nNonce         = block.nNonce;
         nSolution      = block.nSolution;
-        hashReserved1  = block.hashReserved1;
-        hashReserved2  = block.hashReserved2;
         nRound         = block.nRound;
     }
 
@@ -275,8 +269,6 @@ public:
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
-        block.hashReserved1  = hashReserved1;
-        block.hashReserved2  = hashReserved2;
         block.nRound         = nRound;
         return block;
     }
@@ -401,8 +393,6 @@ public:
         READWRITE(nNonce);
         READWRITE(nSolution);
         if (nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
-            READWRITE(hashReserved1);
-            READWRITE(hashReserved2);
             READWRITE(nRound);
         }
 
@@ -433,8 +423,6 @@ public:
         block.nBits           = nBits;
         block.nNonce          = nNonce;
         block.nSolution       = nSolution;
-        block.hashReserved1   = hashReserved1;
-        block.hashReserved2   = hashReserved2;
         block.nRound          = nRound;
         return block.GetHash();
     }

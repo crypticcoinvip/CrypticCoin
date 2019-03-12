@@ -21,7 +21,7 @@ class CBlockHeader
 {
 public:
     // header
-    static const size_t HEADER_SIZE=4+32+32+32+4+4+32+32+32+4; // excluding Equihash solution
+    static const size_t HEADER_SIZE=4+32+32+32+4+4+32+4; // excluding Equihash solution
     static const int32_t CURRENT_VERSION=5;
     static const int32_t SAPLING_BLOCK_VERSION=CURRENT_VERSION;
     int32_t nVersion;
@@ -32,8 +32,6 @@ public:
     uint32_t nBits;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
-    uint256 hashReserved1;
-    uint256 hashReserved2;
     uint32_t nRound;
 
     CBlockHeader()
@@ -55,12 +53,8 @@ public:
         READWRITE(nSolution);
 
         if (nVersion >= SAPLING_BLOCK_VERSION) {
-            READWRITE(hashReserved1);
-            READWRITE(hashReserved2);
             READWRITE(nRound);
         } else if (ser_action.ForRead()) {
-            hashReserved1 = uint256{};
-            hashReserved2 = uint256{};
             nRound = 0;
         }
     }
@@ -75,8 +69,6 @@ public:
         nBits = 0;
         nNonce.SetNull();
         nSolution.clear();
-        hashReserved1.SetNull();
-        hashReserved2.SetNull();
         nRound = 0;
     }
 
@@ -147,8 +139,6 @@ public:
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
-        block.hashReserved1  = hashReserved1;
-        block.hashReserved2  = hashReserved2;
         block.nRound         = nRound;
         return block;
     }
@@ -189,12 +179,8 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         if (nVersion >= SAPLING_BLOCK_VERSION) {
-            READWRITE(hashReserved1);
-            READWRITE(hashReserved2);
             READWRITE(nRound);
         } else if (ser_action.ForRead()) {
-            hashReserved1 = uint256{};
-            hashReserved2 = uint256{};
             nRound = 0;
         }
     }
