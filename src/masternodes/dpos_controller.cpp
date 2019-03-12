@@ -705,7 +705,7 @@ boost::optional<CMasternode::ID> CDposController::findMyMasternodeId()
 boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth)
 {
     LOCK(cs_main);
-    const int height{Validator::computeBlockHeight(blockHash, MIN_BLOCKS_TO_KEEP)};
+    const int height{Validator::computeBlockHeight(blockHash, MAX_BLOCKS_TO_KEEP)};
     const CTeam team = pmasternodesview->ReadDposTeam(height);
     for (auto&& member : team)
     {
@@ -745,9 +745,9 @@ void CDposController::cleanUpDb()
     const auto tipHeight{chainActive.Height()};
 
     for (auto itV{this->voter->v.begin()}; itV != this->voter->v.end();) {
-        const int vblockTipHeight{Validator::computeBlockHeight(itV->first, MIN_BLOCKS_TO_KEEP)};
+        const int vblockTipHeight{Validator::computeBlockHeight(itV->first, MAX_BLOCKS_TO_KEEP)};
 
-        if (vblockTipHeight > 0 && tipHeight - vblockTipHeight > MIN_BLOCKS_TO_KEEP) {
+        if (vblockTipHeight > 0 && tipHeight - vblockTipHeight > MAX_BLOCKS_TO_KEEP) {
             for (auto it{this->receivedRoundVotes.begin()}; it != this->receivedRoundVotes.end();) {
                 if (it->second.tip == itV->first) {
                     pdposdb->EraseRoundVote(it->first);

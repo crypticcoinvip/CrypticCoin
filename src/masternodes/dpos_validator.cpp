@@ -162,7 +162,7 @@ bool CDposController::Validator::validateBlock(const CBlock& block, const std::m
 bool CDposController::Validator::allowArchiving(const BlockHash& blockHash)
 {
     assert(chainActive.Tip() != nullptr);
-    return chainActive.Height() - computeBlockHeight(blockHash, MIN_BLOCKS_TO_KEEP) < MIN_BLOCKS_TO_KEEP;
+    return chainActive.Height() - computeBlockHeight(blockHash, MAX_BLOCKS_TO_KEEP) < MAX_BLOCKS_TO_KEEP;
 }
 
 int CDposController::Validator::computeBlockHeight(const BlockHash& blockHash, int maxDeep)
