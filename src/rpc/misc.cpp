@@ -124,7 +124,7 @@ UniValue getinfo(const UniValue& params, bool fHelp)
 #endif
     obj.push_back(Pair("relayfee",      ValueFromAmount(::minRelayTxFee.GetFeePerK())));
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
-    obj.push_back(Pair("dpos",          dpos::getController()->isEnabled(chainActive.Height())));
+    obj.push_back(Pair("dpos",          dpos::getController()->isEnabled(GetAdjustedTime(), chainActive.Height())));
     return obj;
 }
 

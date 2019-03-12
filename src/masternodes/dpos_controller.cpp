@@ -141,7 +141,7 @@ void CDposController::runEventLoop()
         boost::this_thread::interruption_point();
 
         const BlockHash tip{getTipHash()};
-        if (self->isEnabled(GetTimeMillis(), tip)) {
+        if (self->isEnabled(GetAdjustedTime(), tip)) {
             const auto now{GetTimeMillis()};
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
                 if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
@@ -327,7 +327,7 @@ void CDposController::loadDB()
 
 void CDposController::onChainTipUpdated(const BlockHash& tip)
 {
-    if (isEnabled(GetTimeMillis(), tip)) {
+    if (isEnabled(GetAdjustedTime(), tip)) {
         const auto mnId{findMyMasternodeId()};
         LOCK(cs_main);
 
@@ -352,7 +352,7 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
 Round CDposController::getCurrentVotingRound(int tipHeight) const
 {
     AssertLockHeld(cs_main);
-    if (isEnabled(tipHeight)) {
+    if (isEnabled(GetAdjustedTime(), tipHeight)) {
         return voter->getCurrentRound();
     }
     return 0;

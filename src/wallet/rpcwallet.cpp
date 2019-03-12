@@ -3745,7 +3745,7 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
 
-    const bool fDposActive = dpos::getController()->isEnabled(chainActive.Tip()->nHeight);
+    const bool fDposActive = dpos::getController()->isEnabled(GetAdjustedTime(), chainActive.Tip()->nHeight);
     const bool fInstant = params.size() > 4 && params[4].get_bool();
 
     if (fInstant && !fDposActive)
@@ -4050,7 +4050,7 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    const bool fDposActive = dpos::getController()->isEnabled(chainActive.Tip()->nHeight);
+    const bool fDposActive = dpos::getController()->isEnabled(GetAdjustedTime(), chainActive.Tip()->nHeight);
     const bool fInstant = params.size() > 4 && params[4].get_bool();
 
     if (fInstant && !fDposActive)
@@ -4299,7 +4299,7 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    const bool fDposActive = dpos::getController()->isEnabled(chainActive.Tip()->nHeight);
+    const bool fDposActive = dpos::getController()->isEnabled(GetAdjustedTime(), chainActive.Tip()->nHeight);
 
     const bool fInstant = params.size() > 6 && params[6].get_bool();
     bool useAnyUTXO = false;
