@@ -182,9 +182,9 @@ public:
     uint256 hashFinalSaplingRoot;
     unsigned int nTime;
     unsigned int nBits;
+    uint32_t nRound;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
-    uint32_t nRound;
 
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     uint32_t nSequenceId;
@@ -215,9 +215,9 @@ public:
         hashFinalSaplingRoot   = uint256();
         nTime          = 0;
         nBits          = 0;
+        nRound         = 0;
         nNonce         = uint256();
         nSolution.clear();
-        nRound         = 0;
     }
 
     CBlockIndex()
@@ -234,9 +234,9 @@ public:
         hashFinalSaplingRoot   = block.hashFinalSaplingRoot;
         nTime          = block.nTime;
         nBits          = block.nBits;
+        nRound         = block.nRound;
         nNonce         = block.nNonce;
         nSolution      = block.nSolution;
-        nRound         = block.nRound;
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -267,9 +267,9 @@ public:
         block.hashFinalSaplingRoot   = hashFinalSaplingRoot;
         block.nTime          = nTime;
         block.nBits          = nBits;
+        block.nRound         = nRound;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
-        block.nRound         = nRound;
         return block;
     }
 
@@ -390,11 +390,11 @@ public:
         READWRITE(hashFinalSaplingRoot);
         READWRITE(nTime);
         READWRITE(nBits);
-        READWRITE(nNonce);
-        READWRITE(nSolution);
-        if (nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
+        if (this->nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
             READWRITE(nRound);
         }
+        READWRITE(nNonce);
+        READWRITE(nSolution);
 
         // Only read/write nSproutValue if the client version used to create
         // this index was storing them.
@@ -421,9 +421,9 @@ public:
         block.hashFinalSaplingRoot    = hashFinalSaplingRoot;
         block.nTime           = nTime;
         block.nBits           = nBits;
+        block.nRound          = nRound;
         block.nNonce          = nNonce;
         block.nSolution       = nSolution;
-        block.nRound          = nRound;
         return block.GetHash();
     }
 

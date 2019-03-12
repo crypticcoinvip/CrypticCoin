@@ -30,9 +30,9 @@ public:
     uint256 hashFinalSaplingRoot;
     uint32_t nTime;
     uint32_t nBits;
+    uint32_t nRound;
     uint256 nNonce;
     std::vector<unsigned char> nSolution;
-    uint32_t nRound;
 
     CBlockHeader()
     {
@@ -49,14 +49,13 @@ public:
         READWRITE(hashFinalSaplingRoot);
         READWRITE(nTime);
         READWRITE(nBits);
-        READWRITE(nNonce);
-        READWRITE(nSolution);
-
-        if (nVersion >= SAPLING_BLOCK_VERSION) {
+        if (this->nVersion >= SAPLING_BLOCK_VERSION) {
             READWRITE(nRound);
         } else if (ser_action.ForRead()) {
             nRound = 0;
         }
+        READWRITE(nNonce);
+        READWRITE(nSolution);
     }
 
     void SetNull()
@@ -67,9 +66,9 @@ public:
         hashFinalSaplingRoot.SetNull();
         nTime = 0;
         nBits = 0;
+        nRound = 0;
         nNonce.SetNull();
         nSolution.clear();
-        nRound = 0;
     }
 
     bool IsNull() const
@@ -113,7 +112,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
-        if (nVersion >= SAPLING_BLOCK_VERSION) {
+        if (this->nVersion >= SAPLING_BLOCK_VERSION) {
             READWRITE(vSig);
         }  else if (ser_action.ForRead()) {
             vSig.clear();
@@ -137,9 +136,9 @@ public:
         block.hashFinalSaplingRoot = hashFinalSaplingRoot;
         block.nTime          = nTime;
         block.nBits          = nBits;
+        block.nRound         = nRound;
         block.nNonce         = nNonce;
         block.nSolution      = nSolution;
-        block.nRound         = nRound;
         return block;
     }
 
@@ -172,13 +171,13 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(nVersion);
+        READWRITE(this->nVersion);
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashFinalSaplingRoot);
         READWRITE(nTime);
         READWRITE(nBits);
-        if (nVersion >= SAPLING_BLOCK_VERSION) {
+        if (this->nVersion >= SAPLING_BLOCK_VERSION) {
             READWRITE(nRound);
         } else if (ser_action.ForRead()) {
             nRound = 0;

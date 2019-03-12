@@ -3716,6 +3716,9 @@ bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool f
     if (block.nVersion < MIN_BLOCK_VERSION)
         return state.DoS(100, error("CheckBlockHeader(): block version too low"),
                          REJECT_INVALID, "version-too-low");
+    if (block.nVersion > CBlockHeader::CURRENT_VERSION)
+        return state.DoS(100, error("CheckBlockHeader(): block version too much"),
+                         REJECT_INVALID, "version-too-much");
 
     // Check Equihash solution is valid
     if (fCheckPOW && !CheckEquihashSolution(&block, Params()))
