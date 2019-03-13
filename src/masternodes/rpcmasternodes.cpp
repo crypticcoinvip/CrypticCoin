@@ -295,9 +295,9 @@ UniValue mn_announce(UniValue const & params, bool fHelp)
 
 
     // Parameters validation block
-    if (name.size() < 3 || name.size() >= 255)
+    if (name.size() < 3 || name.size() >= 31)
     {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, 'name' should be at least size 3 and less than 255");
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, 'name' should be at least size 3 and not greater than 31");
     }
 
     // owner and operator check

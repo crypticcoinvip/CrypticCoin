@@ -2384,13 +2384,16 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     view.SetBestBlock(pindex->pprev->GetBlockHash());
 
     // fix masternodes view state
-    if (fClean)
+    if (!mnview.IsReadOnlyDB())
     {
-        mnview.CommitBatch();
-    }
-    else
-    {
-        mnview.DropBatch();
+        if (fClean)
+        {
+            mnview.CommitBatch();
+        }
+        else
+        {
+            mnview.DropBatch();
+        }
     }
 
     if (pfClean) {
@@ -3187,6 +3190,14 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
 
     // Update chainActive & related variables.
     UpdateTip(pindexNew);
+
+    // Here, but not in ConnectBlock(), cause tip was not updated
+    {
+        TryMasternodeAutoActivation(*pmasternodesview, chainActive.Height());
+        TryMasternodeAutoDismissVote(*pmasternodesview, chainActive.Height());
+        TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, chainActive.Height());
+    }
+
     // Tell wallet about transactions that went from mempool
     // to conflicted:
     BOOST_FOREACH(const CTransaction &tx, txConflicted) {
@@ -6803,6 +6814,83 @@ bool CheckMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, Conse
     return result;
 }
 
+extern UniValue mn_activate(UniValue const & params, bool fHelp);
+extern UniValue mn_dismissvote(UniValue const & params, bool fHelp);
+extern UniValue mn_finalizedismissvoting(UniValue const & params, bool fHelp);
+
+UniValue TryRpcCall(std::function<UniValue(UniValue const & params, bool fHelp)> function, UniValue const & params, std::string const & message)
+{
+    std::string errString;
+    UniValue result;
+    try
+    {
+        result = function(params, false);
+        LogPrintf("Trying to call %s, parameters: %s\n" , message, params.write());
+    }
+    catch (UniValue const & err)
+    {
+        errString = find_value(err, "message").getValStr();
+        if (errString.empty())
+            errString = "Unknown RPC error";
+    }
+    catch (std::runtime_error const & err)
+    {
+        errString = err.what();
+    }
+    if (!errString.empty())
+    {
+        LogPrintf("Fail to call %s, parameters %s : %s\n", message, params.write(), errString);
+    }
+    return result;
+}
+
+void TryMasternodeAutoActivation(CMasternodesView & mnview, int height)
+{
+    auto const ids = mnview.AmIOperator();
+    if (ids)
+    {
+        auto const & node = mnview.GetMasternodes().at((*ids).id);
+        if (node.activationHeight == -1 && node.deadSinceHeight == -1 && node.minActivationHeight <= (height + 1))
+        {
+            UniValue params(UniValue::VARR);
+            params.push_back(UniValue(UniValue::VARR));
+            TryRpcCall(&mn_activate, params, "MN auto activation");
+        }
+    }
+}
+
+void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int height)
+{
+    auto const ids = mnview.AmIActiveOperator();
+    if (ids)
+    {
+        /// @todo
+    }
+}
+
+void TryMasternodeAutoFinalizeDismissVoting(CMasternodesView & mnview, int height)
+{
+    auto const ids = mnview.AmIActiveOperator();
+    if (ids)
+    {
+        // Almost round robin
+        int const index = std::distance(mnview.GetActiveMasternodes().begin(), mnview.GetActiveMasternodes().find((*ids).id)) + 1;
+        if (height % mnview.GetActiveMasternodes().size() == index)
+        for (auto const & pair : mnview.GetMasternodes())
+        {
+            if (pair.second.deadSinceHeight == -1 && pair.second.counterVotesAgainst >= mnview.GetMinDismissingQuorum())
+            {
+                UniValue obj(UniValue::VOBJ);
+                obj.push_back(Pair("against", pair.first.GetHex()));
+                UniValue params(UniValue::VARR);
+                params.push_back(UniValue(UniValue::VARR));
+                params.push_back(obj);
+                TryRpcCall(&mn_finalizedismissvoting, params, "MN auto finalize dismiss voting");
+            }
+        }
+    }
+}
+
 bool ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int height)
 {
     bool result(true);
@@ -6811,13 +6899,17 @@ bool ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & blo
         result = result && CheckMasternodeTx(mnview, block.vtx[i], Params().GetConsensus(), height);
     }
     mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), height-1); // 'height-1'== current tip
-    if (result)
+
+    if (!mnview.IsReadOnlyDB())
     {
-        mnview.CommitBatch();
-    }
-    else
-    {
-        mnview.DropBatch();
+        if (result)
+        {
+            mnview.CommitBatch();
+        }
+        else
+        {
+            mnview.DropBatch();
+        }
     }
     return result;
 }
@@ -6831,13 +6923,16 @@ bool ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & 
     {
         result = result && mnview.OnUndo(height, block.vtx[i].GetHash());
     }
-    if (result)
+    if (!mnview.IsReadOnlyDB())
     {
-        mnview.CommitBatch();
-    }
-    else
-    {
-        mnview.DropBatch();
+        if (result)
+        {
+            mnview.CommitBatch();
+        }
+        else
+        {
+            mnview.DropBatch();
+        }
     }
     return result;
 }
@@ -6871,7 +6966,7 @@ CPubKey GetPubkeyFromScriptSig(CScript const & scriptSig)
  */
 bool CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const & tx, int height)
 {
-    bool result(true);
+    bool total(true);
     for (uint32_t i = 0; i < tx.vin.size(); ++i)
     {
         COutPoint const & prevout = tx.vin[i].prevout;
@@ -6879,10 +6974,15 @@ bool CheckInputsForCollateralSpent(CMasternodesView & mnview, CTransaction const
         if (prevout.n == 1 && mnview.ExistMasternode(prevout.hash))
         {
             // i - unused
-            result = result && mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
+            bool result = mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
+            if (result && !mnview.IsReadOnlyDB())
+            {
+                LogPrintf("MN: Spent collateral by tx %s for %s at block %d\n", tx.GetHash().GetHex(), prevout.hash.GetHex(), height);
+            }
+            total = total && result;
         }
     }
-    return result;
+    return total;
 }
 
 /*
@@ -6903,12 +7003,17 @@ bool CheckAnnounceMasternodeTx(CMasternodesView & mnview, CTransaction const & t
     if (node.ownerRewardAddress.empty() || node.ownerRewardAddress.size() > 127 ||
         node.operatorRewardAddress.size() > 127 || node.operatorRewardRatio < 0 || node.operatorRewardRatio > MN_BASERATIO ||
         node.ownerAuthAddress.IsNull() || node.operatorAuthAddress.IsNull() || node.ownerAuthAddress == node.operatorAuthAddress ||
-        !(node.name.size() >= 3 && node.name.size() <= 255))
+        !(node.name.size() >= 3 && node.name.size() <= 31))
     {
         return false;
     }
     node.minActivationHeight = height + std::max(GetMnActivationDelay(), static_cast<int>(mnview.GetActiveMasternodes().size()));
-    return mnview.OnMasternodeAnnounce(tx.GetHash(), node);
+    bool result = mnview.OnMasternodeAnnounce(tx.GetHash(), node);
+    if (result && !mnview.IsReadOnlyDB())
+    {
+        LogPrintf("MN: Announce by tx %s at block %d\n", tx.GetHash().GetHex(), height);
+    }
+    return result;
 }
 
 /*
@@ -6924,7 +7029,12 @@ bool CheckActivateMasternodeTx(CMasternodesView & mnview, CTransaction const & t
 //    CDataStream ss(metadata);
     // Make it simple, until metadata consists only of masternode id (serialization mismatch?)
     uint256 nodeId(metadata);
-    return mnview.OnMasternodeActivate(tx.GetHash(), nodeId, auth, height);
+    bool result = mnview.OnMasternodeActivate(tx.GetHash(), nodeId, auth, height);
+    if (result && !mnview.IsReadOnlyDB())
+    {
+        LogPrintf("MN: Activate by tx %s for %s at block %d\n", tx.GetHash().GetHex(), nodeId.GetHex(), height);
+    }
+    return result;
 }
 
 bool CheckSetOperatorRewardTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
@@ -6945,7 +7055,13 @@ bool CheckSetOperatorRewardTx(CMasternodesView & mnview, CTransaction const & tx
     {
         return false;
     }
-    return mnview.OnSetOperatorReward(tx.GetHash(), auth, newOperatorAuthAddress, newOperatorRewardAddress, newOperatorRewardRatio, height);
+    bool result = mnview.OnSetOperatorReward(tx.GetHash(), auth, newOperatorAuthAddress, newOperatorRewardAddress, newOperatorRewardRatio, height);
+    if (result && !mnview.IsReadOnlyDB())
+    {
+        uint256 const nodeId = (*mnview.ExistMasternode(CMasternodesView::AuthIndex::ByOperator, newOperatorAuthAddress))->second;
+        LogPrintf("MN: Set new operator by tx %s for %s at block %d\n", tx.GetHash().GetHex(), nodeId.GetHex(), height);
+    }
+    return result;
 }
 
 bool CheckDismissVoteTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
@@ -6954,7 +7070,13 @@ bool CheckDismissVoteTx(CMasternodesView & mnview, CTransaction const & tx, int 
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     CDismissVote vote(tx, metadata); // note that 'from' is empty!
-    return mnview.OnDismissVote(tx.GetHash(), vote, auth, height);
+    bool result = mnview.OnDismissVote(tx.GetHash(), vote, auth, height);
+    if (result && !mnview.IsReadOnlyDB())
+    {
+        uint256 const nodeId = (*mnview.ExistMasternode(CMasternodesView::AuthIndex::ByOperator, auth))->second;
+        LogPrintf("MN: Dismiss vote by tx %s from %s against %s at block %d\n", tx.GetHash().GetHex(), nodeId.GetHex(), vote.against.GetHex(), height);
+    }
+    return result;
 }
 
 bool CheckDismissVoteRecallTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
@@ -6963,13 +7085,24 @@ bool CheckDismissVoteRecallTx(CMasternodesView & mnview, CTransaction const & tx
     // We can access it only in main transaction validation circle. Try another way...
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     uint256 against(metadata);
-    return mnview.OnDismissVoteRecall(tx.GetHash(), against, auth, height);
+    bool result = mnview.OnDismissVoteRecall(tx.GetHash(), against, auth, height);
+    if (result && !mnview.IsReadOnlyDB())
+    {
+        uint256 const nodeId = (*mnview.ExistMasternode(CMasternodesView::AuthIndex::ByOperator, auth))->second;
+        LogPrintf("MN: Recall dismiss vote by tx %s from %s against %s at block %d\n", tx.GetHash().GetHex(), nodeId.GetHex(), against.GetHex(), height);
+    }
+    return result;
 }
 
 bool CheckFinalizeDismissVotingTx(CMasternodesView & mnview, CTransaction const & tx, int height, std::vector<unsigned char> const & metadata)
 {
     uint256 against(metadata);
-    return mnview.OnFinalizeDismissVoting(tx.GetHash(), against, height);
+    bool result = mnview.OnFinalizeDismissVoting(tx.GetHash(), against, height);
+    if (result && !mnview.IsReadOnlyDB())
+    {
+        LogPrintf("MN: Finalize dismiss voting by tx %s against %s at block %d\n", tx.GetHash().GetHex(), against.GetHex(), height);
+    }
+    return result;
 }
 
 namespace

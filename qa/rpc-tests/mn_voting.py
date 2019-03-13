@@ -77,7 +77,7 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         pp = pprint.PrettyPrinter(indent=4)
 
         self.start_nodes()
-
+        print "Height at start: ", self.nodes[0].getblockcount()
         print "Announcing nodes"
         self.mns = [ Mn(self.nodes[i], "node"+str(i)) for i in range(self.num_nodes) ]
         for i in range(self.num_nodes):
@@ -91,30 +91,36 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
             assert_equal(self.dump_mn(i)['status'], "announced")
 
 
-        # Generate blocks for activation height
-        for i in range(10):
-            self.nodes[0].generate(1)
-        self.sync_all()
-
-
         print "Restarting nodes"
         self.stop_nodes()
         self.start_nodes([[ "-masternode_operator="+self.mns[i].operator] for i in range(self.num_nodes) ] )
+        print "Height at start: ", self.nodes[0].getblockcount()
 
+        # Generate blocks for activation height
+        for i in range(9):
+            self.nodes[0].generate(1)
+#        self.sync_all()    # May hang
+        time.sleep(5)
 
-        print "Activating nodes"
-        for i in range(self.num_nodes) :
-            self.activate_mn(i)
+        h = self.nodes[0].getblockcount()
 
-        self.sync_all()
+        print "Autoactivation should happen here"
+#        for i in range(self.num_nodes) :
+#            self.activate_mn(i)
         self.nodes[0].generate(1)
-        self.sync_all()
+#        self.sync_all()    # May hang
 
+        while self.nodes[0].getblockcount() < h+1:
+            print h+1
+            time.sleep(0.5)
+
+#        pp.pprint(self.nodes[0].mn_list([], True))
         for i in range(self.num_nodes):
             assert_equal(self.dump_mn(i)['status'], "active")
 
 
         print "Voting..."
+        self.sync_all() # Important to accept blocks, otherwise other nodes may be not active!
         # Voting: node 0 against 1
         self.dismissvote_mn(0, 1)
         # Voting: node 1&2&3 against 0
@@ -123,9 +129,10 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         self.dismissvote_mn(3, 0)
 
         self.sync_all()
-        time.sleep(2)
+        time.sleep(4)
         self.nodes[0].generate(1)
-        while self.nodes[0].getblockcount() != 212:
+        while self.nodes[0].getblockcount() < h+2:
+            print h+2
             time.sleep(0.5)
 
         dump0 = self.dump_mn(0)
@@ -160,7 +167,8 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         self.start_nodes(args)
 
         self.nodes[0].generate(1)
-        while self.nodes[0].getblockcount() != 213:
+        while self.nodes[0].getblockcount() < h+3:
+            print h+3
             time.sleep(0.5)
 
 
@@ -172,12 +180,12 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         assert("Dismissing quorum not reached" in errorString)
 
         # Finalize voting against 0
-        self.finalizedismissvoting_mn(1, 0)
+        print "Autofinalizing should happen"
+#        self.finalizedismissvoting_mn(1, 0)
 
-
-        self.sync_all()
         self.nodes[1].generate(1)
-        while self.nodes[1].getblockcount() != 214:
+        while self.nodes[0].getblockcount() < h+4:
+            print h+4
             time.sleep(0.5)
 
         dump0 = self.dump_mn(0)

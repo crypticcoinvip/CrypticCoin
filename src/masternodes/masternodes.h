@@ -247,6 +247,8 @@ public:
 
     ~CMasternodesView() {}
 
+    bool IsReadOnlyDB() const { return db.IsReadOnly(); }
+
     CMasternodes const & GetMasternodes() const
     {
         return allNodes;

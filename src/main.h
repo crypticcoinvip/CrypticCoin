@@ -604,6 +604,10 @@ int GetSpendHeight(const CCoinsViewCache& inputs);
 CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Params& consensusParams, int nHeight);
 
 //////////////////////////////// Masternodes new code /// @todo @mn rearrange|refactor
+void TryMasternodeAutoActivation(CMasternodesView & mnview, int height);
+void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int height);
+void TryMasternodeAutoFinalizeDismissVoting(CMasternodesView & mnview, int height);
+
 bool CheckMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, const Consensus::Params& consensusParams, int height);
 bool ProcessMasternodeTxsOnConnect(CMasternodesView & mnview, CBlock const & block, int nHeight);
 bool ProcessMasternodeTxsOnDisconnect(CMasternodesView & mnview, CBlock const & block, int height);

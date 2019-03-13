@@ -32,10 +32,11 @@ CKey getMasternodeKey()
     return rv;
 }
 
-bool checkMasternodeKey(const CKeyID& keyId)
+bool checkMasternodeKeyAndStatus(const CKeyID& keyId)
 {
     LOCK(cs_main);
-    return pmasternodesview->ExistMasternode(CMasternodesView::AuthIndex::ByOperator, keyId) != boost::none;
+    const auto pair = pmasternodesview->ExistMasternode(CMasternodesView::AuthIndex::ByOperator, keyId);
+    return pair != boost::none && pmasternodesview->GetMasternodes().at((*pair)->second).deadSinceHeight == -1;
 }
 
 }
@@ -152,7 +153,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
     if (message.GetPubKey(pubKey)) {
         const CKeyID masternodeKey{pubKey.GetID()};
 
-        if (checkMasternodeKey(masternodeKey) &&
+        if (checkMasternodeKeyAndStatus(masternodeKey) &&
             message.GetTimestamp() < now + maxHeartbeatInFuture)
         {
             LockGuard lock{mutex};
@@ -276,15 +277,15 @@ std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilte
             continue;
         }
         const CMasternode& mn{pmasternodesview->GetMasternodes().at(mnPair.second)};
-        if (mn.activationHeight < 0 ){
-            // skip if masternode is not active
+        if (mn.deadSinceHeight != -1) {
+            // skip if masternode is already dead
             continue;
         }
-        assert(chainActive[mn.activationHeight] != nullptr);
+        assert(chainActive[mn.height] != nullptr);
 
         const auto it{keyMessageMap.find(mnPair.first)};
         const int64_t previousTime{(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime)};
-        const int64_t previousMaxTime{std::max(previousTime, chainActive[mn.activationHeight]->GetBlockTime() * 1000)};
+        const int64_t previousMaxTime{std::max(previousTime, chainActive[mn.height]->GetBlockTime() * 1000)};
         const int64_t elapsed{GetTimeMillis() - previousMaxTime};
 
         if ((elapsed < period.first && ageFilter == RECENTLY) ||
