@@ -143,12 +143,8 @@ void CDposController::runEventLoop()
         const BlockHash tip{getTipHash()};
         const int64_t now_sec = GetAdjustedTime();
         const int64_t now{GetTimeMillis()};
-        const auto isEnabled{[self, tip, now_sec](){
-                LOCK(cs_main);
-                return self->isEnabled(now_sec, tip);
-        }};
 
-        if (isEnabled()) {
+        if (self->isEnabled(now_sec, tip)) {
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
                 if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
                     initialBlocksDownloadPassedT = now;
@@ -247,7 +243,7 @@ bool CDposController::isEnabled(int64_t time, const CBlockIndex* pindexTip) cons
 
 bool CDposController::isEnabled(int64_t time, int tipHeight) const
 {
-    AssertLockHeld(cs_main);
+    LOCK(cs_main);
     return isEnabled(time, chainActive[tipHeight]);
 }
 
@@ -256,7 +252,7 @@ bool CDposController::isEnabled(int64_t time, const BlockHash& tipHash) const
     CBlockIndex* pindexTip{nullptr};
 
     if (!tipHash.IsNull()) {
-        AssertLockHeld(cs_main);
+        LOCK(cs_main);
         if (mapBlockIndex.find(tipHash) == mapBlockIndex.end()) {
             return false;
         }
