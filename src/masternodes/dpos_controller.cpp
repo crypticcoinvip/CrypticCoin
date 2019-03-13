@@ -143,8 +143,12 @@ void CDposController::runEventLoop()
         const BlockHash tip{getTipHash()};
         const int64_t now_sec = GetAdjustedTime();
         const int64_t now{GetTimeMillis()};
+        const auto isEnabled{[self, tip, now_sec](){
+                LOCK(cs_main);
+                return self->isEnabled(now_sec, tip);
+        }};
 
-        if (self->isEnabled(now_sec, tip)) {
+        if (isEnabled()) {
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
                 if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
                     initialBlocksDownloadPassedT = now;
