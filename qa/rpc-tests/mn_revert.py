@@ -12,6 +12,7 @@ from test_framework.util import assert_equal, assert_greater_than, \
 
 from decimal import Decimal
 import pprint
+import time
 
 class Mn(object):
 
@@ -99,46 +100,66 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
         connect_nodes_bi(self.nodes, 0, 1)
 
         # Generate blocks for activation height
-        self.nodes[0].generate(10)
+        self.nodes[0].generate(9)
         sync_blocks([self.nodes[0], self.nodes[1]])
 
-        # Activate nodes 0+1
-        self.activate_mn(0)
-        self.activate_mn(1)
-        sync_mempools([self.nodes[0], self.nodes[1]])
+        # Activate nodes 0+1. (autoactivation should happen here)
+#        self.activate_mn(0)
+#        self.activate_mn(1)
+#        sync_mempools([self.nodes[0], self.nodes[1]])
         self.nodes[0].generate(1)
         sync_blocks([self.nodes[0], self.nodes[1]])
+        time.sleep(4)
 
         assert_equal(self.dump_mn(0)['status'], "active")
         assert_equal(self.dump_mn(1)['status'], "active")
         assert_equal(self.dump_mn(2)['status'], "announced")
 
 
-        print "Nodes 0,1 activated. Nodes 0,1 voting against #2 (only announced, offline)"
+        print "Nodes 0,1 activated. Nodes 0 voting against #2 (only announced, offline)"
         self.dismissvote_mn(0, 2)
-        self.dismissvote_mn(1, 2)
-        sync_mempools([self.nodes[0], self.nodes[1]])
-        self.nodes[0].generate(1) #(total +13)
+#        self.dismissvote_mn(1, 2) # !!! now, autofinalize may happen
+#        sync_mempools([self.nodes[0], self.nodes[1]])
+        time.sleep(4)
+        self.nodes[0].generate(1) #(total +11)
         sync_blocks([self.nodes[0], self.nodes[1]])
+        time.sleep(4)
 
+#        pp.pprint(self.nodes[0].mn_list([], True))
 
         # Check dimissvoterecall
         assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 1)
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 2)
-        self.dismissvoterecall_mn(0, 2)
-        self.nodes[0].generate(1) #(total +14)
-        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 0)
         assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 1)
+        self.dismissvoterecall_mn(0, 2)
+        self.nodes[0].generate(1) #(total +12)
+#        time.sleep(4)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 0)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 0)
         self.dismissvote_mn(0, 2)
-        self.nodes[0].generate(1) #(total +15)
+        self.nodes[0].generate(1) #(total +13)
+#        time.sleep(4)
         assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 1)
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 2)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 1)
 
 
-        print "Node 0 finalize dismiss voting against #2 (offline)"
+        print "Node 0(1??) autofinalize dismiss voting against #2 (offline)"
         assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['status'], "announced")
-        self.finalizedismissvoting_mn(0, 2)
-        self.nodes[0].generate(1) #(total +16)
+#        self.finalizedismissvoting_mn(0, 2)
+        self.dismissvote_mn(1, 2)
+        time.sleep(4) #
+        self.nodes[0].generate(1) #(total +14)
+        sync_blocks([self.nodes[0], self.nodes[1]])
+        time.sleep(4)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[1].id], True)[0]['mn']['counterVotesFrom'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 2)
+        # Autofinalize should happen here
+        self.nodes[0].generate(1) #+15
+        sync_blocks([self.nodes[0], self.nodes[1]])
+        self.nodes[0].generate(1) #+16
+        sync_blocks([self.nodes[0], self.nodes[1]])
+        time.sleep(4)
+
 
         # Check that node #2 dismissed and counters decreased
         assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 0)
@@ -163,18 +184,22 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
 #        pp.pprint(votesOld)
 #        pp.pprint(votesNew)
 
-        self.nodes[2].generate(16) #(total +17)
+        assert_equal(self.nodes[2].mn_list([self.mns[0].id])[0]['status'], "announced")
+        assert_equal(self.nodes[2].mn_list([self.mns[1].id])[0]['status'], "announced")
+        assert_equal(self.nodes[2].mn_list([self.mns[2].id])[0]['status'], "announced")
+        self.nodes[2].generate(18) #(total +17)
         connect_nodes_bi(self.nodes, 0, 2)
         sync_blocks([self.nodes[0], self.nodes[2]])
+        time.sleep(4)
         assert_equal(self.nodes[0].mn_list([self.mns[0].id])[0]['status'], "announced")
         assert_equal(self.nodes[0].mn_list([self.mns[1].id])[0]['status'], "announced")
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id])[0]['status'], "announced")
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id])[0]['status'], "active") # cause autoactivation
 
 
         print "Resigning node 1, reverting node #2 work"
         collateral1out = self.nodes[1].getnewaddress()
         self.nodes[1].mn_resign(self.mns[1].id, collateral1out)
-        self.nodes[1].generate(2) #(total +18??)
+        self.nodes[1].generate(5) #(total +18??)
 
         connect_nodes_bi(self.nodes, 0, 1)
         sync_blocks([self.nodes[0], self.nodes[1]])
@@ -189,7 +214,7 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
         args = [[]] * self.num_nodes
         for i in range(3): args[i] = [ "-masternode_operator="+self.mns[i].operator ]
         self.start_nodes(args)
-        self.nodes[3].generate(20)
+        self.nodes[3].generate(30)
         connect_nodes_bi(self.nodes, 0, 1)
         connect_nodes_bi(self.nodes, 1, 2)
         connect_nodes_bi(self.nodes, 2, 3)

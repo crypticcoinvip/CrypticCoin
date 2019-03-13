@@ -416,6 +416,11 @@ CMasternodesDB::CMasternodesDB(const CMasternodesDB & other)
 {
 }
 
+bool CMasternodesDB::IsReadOnly() const
+{
+    return readOnly;
+}
+
 void CMasternodesDB::CommitBatch()
 {
     if (batch && !readOnly)

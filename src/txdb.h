@@ -123,6 +123,7 @@ private:
     }
 
 public:
+    bool IsReadOnly() const;
     void CommitBatch();
     void DropBatch();
 
