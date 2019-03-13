@@ -155,6 +155,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         CCoinsViewCache view(pcoinsTip);
         CMasternodesView mnview(*pmasternodesview);
 
+        pblock->nTime = GetAdjustedTime();
+        pblock->nRound = dpos::getController()->getCurrentVotingRound(pblock->GetBlockTime(), nHeight);
+
         if (!NetworkUpgradeActive(nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING)) {
             pblock->nVersion = CBlockHeader::SAPLING_BLOCK_VERSION - 1;
             if (Params().MineBlocksOnDemand()) {
