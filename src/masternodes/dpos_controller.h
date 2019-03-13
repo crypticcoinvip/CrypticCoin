@@ -12,6 +12,7 @@
 #include <protocol.h>
 
 class CKeyID;
+class CBlockIndex;
 class CValidationInterface;
 
 namespace dpos
@@ -27,14 +28,17 @@ public:
     static CDposController& getInstance();
     static void runEventLoop();
 
-    bool isEnabled(int64_t time, int tipHeight = -1) const;
+    bool isEnabled(int64_t time, const CBlockIndex* pindexTip) const;
+    bool isEnabled(int64_t time, int tipHeight) const;
     bool isEnabled(int64_t time, const BlockHash& tipHash) const;
 
     CValidationInterface* getValidator();
     void loadDB();
     void onChainTipUpdated(const BlockHash& tipHash);
 
-    Round getCurrentVotingRound(int64_t time) const;
+    Round getCurrentVotingRound(int64_t time, const CBlockIndex* pindexTip) const;
+    Round getCurrentVotingRound(int64_t time, int tipHeight) const;
+    Round getCurrentVotingRound(int64_t time, const BlockHash& tipHash) const;
 
     void proceedViceBlock(const CBlock& viceBlock);
     void proceedTransaction(const CTransaction& tx);

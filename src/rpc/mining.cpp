@@ -681,7 +681,6 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
 
     // Update nTime
     UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
-    pblock->nRound = dpos::getController()->getCurrentVotingRound(GetAdjustedTime());
     pblock->nNonce = uint256();
 
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");

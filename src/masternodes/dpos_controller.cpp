@@ -162,7 +162,8 @@ void CDposController::runEventLoop()
             { // maintenance under cs_main
                 LOCK(cs_main);
                 {
-                    const std::pair<BlockHash, Round> currentRound{self->voter->getTip(), self->getCurrentVotingRound(now_sec)};
+                    const auto currentRound{std::make_pair(self->voter->getTip(),
+                                                           self->getCurrentVotingRound(now_sec, tip))};
 
                     if ((now - lastRoundChangeT) > (params.dpos.nRoundTooLong * 1000) && lastRound == currentRound) {
                         self->handleVoterOutput(self->voter->onRoundTooLong());
@@ -222,34 +223,43 @@ void CDposController::runEventLoop()
     }
 }
 
-bool CDposController::isEnabled(int64_t time, int tipHeight) const
+bool CDposController::isEnabled(int64_t time, const CBlockIndex* pindexTip) const
 {
     const Consensus::Params& params{Params().GetConsensus()};
-    AssertLockHeld(cs_main);
 
-    if (tipHeight < 0) {
-        tipHeight = chainActive.Height();
+    if (pindexTip == nullptr) {
+        AssertLockHeld(cs_main);
+        pindexTip = chainActive.Tip();
     }
 
     // Disable dPoS if mns are offline
-    const bool fBigGapBetweenBlocks = time > (chainActive.Tip()->GetBlockTime() + params.dpos.nMaxTimeBetweenBlocks);
+    const bool fBigGapBetweenBlocks = time > (pindexTip->GetBlockTime() + params.dpos.nMaxTimeBetweenBlocks);
+    const std::size_t nCurrentTeamSize{getTeamSizeCount(pindexTip->nHeight)};
 
-    const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
-    return NetworkUpgradeActive(tipHeight, params, Consensus::UPGRADE_SAPLING) &&
+    return NetworkUpgradeActive(pindexTip->nHeight, params, Consensus::UPGRADE_SAPLING) &&
            nCurrentTeamSize == params.dpos.nTeamSize &&
            !fBigGapBetweenBlocks;
 }
 
+bool CDposController::isEnabled(int64_t time, int tipHeight) const
+{
+    AssertLockHeld(cs_main);
+    return isEnabled(time, chainActive[tipHeight]);
+}
+
 bool CDposController::isEnabled(int64_t time, const BlockHash& tipHash) const
 {
-    int height{-1};
-    AssertLockHeld(cs_main);
+    CBlockIndex* pindexTip{nullptr};
 
     if (!tipHash.IsNull()) {
-        height = Validator::computeBlockHeight(tipHash);
+        AssertLockHeld(cs_main);
+        if (mapBlockIndex.find(tipHash) == mapBlockIndex.end()) {
+            return false;
+        }
+        pindexTip = mapBlockIndex[tipHash];
     }
 
-    return isEnabled(time, height);
+    return isEnabled(time, pindexTip);
 }
 
 CValidationInterface* CDposController::getValidator()
@@ -346,10 +356,28 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
     }
 }
 
-Round CDposController::getCurrentVotingRound(int64_t time) const
+Round CDposController::getCurrentVotingRound(int64_t time, const CBlockIndex* pindexTip) const
 {
-    AssertLockHeld(cs_main);
-    if (isEnabled(time)) {
+    if (isEnabled(time, pindexTip)) {
+        AssertLockHeld(cs_main);
+        return voter->getCurrentRound();
+    }
+    return 0;
+}
+
+Round CDposController::getCurrentVotingRound(int64_t time, int tipHeight) const
+{
+    if (isEnabled(time, tipHeight)) {
+        AssertLockHeld(cs_main);
+        return voter->getCurrentRound();
+    }
+    return 0;
+}
+
+Round CDposController::getCurrentVotingRound(int64_t time, const BlockHash& tipHash) const
+{
+    if (isEnabled(time, tipHash)) {
+        AssertLockHeld(cs_main);
         return voter->getCurrentRound();
     }
     return 0;
