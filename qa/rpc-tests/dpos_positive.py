@@ -88,7 +88,6 @@ class dPoS_PositiveTest(dPoS_BaseTest):
             ztx = self.nodes[n].z_getoperationstatus([ztx])
             self.sync_all()
             for node in self.nodes:
-                print(n, node, len(node.i_listtransactions()))
                 txs = {tx["hash"] for tx in node.i_listtransactions()}
                 assert_equal(len(txs), 3)
                 assert_equal(txs, {tx1, tx2, ztx[0]["result"]["txid"]})
@@ -109,6 +108,13 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         rdvotes_after = [node.dpos_listroundvotes() for node in self.nodes]
         txvotes_after = [node.dpos_listtxvotes() for node in self.nodes]
         assert_equal(vblocks_before, vblocks_after)
+        assert_equal(len(rdvotes_before), len(rdvotes_after))
+        for i in range(len(rdvotes_before)):
+            print i
+            assert_equal(len(rdvotes_before[i]), len(rdvotes_after[i]))
+            for j in range(len(rdvotes_before[i])):
+                print j
+                assert_equal(rdvotes_before[i][j], rdvotes_after[i][j])
         assert_equal(rdvotes_before, rdvotes_after)
         assert_equal(txvotes_before, txvotes_after)
 
@@ -119,7 +125,7 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         self.stop_nodes()
         self.start_masternodes([['-reindex']] * self.num_nodes)
         self.connect_nodes()
-        time.sleep(15)
+        time.sleep(5)
         [assert_equal(len(node.dpos_listviceblocks()), 0) for node in self.nodes]
         [assert_equal(len(node.dpos_listroundvotes()), 0) for node in self.nodes]
         [assert_equal(len(node.dpos_listtxvotes()), 0) for node in self.nodes]
@@ -154,7 +160,6 @@ class dPoS_PositiveTest(dPoS_BaseTest):
         self.check_nodes_block_count(initialBlockCount + self.num_nodes * 4)
         print("Checking reindex")
         self.check_reindex()
-        return
         self.check_balances(MIXTXS_BALANCES)
         self.check_nodes_block_count(initialBlockCount + self.num_nodes * 4)
 
