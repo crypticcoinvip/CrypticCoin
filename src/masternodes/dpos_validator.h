@@ -11,6 +11,9 @@
 
 namespace dpos
 {
+
+static const unsigned int MAX_BLOCKS_TO_KEEP = 8;
+
 class CDposController::Validator : public CValidationInterface
 {
 public:

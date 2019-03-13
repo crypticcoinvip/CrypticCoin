@@ -281,7 +281,7 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
-        if (dpos::getController()->isEnabled(GetAdjustedTime(), nHeight)) {
+        if (dpos::getController()->isEnabled(pblock->GetBlockTime(), nHeight)) {
             LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
             dpos::getController()->proceedViceBlock(*pblock);
         } else {
@@ -681,8 +681,9 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
 
     // Update nTime
     UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
-    pblock->nRound = dpos::getController()->getCurrentVotingRound(pindexPrev->nHeight + 1);
+    pblock->nRound = dpos::getController()->getCurrentVotingRound(GetAdjustedTime());
     pblock->nNonce = uint256();
+
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
 
     UniValue txCoinbase = NullUniValue;

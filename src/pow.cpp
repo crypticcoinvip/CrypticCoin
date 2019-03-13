@@ -25,15 +25,18 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         return nProofOfWorkLimit;
 
     {
+        const int saplingActivationHeight = params.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight;
+        const bool justAfterSapling = ((pindexLast->nHeight + 1) == saplingActivationHeight);
         // Comparing to pindexLast->nHeight with >= because this function
         // returns the work required for the block after pindexLast.
-        if (params.nPowAllowMinDifficultyBlocksAfterHeight != boost::none &&
-            pindexLast->nHeight >= params.nPowAllowMinDifficultyBlocksAfterHeight.get())
+        if (justAfterSapling ||
+            (params.nPowAllowMinDifficultyBlocksAfterHeight != boost::none &&
+            pindexLast->nHeight >= params.nPowAllowMinDifficultyBlocksAfterHeight.get()))
         {
-            // Special difficulty rule for testnet:
-            // If the new block's timestamp is more than 6 * 2.5 minutes
+            // Special difficulty rule for testnet (or first blocks after sapling):
+            // If the new block's timestamp is more than 24 * 2.5 minutes
             // then allow mining of a min-difficulty block.
-            if (pblock && pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing * 6)
+            if (pblock && pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing * 24)
                 return nProofOfWorkLimit;
         }
     }

@@ -27,14 +27,14 @@ public:
     static CDposController& getInstance();
     static void runEventLoop();
 
-    bool isEnabled(int64_t blockTime, int tipHeight = -1) const;
-    bool isEnabled(int64_t blockTime, const BlockHash& tipHash) const;
+    bool isEnabled(int64_t time, int tipHeight = -1) const;
+    bool isEnabled(int64_t time, const BlockHash& tipHash) const;
 
     CValidationInterface* getValidator();
     void loadDB();
     void onChainTipUpdated(const BlockHash& tipHash);
 
-    Round getCurrentVotingRound(int tipHeight = -1) const;
+    Round getCurrentVotingRound(int64_t time) const;
 
     void proceedViceBlock(const CBlock& viceBlock);
     void proceedTransaction(const CTransaction& tx);

@@ -145,13 +145,13 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     CAmount nFees_inst = 0;
 
     const std::vector<CTransaction> committedList = dpos::getController()->listCommittedTxs();
+    pblock->nTime = GetAdjustedTime();
+    pblock->nRound = dpos::getController()->getCurrentVotingRound(pblock->nTime);
     {
         LOCK2(cs_main, mempool.cs);
         CBlockIndex* pindexPrev = chainActive.Tip();
         const int nHeight = pindexPrev->nHeight + 1;
         uint32_t consensusBranchId = CurrentEpochBranchId(nHeight, chainparams.GetConsensus());
-        pblock->nTime = GetAdjustedTime();
-        pblock->nRound = dpos::getController()->getCurrentVotingRound(nHeight);
         const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
         CCoinsViewCache view(pcoinsTip);
         CMasternodesView mnview(*pmasternodesview);

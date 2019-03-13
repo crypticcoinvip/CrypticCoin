@@ -141,8 +141,10 @@ void CDposController::runEventLoop()
         boost::this_thread::interruption_point();
 
         const BlockHash tip{getTipHash()};
-        if (self->isEnabled(GetAdjustedTime(), tip)) {
-            const auto now{GetTimeMillis()};
+        const int64_t now_sec = GetAdjustedTime();
+        const int64_t now{GetTimeMillis()};
+
+        if (self->isEnabled(now_sec, tip)) {
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
                 if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
                     initialBlocksDownloadPassedT = now;
@@ -160,7 +162,7 @@ void CDposController::runEventLoop()
             { // maintenance under cs_main
                 LOCK(cs_main);
                 {
-                    const std::pair<BlockHash, Round> currentRound{self->voter->getTip(), self->getCurrentVotingRound()};
+                    const std::pair<BlockHash, Round> currentRound{self->voter->getTip(), self->getCurrentVotingRound(now_sec)};
 
                     if ((now - lastRoundChangeT) > (params.dpos.nRoundTooLong * 1000) && lastRound == currentRound) {
                         self->handleVoterOutput(self->voter->onRoundTooLong());
@@ -220,7 +222,7 @@ void CDposController::runEventLoop()
     }
 }
 
-bool CDposController::isEnabled(int64_t blockTime, int tipHeight) const
+bool CDposController::isEnabled(int64_t time, int tipHeight) const
 {
     const Consensus::Params& params{Params().GetConsensus()};
     AssertLockHeld(cs_main);
@@ -230,12 +232,7 @@ bool CDposController::isEnabled(int64_t blockTime, int tipHeight) const
     }
 
     // Disable dPoS if mns are offline
-    if (chainActive[tipHeight] == nullptr) {
-        blockTime = 0;
-    } else {
-        blockTime -= chainActive[tipHeight]->GetBlockTime();
-    }
-    const bool fBigGapBetweenBlocks = blockTime > params.dpos.nMaxTimeBetweenBlocks;
+    const bool fBigGapBetweenBlocks = time > (chainActive.Tip()->GetBlockTime() + params.dpos.nMaxTimeBetweenBlocks);
 
     const std::size_t nCurrentTeamSize{getTeamSizeCount(tipHeight)};
     return NetworkUpgradeActive(tipHeight, params, Consensus::UPGRADE_SAPLING) &&
@@ -243,7 +240,7 @@ bool CDposController::isEnabled(int64_t blockTime, int tipHeight) const
            !fBigGapBetweenBlocks;
 }
 
-bool CDposController::isEnabled(int64_t blockTime, const BlockHash& tipHash) const
+bool CDposController::isEnabled(int64_t time, const BlockHash& tipHash) const
 {
     int height{-1};
     AssertLockHeld(cs_main);
@@ -252,7 +249,7 @@ bool CDposController::isEnabled(int64_t blockTime, const BlockHash& tipHash) con
         height = Validator::computeBlockHeight(tipHash);
     }
 
-    return isEnabled(blockTime, height);
+    return isEnabled(time, height);
 }
 
 CValidationInterface* CDposController::getValidator()
@@ -349,10 +346,10 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
     }
 }
 
-Round CDposController::getCurrentVotingRound(int tipHeight) const
+Round CDposController::getCurrentVotingRound(int64_t time) const
 {
     AssertLockHeld(cs_main);
-    if (isEnabled(GetAdjustedTime(), tipHeight)) {
+    if (isEnabled(time)) {
         return voter->getCurrentRound();
     }
     return 0;
@@ -711,7 +708,7 @@ boost::optional<CMasternode::ID> CDposController::findMyMasternodeId()
 boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth)
 {
     LOCK(cs_main);
-    const int height{Validator::computeBlockHeight(blockHash, MIN_BLOCKS_TO_KEEP)};
+    const int height{Validator::computeBlockHeight(blockHash, MAX_BLOCKS_TO_KEEP)};
     const CTeam team = pmasternodesview->ReadDposTeam(height);
     for (auto&& member : team)
     {
@@ -751,9 +748,9 @@ void CDposController::cleanUpDb()
     const auto tipHeight{chainActive.Height()};
 
     for (auto itV{this->voter->v.begin()}; itV != this->voter->v.end();) {
-        const int vblockTipHeight{Validator::computeBlockHeight(itV->first, MIN_BLOCKS_TO_KEEP)};
+        const int vblockTipHeight{Validator::computeBlockHeight(itV->first, MAX_BLOCKS_TO_KEEP)};
 
-        if (vblockTipHeight > 0 && tipHeight - vblockTipHeight > MIN_BLOCKS_TO_KEEP) {
+        if (vblockTipHeight > 0 && tipHeight - vblockTipHeight > MAX_BLOCKS_TO_KEEP) {
             for (auto it{this->receivedRoundVotes.begin()}; it != this->receivedRoundVotes.end();) {
                 if (it->second.tip == itV->first) {
                     pdposdb->EraseRoundVote(it->first);
