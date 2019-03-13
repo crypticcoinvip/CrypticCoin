@@ -155,10 +155,11 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         CCoinsViewCache view(pcoinsTip);
         CMasternodesView mnview(*pmasternodesview);
 
-        if (!NetworkUpgradeActive(nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING) && 
-            !chainparams.MineBlocksOnDemand()) 
-        {
+        if (!NetworkUpgradeActive(nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING)) {
             pblock->nVersion = CBlockHeader::SAPLING_BLOCK_VERSION - 1;
+            if (Params().MineBlocksOnDemand()) {
+                pblock->nVersion = GetArg("-blockversion", pblock->nVersion);
+            }
         }
 
         SaplingMerkleTree sapling_tree;
