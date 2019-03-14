@@ -188,6 +188,12 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
             print h+4
             time.sleep(0.5)
 
+        # +1 block for sure, cause round-robin
+        self.nodes[1].generate(1)
+        while self.nodes[0].getblockcount() < h+5:
+            print h+5
+            time.sleep(0.5)
+
         dump0 = self.dump_mn(0)
         assert_equal(dump0['mn']['counterVotesAgainst'], 0)
         assert_equal(dump0['mn']['counterVotesFrom'], 0)

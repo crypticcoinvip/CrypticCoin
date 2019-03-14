@@ -70,7 +70,7 @@ public:
     int getMinPeriod() const;
     int getMaxPeriod() const;
 
-    std::vector<CMasternode> filterMasternodes(AgeFilter ageFilter) const;
+    CMasternodes filterMasternodes(AgeFilter ageFilter) const;
 
 private:
     CHeartBeatTracker();
