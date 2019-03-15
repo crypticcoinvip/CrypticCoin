@@ -97,6 +97,9 @@ endif
 
 if BUILD_BITCOIN_UTILS
   bin_PROGRAMS += crypticcoin-cli crypticcoin-tx
+if ENABLE_WALLET
+  bin_PROGRAMS += wallet-utility
+endif
 endif
 
 LIBCRYPTICCOIN_H = \
@@ -114,6 +117,8 @@ LIBCRYPTICCOIN_H = \
 .PHONY: FORCE collate-libsnark check-symbols check-security
 # bitcoin core #
 BITCOIN_CORE_H = \
+  addressindex.h \
+  spentindex.h \
   addrman.h \
   alert.h \
   amount.h \
@@ -488,6 +493,14 @@ crypticcoin_cli_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(EVENT_CFLAGS)
 crypticcoin_cli_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 crypticcoin_cli_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
+# wallet-utility binary #
+if ENABLE_WALLET
+wallet_utility_SOURCES = wallet-utility.cpp
+wallet_utility_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
+wallet_utility_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+wallet_utility_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+endif
+
 if TARGET_WINDOWS
 crypticcoin_cli_SOURCES += bitcoin-cli-res.rc
 endif
@@ -505,6 +518,20 @@ crypticcoin_cli_LDADD = \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBCRYPTICCOIN_LIBS)
 #
+if ENABLE_WALLET
+wallet_utility_LDADD = \
+  libbitcoin_wallet.a \
+  $(LIBBITCOIN_COMMON) \
+  $(LIBBITCOIN_CRYPTO) \
+  $(LIBSECP256K1) \
+  $(LIBBITCOIN_UTIL) \
+  $(BOOST_LIBS) \
+  $(BDB_LIBS) \
+  $(CRYPTO_LIBS) \
+  $(LIBCRYPTICCOIN) \
+  $(LIBSNARK) \
+  $(LIBCRYPTICCOIN_LIBS)
+endif
 
 # crypticcoin-tx binary #
 crypticcoin_tx_SOURCES = bitcoin-tx.cpp
