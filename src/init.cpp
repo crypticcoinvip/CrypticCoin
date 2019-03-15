@@ -941,6 +941,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     LogPrintf("Crypticcoin version %s (%s)\n", FormatFullVersion(), CLIENT_DATE);
 
+    if ((GetArg("-masternode_operator", "") != "" || GetArg("-masternode_owner", "") != "")
+        && GetBoolArg("-txindex", false) == false && Params().NetworkIDString() != "regtest") {
+        // -txindex should be enabled for MN
+        return InitError("Error: to be Masternode you need -txindex.");
+    }
+
     preprocessMapArgs();
 
     /**

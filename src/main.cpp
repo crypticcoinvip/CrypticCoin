@@ -3191,13 +3191,6 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
     // Update chainActive & related variables.
     UpdateTip(pindexNew);
 
-    // Here, but not in ConnectBlock(), cause tip was not updated
-    {
-        TryMasternodeAutoActivation(*pmasternodesview, chainActive.Height());
-        TryMasternodeAutoDismissVote(*pmasternodesview, chainActive.Height());
-        TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, chainActive.Height());
-    }
-
     // Tell wallet about transactions that went from mempool
     // to conflicted:
     BOOST_FOREACH(const CTransaction &tx, txConflicted) {
@@ -4065,6 +4058,12 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
     if (!ActivateBestChain(state, pblock))
         return error("%s: ActivateBestChain failed", __func__);
 
+    {
+        LOCK(cs_main);
+        TryMasternodeAutoActivation(*pmasternodesview, chainActive.Height());
+        TryMasternodeAutoDismissVote(*pmasternodesview, chainActive.Height());
+        TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, chainActive.Height());
+    }
     return true;
 }
 

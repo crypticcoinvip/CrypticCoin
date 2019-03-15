@@ -98,7 +98,7 @@ uint256 CHeartBeatMessage::getSignHash() const
 
 void CHeartBeatTracker::runTickerLoop()
 {
-    CHeartBeatTracker tracker{};
+    CHeartBeatTracker& tracker{CHeartBeatTracker::getInstance()};
     int64_t lastTime{GetTimeMillis()};
     tracker.startupTime = lastTime;
 
@@ -118,10 +118,16 @@ void CHeartBeatTracker::runTickerLoop()
     }
 }
 
-
-
 CHeartBeatTracker& CHeartBeatTracker::getInstance()
 {
+    if (instance == nullptr) {
+        LockGuard lock{mutex};
+        libsnark::UNUSED(lock);
+        if (instance == nullptr) {
+            instance = new CHeartBeatTracker{};
+        }
+    }
+
     assert(instance != nullptr);
     return *instance;
 }
