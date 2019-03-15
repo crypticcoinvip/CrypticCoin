@@ -686,11 +686,12 @@ UniValue mn_filterheartbeats(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid filter_name argument");
     }
 
-    for (const auto& masternode : CHeartBeatTracker::getInstance().filterMasternodes(ageFilter)) {
+    for (const auto& mnPair : CHeartBeatTracker::getInstance().filterMasternodes(ageFilter)) {
         UniValue mn{UniValue::VOBJ};
-        mn.push_back(Pair("name", masternode.name));
-        mn.push_back(Pair("owner", masternode.ownerAuthAddress.ToString()));
-        mn.push_back(Pair("operator", masternode.operatorAuthAddress.ToString()));
+        mn.push_back(Pair("id", mnPair.first.ToString()));
+        mn.push_back(Pair("name", mnPair.second.name));
+        mn.push_back(Pair("owner", mnPair.second.ownerAuthAddress.ToString()));
+        mn.push_back(Pair("operator", mnPair.second.operatorAuthAddress.ToString()));
         rv.push_back(mn);
     }
     return rv;

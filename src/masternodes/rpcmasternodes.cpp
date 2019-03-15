@@ -41,7 +41,7 @@ void EnsureSaplingUpgrade()
     }
 }
 
-UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = CKeyID())
+UniValue RawCreateFundSignSend(UniValue params, std::string const & linkedTxHex = std::string(), CKeyID const & changeAddress = CKeyID())
 {
 // 1. Create
     UniValue created = createrawtransaction(params, false);
@@ -55,7 +55,6 @@ UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = C
     }
     CMutableTransaction tx(origTx);
     int voutsSize = tx.vout.size();
-    int const vinsSize = tx.vin.size();
     CAmount nFee;
     std::string strFailReason;
     int nChangePos = -1;
@@ -69,46 +68,32 @@ UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = C
         auto it = tx.vout.begin() + nChangePos;
         std::rotate(it, it + 1, tx.vout.end());
     }
-    // If it is 'auth' tx
-    if (changeAddress != CKeyID())
+    if (changeAddress != CKeyID() && nChangePos != -1)
     {
-        // If there is no autocreated change or fund was with extra inputs, we need refund with exact auth change (to avoid obtaining of unexpected amounts is second case)
-        if (nChangePos == -1 || tx.vin.size() != vinsSize)
-        {
-            // Refund with DustTrashold amount in the changeAddress
-            tx = CMutableTransaction(origTx);
-            // Calc minimum amount
-            CTxOut authOut(CAmount(1), GetScriptForDestination(changeAddress));
-            CAmount dustThreshold = authOut.GetDustThreshold(::minRelayTxFee);
-            authOut.nValue = dustThreshold;
-            tx.vout.push_back(authOut);
-            ++voutsSize;
-
-            CAmount nFee;
-            std::string strFailReason;
-            int nChangePos = -1;
-            if(!pwalletMain->FundTransaction(tx, nFee, nChangePos, strFailReason))
-            {
-                throw JSONRPCError(RPC_INTERNAL_ERROR, strFailReason);
-            }
-            // After that we don't care about autocreated change, except its position
-            // Rearrange autocreated change position if it exists and not at the end
-            if (nChangePos != -1 && nChangePos != voutsSize)
-            {
-                auto it = tx.vout.begin() + nChangePos;
-                std::rotate(it, it + 1, tx.vout.end());
-            }
-        }
-        else
-        {
-            // Pick 'autocreated' change for our changeAddress (we have change, and it is totally ours)
-            tx.vout.back().scriptPubKey = GetScriptForDestination(changeAddress);
-        }
+        // Pick 'autocreated' change for our changeAddress (we have change, and it is totally ours)
+        tx.vout.back().scriptPubKey = GetScriptForDestination(changeAddress);
     }
 
 // 3. Sign
     UniValue signparams(UniValue::VARR);
     signparams.push_back(EncodeHexTx(tx));
+    if (!linkedTxHex.empty())
+    {
+        CTransaction linkedTx;
+        if (!DecodeHexTx(linkedTx, linkedTxHex))
+        {
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "MN: error decoding auth tx");
+        }
+        UniValue prevtx(UniValue::VOBJ);
+        prevtx.push_back(Pair("txid", linkedTx.GetHash().GetHex()));
+        prevtx.push_back(Pair("vout", 0));
+        prevtx.push_back(Pair("scriptPubKey", HexStr(linkedTx.vout[0].scriptPubKey.begin(), linkedTx.vout[0].scriptPubKey.end())));
+//        prevtxs.push_back(Pair("redeemScript", authTx.GetHash().GetHex()));
+        prevtx.push_back(Pair("amount", ValueFromAmount(linkedTx.vout[0].nValue)));
+        UniValue prevtxarray(UniValue::VARR);
+        prevtxarray.push_back(prevtx);
+        signparams.push_back(prevtxarray);
+    }
     UniValue signedTxObj = signrawtransaction(signparams, false);
     /* returns {
     "hex": "010000000...",
@@ -118,9 +103,12 @@ UniValue RawCreateFundSignSend(UniValue params, CKeyID const & changeAddress = C
 // 4. Send
     UniValue sendparams(UniValue::VARR);
     sendparams.push_back(signedTxObj["hex"]);
-    UniValue sent = sendrawtransaction(sendparams, false);
-    return sent;
+    UniValue result(UniValue::VOBJ);
+    result.push_back(Pair("txid", sendrawtransaction(sendparams, false)));
+    result.push_back(Pair("hex", signedTxObj["hex"].getValStr()));
+    return result;
 }
+
 
 /*
  * 'Wrapper' in the name is only to distinguish it from the rest 'Accesses'
@@ -159,14 +147,16 @@ CCoins const * AccessCoinsWrapper(uint256 const & txid)
 
 
 /*
- * If inputs are not empty, matches first input to the given auth.
- * If empty - looking for coins (at least one UTXO) for given auth
+ * If inputs are not empty, matches first input to the given auth and fails if not match.
+ * If empty - looks for coins (at least one UTXO) for given auth.
+ * If still empty - creates own "preauth" tx with minimal funds
+ * @returns: Updated inputs and raw hex of "preauth" tx (if any)
 */
-void ProvideAuthOfFirstInput(CKeyID const & auth, UniValue & inputs)
+std::string ProvideAuth(CKeyID const & auth, UniValue & inputs)
 {
     if (inputs.size() > 0)
     {
-        // check first input
+        // #1. check first input
         UniValue const & input = inputs[0];
         UniValue const & o = input.get_obj();
 
@@ -199,7 +189,7 @@ void ProvideAuthOfFirstInput(CKeyID const & auth, UniValue & inputs)
     }
     else
     {
-        // search for just one UTXO matching 'auth'
+        // #2. search for just one UTXO matching 'auth'
         std::vector<COutput> vecOutputs;
         assert(pwalletMain != NULL);
         LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -224,9 +214,30 @@ void ProvideAuthOfFirstInput(CKeyID const & auth, UniValue & inputs)
         }
         if (inputs.size() == 0)
         {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Check of authentication failed. Can't find any coins matching auth.");
+            // #3. Create auth funding transaction (fund with DustTrashold amount)
+            CTxOut authOut(CAmount(1), GetScriptForDestination(auth));
+            CAmount dustThreshold = authOut.GetDustThreshold(::minRelayTxFee);
+
+            UniValue vouts(UniValue::VOBJ);
+            vouts.push_back(Pair(EncodeDestination(auth), ValueFromAmount(dustThreshold)));
+
+            UniValue params(UniValue::VARR);
+            params.push_back(UniValue(UniValue::VARR));
+            params.push_back(vouts);
+
+            UniValue result = RawCreateFundSignSend(params);
+            LogPrintf("MN: autocreate auth funding tx: %s\n", result["txid"].getValStr());
+
+            // Update original inputs
+            UniValue entry(UniValue::VOBJ);
+            entry.push_back(Pair("txid", result["txid"]));
+            entry.push_back(Pair("vout", 0)); // it is in 0 position, cause we always rearrange change
+            inputs.push_back(entry);
+
+            return result["hex"].getValStr();
         }
     }
+    return "";
 }
 
 /*
@@ -382,7 +393,8 @@ UniValue mn_announce(UniValue const & params, bool fHelp)
     newparams.push_back(params[0]);
     newparams.push_back(vouts);
 
-    return RawCreateFundSignSend(newparams);
+    UniValue result = RawCreateFundSignSend(newparams);
+    return result["txid"];
 }
 
 /*
@@ -430,7 +442,7 @@ UniValue mn_activate(UniValue const & params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Can't activate. Minimal activation height not reached (block %d)", node.minActivationHeight));
     }
     UniValue inputs = params[0].get_array();
-    ProvideAuthOfFirstInput(node.operatorAuthAddress, inputs);
+    std::string authTxHex = ProvideAuth(node.operatorAuthAddress, inputs);
 
     CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
     metadata << static_cast<unsigned char>(MasternodesTxType::ActivateMasternode)
@@ -446,7 +458,8 @@ UniValue mn_activate(UniValue const & params, bool fHelp)
     newparams.push_back(inputs);
     newparams.push_back(vouts);
 
-    return RawCreateFundSignSend(newparams, node.operatorAuthAddress);
+    UniValue result = RawCreateFundSignSend(newparams, authTxHex);
+    return result["txid"];
 }
 
 /*
@@ -514,7 +527,7 @@ UniValue mn_dismissvote(UniValue const & params, bool fHelp)
     }
 
     UniValue inputs = params[0].get_array();
-    ProvideAuthOfFirstInput(node.operatorAuthAddress, inputs);
+    std::string authTxHex = ProvideAuth(node.operatorAuthAddress, inputs);
 
     CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
     metadata << static_cast<unsigned char>(MasternodesTxType::DismissVote)
@@ -530,7 +543,8 @@ UniValue mn_dismissvote(UniValue const & params, bool fHelp)
     newparams.push_back(inputs);
     newparams.push_back(vouts);
 
-    return RawCreateFundSignSend(newparams, node.operatorAuthAddress);
+    UniValue result = RawCreateFundSignSend(newparams, authTxHex);
+    return result["txid"];
 }
 
 /*
@@ -582,7 +596,7 @@ UniValue mn_dismissvoterecall(UniValue const & params, bool fHelp)
     }
 
     UniValue inputs = params[0].get_array();
-    ProvideAuthOfFirstInput(ids->operatorAuthAddress, inputs);
+    std::string authTxHex = ProvideAuth(ids->operatorAuthAddress, inputs);
 
     CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
     metadata << static_cast<unsigned char>(MasternodesTxType::DismissVoteRecall)
@@ -598,7 +612,8 @@ UniValue mn_dismissvoterecall(UniValue const & params, bool fHelp)
     newparams.push_back(inputs);
     newparams.push_back(vouts);
 
-    return RawCreateFundSignSend(newparams, ids->operatorAuthAddress);
+    UniValue result = RawCreateFundSignSend(newparams, authTxHex);
+    return result["txid"];
 }
 
 /*
@@ -664,7 +679,8 @@ UniValue mn_finalizedismissvoting(UniValue const & params, bool fHelp)
     newparams.push_back(inputs);
     newparams.push_back(vouts);
 
-    return RawCreateFundSignSend(newparams);
+    UniValue result = RawCreateFundSignSend(newparams);
+    return result["txid"];
 }
 
 
@@ -738,7 +754,7 @@ UniValue mn_setoperator(UniValue const & params, bool fHelp)
 
 
     UniValue inputs = params[0].get_array();
-    ProvideAuthOfFirstInput(node.ownerAuthAddress, inputs);
+    std::string authTxHex = ProvideAuth(node.ownerAuthAddress, inputs);
 
     CDataStream metadata(MnTxMarker, SER_NETWORK, PROTOCOL_VERSION);
     metadata << static_cast<unsigned char>(MasternodesTxType::SetOperatorReward)
@@ -754,7 +770,8 @@ UniValue mn_setoperator(UniValue const & params, bool fHelp)
     newparams.push_back(inputs);
     newparams.push_back(vouts);
 
-    return RawCreateFundSignSend(newparams);
+    UniValue result = RawCreateFundSignSend(newparams, authTxHex);
+    return result["txid"];
 }
 
 

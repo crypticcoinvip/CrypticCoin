@@ -98,7 +98,7 @@ uint256 CHeartBeatMessage::getSignHash() const
 
 void CHeartBeatTracker::runTickerLoop()
 {
-    CHeartBeatTracker tracker{};
+    CHeartBeatTracker& tracker{CHeartBeatTracker::getInstance()};
     int64_t lastTime{GetTimeMillis()};
     tracker.startupTime = lastTime;
 
@@ -118,10 +118,16 @@ void CHeartBeatTracker::runTickerLoop()
     }
 }
 
-
-
 CHeartBeatTracker& CHeartBeatTracker::getInstance()
 {
+    if (instance == nullptr) {
+        LockGuard lock{mutex};
+        libsnark::UNUSED(lock);
+        if (instance == nullptr) {
+            instance = new CHeartBeatTracker{};
+        }
+    }
+
     assert(instance != nullptr);
     return *instance;
 }
@@ -259,14 +265,14 @@ int CHeartBeatTracker::getMaxPeriod() const
 {
     if (Params().NetworkIDString() == "regtest")
     {
-        return getMinPeriod() * 20;
+        return getMinPeriod() * 6;
     }
     return std::max(getMinPeriod() * 20, 6 * 60 * 60); // 20 minimum periods or 6h, whatever is greater
 }
 
-std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
+CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
-    std::vector<CMasternode> rv{};
+    CMasternodes rv{};
     const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
     const auto mnKey{getMasternodeKey()};
     LOCK(cs_main);
@@ -292,7 +298,7 @@ std::vector<CMasternode> CHeartBeatTracker::filterMasternodes(AgeFilter ageFilte
             (elapsed > period.second && ageFilter == OUTDATED) ||
             (elapsed >= period.first && elapsed < period.second && ageFilter == STALE))
         {
-            rv.emplace_back(mn);
+            rv.emplace(std::make_pair(mnPair.second, mn));
         }
     }
 

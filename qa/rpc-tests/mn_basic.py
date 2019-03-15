@@ -12,6 +12,7 @@ from test_framework.util import assert_equal, assert_true, assert_greater_than, 
 
 from decimal import Decimal
 import pprint
+import time
 
 class MasternodesRpcBasicTest (BitcoinTestFramework):
 
@@ -67,8 +68,8 @@ class MasternodesRpcBasicTest (BitcoinTestFramework):
 
 
         # Sending some coins for auth
-        self.nodes[0].sendtoaddress(operator0, 0.000001)
-        self.nodes[1].sendtoaddress(operator1, 5)
+#        self.nodes[0].sendtoaddress(operator0, 0.000001)
+#        self.nodes[1].sendtoaddress(operator1, 5)
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
@@ -85,39 +86,21 @@ class MasternodesRpcBasicTest (BitcoinTestFramework):
         assert("Insufficient funds" in errorString)
 
 
-        # Generate blocks for activation height
-        self.nodes[0].generate(10)
-        self.sync_all()
-
-
         # Restarting nodes
         self.stop_nodes()
         self.start_nodes([[ "-masternode_operator="+operator0 ], [ "-masternode_operator="+operator1 ]])
 
-
-        # Activate nodes
-        act0id = self.nodes[0].mn_activate([])
-        act1id = self.nodes[1].mn_activate([])
-
+        # Generate blocks for activation height
+        self.nodes[0].generate(10)
         self.sync_all()
+        time.sleep(4)
+
+        # Autoactivation should happen
+#        act0id = self.nodes[0].mn_activate([])
+#        act1id = self.nodes[1].mn_activate([])
+
         self.nodes[0].generate(1)
         self.sync_all()
-        assert_equal(self.nodes[0].mn_list([idnode0])[0]['status'], "active")
-        assert_equal(self.nodes[0].mn_list([idnode1])[0]['status'], "active")
-
-        # Check for correct auth change
-        act0 = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(act0id))
-        assert_equal(len(act0['vin']), 2)
-        assert_equal(len(act0['vout']), 3)
-        assert_equal(act0['vout'][1]['scriptPubKey']['addresses'], [ operator0 ])
-        assert_true(act0['vout'][1]['valueZat'] < 100)
-
-        act1 = self.nodes[1].decoderawtransaction(self.nodes[1].getrawtransaction(act1id))
-        assert_equal(len(act1['vin']), 1)
-        assert_equal(len(act1['vout']), 2)
-        assert_equal(act1['vout'][1]['scriptPubKey']['addresses'], [ operator1 ])
-        assert_true(act1['vout'][1]['value'] > 4.99)
-
 
         # Voting against each other
         self.nodes[0].mn_dismissvote([], {"against": idnode1, "reason_code": 1, "reason_desc": "go away!"})

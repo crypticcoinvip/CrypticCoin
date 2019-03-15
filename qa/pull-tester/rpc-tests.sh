@@ -17,6 +17,7 @@ testScripts=(
     'mn_setoperator.py'
     'mn_teamreward.py'
     'mn_heartbeat.py'
+    'mn_voteoutdated.py'
     'paymentdisclosure.py'
     'prioritisetransaction.py'
     'wallet_treestate.py'

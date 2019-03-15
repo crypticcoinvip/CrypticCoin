@@ -52,7 +52,7 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
             "collateralAddress": self.mns[i].collateral
         })
         # Sending some coins for auth
-        self.nodes[i].sendtoaddress(self.mns[i].operator, 5)
+#        self.nodes[i].sendtoaddress(self.mns[i].operator, 5)
         return self.mns[i].id
 
     def activate_mn(self, i):

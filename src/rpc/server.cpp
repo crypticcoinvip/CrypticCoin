@@ -470,7 +470,7 @@ std::string HelpExampleRpc(const std::string& methodname, const std::string& arg
 string experimentalDisabledHelpMsg(const string& rpc, const string& enableArg)
 {
     return "\nWARNING: " + rpc + " is disabled.\n"
-        "To enable it, restart zcashd with the -experimentalfeatures and\n"
+        "To enable it, restart crypticcoind with the -experimentalfeatures and\n"
         "-" + enableArg + " commandline options, or add these two lines\n"
         "to the crypticcoin.conf file:\n\n"
         "experimentalfeatures=1\n"

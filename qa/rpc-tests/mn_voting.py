@@ -58,7 +58,7 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
             "collateralAddress": self.mns[i].collateral
         })
         # Sending some coins for auth
-        self.nodes[i].sendtoaddress(self.mns[i].operator, 5)
+#        self.nodes[i].sendtoaddress(self.mns[i].operator, 5)
         return self.mns[i].id
 
     def activate_mn(self, i):
@@ -186,6 +186,12 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         self.nodes[1].generate(1)
         while self.nodes[0].getblockcount() < h+4:
             print h+4
+            time.sleep(0.5)
+
+        # +1 block for sure, cause round-robin
+        self.nodes[1].generate(1)
+        while self.nodes[0].getblockcount() < h+5:
+            print h+5
             time.sleep(0.5)
 
         dump0 = self.dump_mn(0)
