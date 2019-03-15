@@ -10,6 +10,8 @@ import time
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import \
     assert_equal, \
+    assert_true, \
+    assert_false, \
     assert_greater_than, \
     start_nodes, \
     stop_nodes, \
@@ -81,6 +83,15 @@ class dPoS_BaseTest(BitcoinTestFramework):
     def check_nodes_block_count(self, blockCount):
         [assert_equal(node.getblockcount(), blockCount) for node in self.nodes]
 
+    def wait_block(self, node, height, timeout=12):
+        for i in range(timeout):
+            time.sleep(1)
+            if node.getblockcount() == height:
+               time.sleep(1)
+               self.sync_all()
+               break
+        self.check_nodes_block_count(height)
+
     def connect_nodes(self):
         if self.options.node_garaph_layout == "1":
             print("                      *-*-*")
@@ -150,39 +161,69 @@ class dPoS_BaseTest(BitcoinTestFramework):
             if n not in indexes:
                 assert_equal(rv[n], None)
 
-        # Sending some coins for auth
-        for i in indexes:
-            self.nodes[i].sendtoaddress(self.operators[i], 10)
 
+        # Sending some coins for auth
+        for n in range(self.num_nodes):
+            self.nodes[n].sendtoaddress(self.operators[n], 25.25)
+            if not n in indexes:
+                self.nodes[n].generate(1)
+                self.sync_all()
+
+        self.nodes[self.num_nodes / 2].generate(1)
         self.sync_all()
-        for node in self.nodes:
-            node.generate(1)
-            self.sync_all()
 
         for node in self.nodes:
             for idnode in rv:
                 if idnode:
                     assert_equal(node.mn_list([idnode])[0]['status'], "announced")
 
-        # Generate blocks for activation height
-        for n in range(self.num_nodes):
-            self.nodes[n].sendtoaddress(self.operators[self.num_nodes - n - 1], 50)
-            self.nodes[n].generate(10)
-            self.sync_all()
-        self.check_nodes_block_count(INITIAL_BLOCK_COUNT + 10 * self.num_nodes + self.num_nodes)
+        self.check_nodes_block_count(INITIAL_BLOCK_COUNT + self.num_nodes - len(indexes) + 1)
 
-        # Activate nodes
-        for i in indexes:
-            self.nodes[i].mn_activate([])
-        self.sync_all()
-        self.nodes[0].generate(1)
-        self.sync_all()
-        time.sleep(4)
+
+        # Waiting for autofinalize
         for node in self.nodes:
+            blockCount = node.getblockcount() + 1
+            node.generate(1)
+            self.wait_block(node, blockCount)
+
+        self.check_nodes_block_count(INITIAL_BLOCK_COUNT + 2 * self.num_nodes - len(indexes) + 1)
+
+        # Retrieve some funds
+        z_coins = []
+        for node in self.nodes:
+            blockCount = node.getblockcount() + 1
+            z_coins.append(node.z_getnewaddress())
+            node.z_shieldcoinbase('*', z_coins[-1])
+            node.generate(1)
+            self.wait_block(node, blockCount)
+
+        # Transfer funds to operators
+        for n in range(self.num_nodes):
+            blockCount = self.nodes[n].getblockcount() + 1
+            next_idx = n + 1 if n + 1 < self.num_nodes else 0
+            zdst = [{ "address": self.operators[next_idx], "amount": 33.33 }]
+            ztx = self.nodes[n].z_sendmany(z_coins[n], zdst)
+            time.sleep(2)
+            ztx = self.nodes[n].z_getoperationstatus([ztx])
+            assert_equal(ztx[0]["status"], "success")
+            self.nodes[n].generate(1)
+            self.wait_block(self.nodes[n], blockCount)
+
+        # Activate mannualy
+        for n in range(self.num_nodes):
+            if n in indexes:
+                self.nodes[n].mn_activate([])
+                blockCount = self.nodes[n].getblockcount() + 1
+                self.nodes[n].generate(1)
+                self.wait_block(self.nodes[n], blockCount)
+
+        self.check_nodes_block_count(INITIAL_BLOCK_COUNT + 4 * self.num_nodes + 1)
+
+        for node in self.nodes:
+            assert_equal(node.getinfo()["dpos"], True)
             for idnode in rv:
                 if idnode:
                     assert_equal(node.mn_list([idnode])[0]['status'], "active")
-        self.check_nodes_block_count(INITIAL_BLOCK_COUNT + 10 * self.num_nodes + self.num_nodes + 1)
         return rv
 
     def create_transaction(self, node_idx, to_address, amount, instantly):

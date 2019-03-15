@@ -77,6 +77,9 @@ testScripts=(
     'p2p_node_bloom.py'
     'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
+    'send_heartbeat.py'
+    'dpos_positive.py'
+    'dpos_p2p_messages.py'
 );
 testScriptsExt=(
     'getblocktemplate_longpoll.py'
