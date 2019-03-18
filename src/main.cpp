@@ -2888,15 +2888,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     {
         return AbortNode("Failed to process masternodes' data!");
     }
-    // Prune old MN data
-    if (pindex->nHeight % 100 == 0)
-    {
-        int pruneHeight = pindex->nHeight - std::max(300u, MAX_REORG_LENGTH);
-        if (mnview.PruneMasternodesOlder(pruneHeight) && mnview.PruneUndoesOlder(pruneHeight) && mnview.PruneTeamsOlder(pruneHeight) == false)
-        {
-            return AbortNode("Failed to prune masternodes' data!");
-        }
-    }
     return true;
 }
 
@@ -4059,11 +4050,23 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
     if (!ActivateBestChain(state, pblock))
         return error("%s: ActivateBestChain failed", __func__);
 
+    if (Params().NetworkIDString() != "regtest" || !GetBoolArg("-nomnautomation", false))
     {
         LOCK(cs_main);
-        TryMasternodeAutoActivation(*pmasternodesview, chainActive.Height());
-        TryMasternodeAutoDismissVote(*pmasternodesview, chainActive.Height());
-        TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, chainActive.Height());
+        int height = chainActive.Height();
+        TryMasternodeAutoActivation(*pmasternodesview, height);
+        TryMasternodeAutoDismissVote(*pmasternodesview, height);
+        TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, height);
+
+        // Prune old MN data
+        if (height % 100 == 0)
+        {
+            int pruneHeight = height - std::max(300u, MAX_REORG_LENGTH);
+            if (pmasternodesview->PruneMasternodesOlder(pruneHeight) && pmasternodesview->PruneUndoesOlder(pruneHeight) && pmasternodesview->PruneTeamsOlder(pruneHeight) == false)
+            {
+                return AbortNode("Failed to prune masternodes' data!");
+            }
+        }
     }
     return true;
 }

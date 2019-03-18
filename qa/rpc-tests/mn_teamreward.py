@@ -33,6 +33,7 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         for i in range(len(args)):
             args[i] = args[i][:]
             args[i] += ['-nuparams=76b809bb:200']
+            args[i] += ['-nomnautomation=1']
 
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
 
