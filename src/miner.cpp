@@ -777,7 +777,10 @@ void static BitcoinMiner()
                     break;
                 if ((UintToArith256(pblock->nNonce) & 0xffff) == 0xffff)
                     break;
-                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 60)
+                //TODO: add dpos controller method with check of commited transactions update time
+                //if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 60)
+                //    break;
+                if (GetTime() - nStart > 5)
                     break;
                 if (pindexPrev != chainActive.Tip())
                     break;
