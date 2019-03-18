@@ -724,7 +724,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
                     UniValue reward{UniValue::VOBJ};
                     const std::string script{HexStr(tx.vout[i].scriptPubKey.begin(), tx.vout[i].scriptPubKey.end())};
                     reward.push_back(Pair("script", script));
-                    reward.push_back(Pair("amount", 1.0 * tx.vout[i].nValue / COIN));
+                    reward.push_back(Pair("amount", tx.vout[i].nValue));
                     masternodesRewards.push_back(reward);
                 }
                 entry.push_back(Pair("masternodesRewards", masternodesRewards));
