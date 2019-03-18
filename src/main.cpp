@@ -2817,7 +2817,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (!sizeCheck || !std::equal(rewards_p.first.rbegin(), rewards_p.first.rend(), block.vtx[0].vout.rbegin()))
             return state.DoS(100,
                              error("ConnectBlock(): coinbase pays incorrect dPoS reward"),
-                                   REJECT_INVALID, "bad-cb-amount");
+                                   REJECT_INVALID, "bad-cb2-amount");
     }
     if (block.vtx[0].GetValueOut() > blockReward)
         return state.DoS(100,

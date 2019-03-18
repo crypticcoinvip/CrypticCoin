@@ -12,7 +12,7 @@ namespace dpos
 bool CDposController::Validator::validateTx(const CTransaction& tx)
 {
     AssertLockHeld(cs_main);
-    ScopedNoLogging noLogging; // suppress logs
+    //ScopedNoLogging noLogging; // suppress logs
 
     if (!tx.fInstant)
         return false;
@@ -63,7 +63,7 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
 bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransaction>& txMap)
 {
     AssertLockHeld(cs_main);
-    ScopedNoLogging noLogging; // suppress logs
+    //ScopedNoLogging noLogging; // suppress logs
 
     // create dummy block
     CBlock block;
@@ -115,7 +115,7 @@ bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransac
 bool CDposController::Validator::validateBlock(const CBlock& block, const std::map<TxIdSorted, CTransaction>& instantTxsExpected, bool fJustCheckPoW)
 {
     AssertLockHeld(cs_main);
-    ScopedNoLogging noLogging; // suppress logs
+    //ScopedNoLogging noLogging; // suppress logs
     CValidationState state;
 
     if (fJustCheckPoW) {
