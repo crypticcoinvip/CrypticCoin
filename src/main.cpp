@@ -2017,7 +2017,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
     inputs.SetNullifiers(tx, true);
 
     // add outputs
-    inputs.ModifyCoins(tx.GetHash())->FromTx(tx, nHeight);
+    inputs.ModifyNewCoins(tx.GetHash())->FromTx(tx, nHeight);
 }
 
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight)
@@ -2753,7 +2753,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 nFees_inst += view.GetValueIn(tx)-tx.GetValueOut();
 
             std::vector<CScriptCheck> vChecks;
-            if (!ContextualCheckInputs(tx, state, view, fExpensiveChecks, flags, false, txdata[i], chainparams.GetConsensus(), consensusBranchId, nScriptCheckThreads ? &vChecks : NULL))
+            bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+            if (!ContextualCheckInputs(tx, state, view, fExpensiveChecks, flags, fCacheResults, txdata[i], chainparams.GetConsensus(), consensusBranchId, nScriptCheckThreads ? &vChecks : NULL))
                 return false;
             // We checks MN txs on a tmp copy. This is a bit dumb doublework, but durable!
             if (!CheckMasternodeTx(tmp_mnview, tx, chainparams.GetConsensus(), pindex->nHeight))
@@ -2886,15 +2887,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     if (!ProcessMasternodeTxsOnConnect(mnview, block, pindex->nHeight))
     {
         return AbortNode("Failed to process masternodes' data!");
-    }
-    // Prune old MN data
-    if (pindex->nHeight % 100 == 0)
-    {
-        int pruneHeight = pindex->nHeight - std::max(300u, MAX_REORG_LENGTH);
-        if (mnview.PruneMasternodesOlder(pruneHeight) && mnview.PruneUndoesOlder(pruneHeight) && mnview.PruneTeamsOlder(pruneHeight) == false)
-        {
-            return AbortNode("Failed to prune masternodes' data!");
-        }
     }
     return true;
 }
@@ -3190,13 +3182,6 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
 
     // Update chainActive & related variables.
     UpdateTip(pindexNew);
-
-    // Here, but not in ConnectBlock(), cause tip was not updated
-    {
-        TryMasternodeAutoActivation(*pmasternodesview, chainActive.Height());
-        TryMasternodeAutoDismissVote(*pmasternodesview, chainActive.Height());
-        TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, chainActive.Height());
-    }
 
     // Tell wallet about transactions that went from mempool
     // to conflicted:
@@ -4065,6 +4050,24 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
     if (!ActivateBestChain(state, pblock))
         return error("%s: ActivateBestChain failed", __func__);
 
+    if (Params().NetworkIDString() != "regtest" || !GetBoolArg("-nomnautomation", false))
+    {
+        LOCK(cs_main);
+        int height = chainActive.Height();
+        TryMasternodeAutoActivation(*pmasternodesview, height);
+        TryMasternodeAutoDismissVote(*pmasternodesview, height);
+        TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, height);
+
+        // Prune old MN data
+        if (height % 100 == 0)
+        {
+            int pruneHeight = height - std::max(300u, MAX_REORG_LENGTH);
+            if (pmasternodesview->PruneMasternodesOlder(pruneHeight) && pmasternodesview->PruneUndoesOlder(pruneHeight) && pmasternodesview->PruneTeamsOlder(pruneHeight) == false)
+            {
+                return AbortNode("Failed to prune masternodes' data!");
+            }
+        }
+    }
     return true;
 }
 
@@ -6825,7 +6828,7 @@ UniValue TryRpcCall(std::function<UniValue(UniValue const & params, bool fHelp)>
     try
     {
         result = function(params, false);
-        LogPrintf("Trying to call %s, parameters: %s\n" , message, params.write());
+        LogPrintf("Trying to call %s with %s\n" , message, params.write());
     }
     catch (UniValue const & err)
     {
@@ -6839,7 +6842,7 @@ UniValue TryRpcCall(std::function<UniValue(UniValue const & params, bool fHelp)>
     }
     if (!errString.empty())
     {
-        LogPrintf("Fail to call %s, parameters %s : %s\n", message, params.write(), errString);
+        LogPrintf("Fail to call %s with %s : %s\n", message, params.write(), errString);
     }
     return result;
 }
@@ -6847,46 +6850,78 @@ UniValue TryRpcCall(std::function<UniValue(UniValue const & params, bool fHelp)>
 void TryMasternodeAutoActivation(CMasternodesView & mnview, int height)
 {
     auto const ids = mnview.AmIOperator();
-    if (ids)
+    if (!ids)
     {
-        auto const & node = mnview.GetMasternodes().at((*ids).id);
-        if (node.activationHeight == -1 && node.deadSinceHeight == -1 && node.minActivationHeight <= (height + 1))
-        {
-            UniValue params(UniValue::VARR);
-            params.push_back(UniValue(UniValue::VARR));
-            TryRpcCall(&mn_activate, params, "MN auto activation");
-        }
+        return;
+    }
+    auto const & node = mnview.GetMasternodes().at((*ids).id);
+    if (node.activationHeight == -1 && node.deadSinceHeight == -1 && node.minActivationHeight <= (height + 1))
+    {
+        UniValue params(UniValue::VARR);
+        params.push_back(UniValue(UniValue::VARR));
+        TryRpcCall(&mn_activate, params, "MN auto activation");
     }
 }
 
-void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int height)
+void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int)
 {
     auto const ids = mnview.AmIActiveOperator();
-    if (ids)
+    if (!ids)
     {
-        /// @todo
+        return;
+    }
+    int myVotes = mnview.GetMasternodes().at((*ids).id).counterVotesFrom;
+    // Just to be a little faster
+    if (myVotes >= MAX_DISMISS_VOTES_PER_MN)
+    {
+        return;
+    }
+    for (auto const & pair : CHeartBeatTracker::getInstance().filterMasternodes(CHeartBeatTracker::OUTDATED))
+    {
+        // We don't check node status here, cause filter did it
+        if (!mnview.ExistActiveVoteIndex(CMasternodesView::VoteIndex::From, (*ids).id, pair.first))
+        {
+            UniValue obj(UniValue::VOBJ);
+            obj.push_back(Pair("against", pair.first.GetHex()));
+            obj.push_back(Pair("reason_code", 1));
+            obj.push_back(Pair("reason_desc", "OUTDATED heartbeat, autovote"));
+            UniValue params(UniValue::VARR);
+            params.push_back(UniValue(UniValue::VARR));
+            params.push_back(obj);
+            TryRpcCall(&mn_dismissvote, params, "MN auto voting against outdated");
+
+            ++myVotes;
+            if (myVotes >= MAX_DISMISS_VOTES_PER_MN)
+            {
+                break;
+            }
+        }
     }
 }
 
 void TryMasternodeAutoFinalizeDismissVoting(CMasternodesView & mnview, int height)
 {
     auto const ids = mnview.AmIActiveOperator();
-    if (ids)
+    if (!ids)
     {
-        // Almost round robin
-        int const index = std::distance(mnview.GetActiveMasternodes().begin(), mnview.GetActiveMasternodes().find((*ids).id)) + 1;
-        if (height % mnview.GetActiveMasternodes().size() == index)
-        for (auto const & pair : mnview.GetMasternodes())
+        return;
+    }
+    // Almost round robin
+    int const index = std::distance(mnview.GetActiveMasternodes().begin(), mnview.GetActiveMasternodes().find((*ids).id)) + 1;
+    if (height % mnview.GetActiveMasternodes().size() != index)
+    {
+        return;
+    }
+    for (auto const & pair : mnview.GetMasternodes())
+    {
+        if (pair.second.deadSinceHeight == -1 && pair.second.counterVotesAgainst >= mnview.GetMinDismissingQuorum())
         {
-            if (pair.second.deadSinceHeight == -1 && pair.second.counterVotesAgainst >= mnview.GetMinDismissingQuorum())
-            {
-                UniValue obj(UniValue::VOBJ);
-                obj.push_back(Pair("against", pair.first.GetHex()));
-                UniValue params(UniValue::VARR);
-                params.push_back(UniValue(UniValue::VARR));
-                params.push_back(obj);
-                TryRpcCall(&mn_finalizedismissvoting, params, "MN auto finalize dismiss voting");
-            }
+            UniValue obj(UniValue::VOBJ);
+            obj.push_back(Pair("against", pair.first.GetHex()));
+            UniValue params(UniValue::VARR);
+            params.push_back(UniValue(UniValue::VARR));
+            params.push_back(obj);
+            TryRpcCall(&mn_finalizedismissvoting, params, "MN auto finalize dismiss voting");
         }
     }
 }

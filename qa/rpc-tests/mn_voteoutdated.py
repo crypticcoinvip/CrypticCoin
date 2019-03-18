@@ -5,15 +5,14 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, assert_true, assert_greater_than, \
+from test_framework.util import assert_equal, assert_greater_than, \
     initialize_chain, initialize_chain_clean, start_nodes, start_node, connect_nodes_bi, \
     stop_nodes, sync_blocks, sync_mempools, wait_and_assert_operationid_status, \
     wait_bitcoinds
 
 from decimal import Decimal
-
-import time
 import pprint
+import time
 
 class Mn(object):
 
@@ -25,7 +24,7 @@ class Mn(object):
         self.collateral = node.getnewaddress()
 
 
-class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
+class MasternodesRpcVoteOutdatedTest (BitcoinTestFramework):
 
     def start_nodes(self, args = []):
         if len(args) == 0:
@@ -33,7 +32,6 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         for i in range(len(args)):
             args[i] = args[i][:]
             args[i] += ['-nuparams=76b809bb:200']
-            args[i] += ['-nomnautomation=1']
 
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, args);
 
@@ -72,23 +70,15 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
     def dump_mn(self, i):
         return self.nodes[i].mn_list([ self.mns[i].id ], True)[0]
 
-    def gettipcoinbase(self, i):
-        height = self.nodes[i].getblockcount()
-        block = self.nodes[i].getblock(str(height))
-        tx0hash = block['tx'][0]
-        return self.nodes[i].decoderawtransaction(self.nodes[i].getrawtransaction(tx0hash))
-
     def run_test (self):
         pp = pprint.PrettyPrinter(indent=4)
 
-        # We need consensus.dpos.nTeamSize (in chainparams.cpp) for test execution
+        self.num_nodes = 4
         self.start_nodes()
         connect_nodes_bi(self.nodes, 0, 1)
         connect_nodes_bi(self.nodes, 1, 2)
         connect_nodes_bi(self.nodes, 2, 3)
         connect_nodes_bi(self.nodes, 3, 0)
-        time.sleep(2)
-
 
         print "Announce nodes"
         self.mns = [ Mn(self.nodes[i], "node"+str(i)) for i in range(self.num_nodes) ]
@@ -103,65 +93,53 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
             assert_equal(self.dump_mn(i)['status'], "announced")
 
 
-        print "Nodes announced, restarting nodes"
+        print "Nodes announced, restarting nodes (node #3 disconnected)"
         self.stop_nodes()
+        self.num_nodes = 3
         self.start_nodes([[ "-masternode_operator="+self.mns[i].operator] for i in range(self.num_nodes) ] )
         connect_nodes_bi(self.nodes, 0, 1)
         connect_nodes_bi(self.nodes, 1, 2)
-        connect_nodes_bi(self.nodes, 2, 3)
-        connect_nodes_bi(self.nodes, 3, 0)
-        time.sleep(4)
-
+        connect_nodes_bi(self.nodes, 2, 0)
 
         # Generate blocks for activation height
-        self.nodes[0].generate(10)
-        self.sync_all()
-
-        # Activate nodes 0+1
-        self.activate_mn(0)
-        self.activate_mn(1)
-        self.activate_mn(2)
-        self.sync_all()
-
-        self.nodes[0].generate(1)
-        self.sync_all()
-
-        assert_equal(self.dump_mn(0)['status'], "active")
-        assert_equal(self.dump_mn(1)['status'], "active")
-        assert_equal(self.dump_mn(2)['status'], "active")
-        assert_equal(self.dump_mn(3)['status'], "announced")
-
-        self.activate_mn(3)
-        self.nodes[3].generate(1)
-        self.sync_all()
-        assert_equal(self.dump_mn(3)['status'], "active")
-
-        # Just for sure that dpos has started after activation
+        self.nodes[0].generate(9)
+        sync_blocks([self.nodes[0], self.nodes[1]])
+        sync_blocks([self.nodes[0], self.nodes[2]])
         time.sleep(4)
 
-        # should be old PoW coinbase
-        height = self.nodes[0].getblockcount()
-        pow = self.gettipcoinbase(0)
-        assert_true(len(pow['vout']) == 1)
-        assert_true(pow['vout'][0]['value'] >= 6.25)
-
+        # Autoactivation should happen here
         self.nodes[0].generate(1)
+        sync_blocks([self.nodes[0], self.nodes[1]])
+        sync_blocks([self.nodes[0], self.nodes[1]])
+        time.sleep(4)
 
-        while height == self.nodes[0].getblockcount():
-            print height
+        for i in range(self.num_nodes):
+            assert_equal(self.dump_mn(i)['status'], "active")
+
+        print "Nodes activated. Waiting for node #3 became outdated (30 sec)"
+        time.sleep(30)
+        # Here, nodes should deside to kick off node #3
+        self.nodes[0].generate(1)
+        time.sleep(4)
+        print "Here should be autovoting"
+        self.nodes[0].generate(1)
+        time.sleep(4)
+#        pp.pprint(self.nodes[0].mn_list([], True))
+
+        print "Waiting for autofinalize"
+        i = 0
+        while i < 10 and self.nodes[0].mn_list([self.mns[3].id])[0]['status'] == "announced":
+            self.nodes[0].generate(1)
             time.sleep(1)
+            i = i + 1
+            print i
 
-        # should be new dPoS coinbase
-        dpos = self.gettipcoinbase(0)
-        assert_true(len(dpos['vout']) == 5)
-        assert_true(dpos['vout'][0]['value'] == 3.125)
-        assert_true(dpos['vout'][1]['value'] == 0.78125)
-        assert_true(dpos['vout'][2]['value'] == 0.78125)
-        assert_true(dpos['vout'][3]['value'] == 0.78125)
-        assert_true(dpos['vout'][4]['value'] == 0.78125)
+        assert_equal(self.nodes[0].mn_list([self.mns[3].id])[0]['status'], "announced, dismissed")
+
+#        pp.pprint(self.nodes[0].mn_list([], True))
 
         print "Done"
 
 
 if __name__ == '__main__':
-    MasternodesRpcTeamRewardTest ().main ()
+    MasternodesRpcVoteOutdatedTest ().main ()
