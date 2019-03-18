@@ -718,7 +718,15 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
             // Show founders' reward if it is required
             if (pblock->vtx[0].vout.size() > 1) {
                 // Correct this if GetBlockTemplate changes the order
-                entry.push_back(Pair("foundersreward", (int64_t)tx.vout[1].nValue));
+                UniValue masternodesRewards{UniValue::VARR};
+                for (std::size_t i{1}; i < tx.vout.size(); ++i) {
+                    UniValue reward{UniValue::VOBJ};
+                    const std::string script{HexStr(tx.vout[i].scriptPubKey.begin(), tx.vout[i].scriptPubKey.end())};
+                    reward.push_back(Pair("script", script));
+                    reward.push_back(Pair("amount", 1.0 * tx.vout[i].nValue / COIN));
+                    masternodesRewards.push_back(reward);
+                }
+                entry.push_back(Pair("masternodesRewards", masternodesRewards));
             }
             entry.push_back(Pair("required", true));
             txCoinbase = entry;
@@ -763,9 +771,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     result.push_back(Pair("curtime", pblock->GetBlockTime()));
     result.push_back(Pair("bits", strprintf("%08x", pblock->nBits)));
     result.push_back(Pair("height", (int64_t)(pindexPrev->nHeight+1)));
-    if (pblock->nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
-        result.push_back(Pair("round", static_cast<int64_t>(pblock->nRound)));
-    }
+    result.push_back(Pair("round", static_cast<int64_t>(pblock->nRound)));
 
     return result;
 }
