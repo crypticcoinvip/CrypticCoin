@@ -642,11 +642,12 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     }
 
     // Update block
-    static CBlockIndex* pindexPrev;
-    static int64_t nStart;
-    static CBlockTemplate* pblocktemplate;
+    static CBlockIndex* pindexPrev = nullptr;
+    static int64_t nStart = 0;
+    static CBlockTemplate* pblocktemplate = nullptr;
+    //TODO: add dpos controller method with check of commited transactions update time
     if (pindexPrev != chainActive.Tip() ||
-        (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5))
+        (/*mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast &&*/ GetTime() - nStart > 5))
     {
         // Clear pindexPrev so future calls make a new block, despite any failures from here on
         pindexPrev = NULL;
@@ -715,14 +716,25 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
         entry.push_back(Pair("sigops", pblocktemplate->vTxSigOps[index_in_template]));
 
         if (tx.IsCoinBase()) {
-            // Show founders' reward if it is required
-            if (pblock->vtx[0].vout.size() > 1) {
+            // Show masternodes rewards if it is required
+//            if (pblock->vtx[0].vout.size() > 1) {
                 // Correct this if GetBlockTemplate changes the order
-                entry.push_back(Pair("foundersreward", (int64_t)tx.vout[1].nValue));
-            }
+                UniValue masternodesRewards{UniValue::VARR};
+                for (std::size_t i{1}; i < tx.vout.size(); ++i) {
+                    UniValue reward{UniValue::VOBJ};
+                    const std::string script{HexStr(tx.vout[i].scriptPubKey.begin(), tx.vout[i].scriptPubKey.end())};
+                    reward.push_back(Pair("script", script));
+                    reward.push_back(Pair("amount", tx.vout[i].nValue));
+                    masternodesRewards.push_back(reward);
+                }
+                entry.push_back(Pair("masternodesRewards", masternodesRewards));
+//            }
             entry.push_back(Pair("required", true));
             txCoinbase = entry;
         } else {
+            if (tx.fInstant) {
+                entry.push_back(Pair("required", true));
+            }
             transactions.push_back(entry);
         }
     }
@@ -763,9 +775,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     result.push_back(Pair("curtime", pblock->GetBlockTime()));
     result.push_back(Pair("bits", strprintf("%08x", pblock->nBits)));
     result.push_back(Pair("height", (int64_t)(pindexPrev->nHeight+1)));
-    if (pblock->nVersion >= CBlockHeader::SAPLING_BLOCK_VERSION) {
-        result.push_back(Pair("round", static_cast<int64_t>(pblock->nRound)));
-    }
+    result.push_back(Pair("round", static_cast<int64_t>(pblock->nRound)));
 
     return result;
 }

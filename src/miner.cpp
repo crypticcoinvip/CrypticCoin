@@ -144,6 +144,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     // Collect memory pool transactions into the block
     CAmount nFees = 0;
     CAmount nFees_inst = 0;
+    bool fDposEnabled = false;
 
     const std::vector<CTransaction> committedList = dpos::getController()->listCommittedTxs();
     {
@@ -157,6 +158,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
         pblock->nTime = GetAdjustedTime();
         pblock->nRound = dpos::getController()->getCurrentVotingRound(pblock->GetBlockTime(), nHeight);
+        fDposEnabled = dpos::getController()->isEnabled(pblock->GetBlockTime(), nHeight);
 
         if (!NetworkUpgradeActive(nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING)) {
             pblock->nVersion = CBlockHeader::SAPLING_BLOCK_VERSION - 1;
@@ -440,7 +442,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         txNew.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
         // Share reward with masternodes' team
-        {
+        if (fDposEnabled) {
             const auto rewards_p = mnview.CalcDposTeamReward(txNew.vout[0].nValue, nFees_inst, nHeight);
             txNew.vout[0].nValue -= rewards_p.second;
             txNew.vout.insert(txNew.vout.end(), rewards_p.first.begin(), rewards_p.first.end());
@@ -775,7 +777,10 @@ void static BitcoinMiner()
                     break;
                 if ((UintToArith256(pblock->nNonce) & 0xffff) == 0xffff)
                     break;
-                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 60)
+                //TODO: add dpos controller method with check of commited transactions update time
+                //if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 60)
+                //    break;
+                if (GetTime() - nStart > 5)
                     break;
                 if (pindexPrev != chainActive.Tip())
                     break;
