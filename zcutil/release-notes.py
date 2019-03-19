@@ -25,6 +25,8 @@ author_aliases = {
     'EthanHeilman': 'Ethan Heilman',
     'arielgabizon' : 'Ariel Gabizon',
     'Charlie OKeefe' : 'Charlie O\'Keefe',
+    'maxb' : 'Maksim Buldukyan',
+    'egorl' : 'Egor Lysenko',
 }
 
 def apply_author_aliases(name):

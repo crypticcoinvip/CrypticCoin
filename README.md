@@ -19,21 +19,25 @@ blockchain has reached a significant size.
 Masternodes
 -----------------
 
-Masternodes list is deterministic and can be altered only by special transactions. To become a masternode, user sends special transaction, which locks 1M CRYP and burns an announcment fee.
+To become a masternode, user sends special transaction, which locks 1M CRYP and burns an announcement fee.
 
-Masternode reward is determistic, and doesn't depend on p2p voting. If a masternode does misbehave, it gets dismissed in the process of dismissal voting.
+Masternodes list can be altered only by special transactions - that's why the list is deterministic. As a result, masternode's reward is fair and doesn't depend on p2p voting.
 
-After dismissing or reassignment, announcement fee isn't refunded (only masternode collateral is refunded), which is a financial penalty of misbehaving.
+Announcement fee brings a financial penalty of misbehaving. After dismissing or reassignment, announcement fee isn't refunded (only masternode collateral is refunded). After the MN_Sapling upgrade activation, the amount of announcement fee starts from 1 day worth masternode's income, and slowly grows (during 2 years) until it reaches 31 days worth of income.
 
-Delegated Proof Of Stake
+Masternode must stay online 24/7. Otherwise it'll get dismissed during dimissal voting.
+
+Instant transactions over Byzantine Fault Tolerance protocol
 -----------------
 
 Instant transactions are based on an unique interpretation of Delegated Proof Of Stake consensus, where each block is confirmed by both PoW and dPoS.
-Masternodes take part in p2p voting as dPoS validators, ensuring consistency and finality of instant transactions.
+Masternodes take part in BFT p2p voting as dPoS validators, ensuring consistency and finality of instant transactions.
 
-The team of dPoS validators has a limited size, and every block one masternode (the oldest one) leaves the team, and a random one (according to PoW hash) joins the team.
+Unlike other implementations, CRYP instant transactions may be zero-knowledge private, based on zk-SNARKs. That's why it uses a complex BFT protocol.
 
-Doublesign is mitigated as the p2p protocol allows to find and reject doublesign votes. All the nodes do validate all the p2p votes, and doublesign votes get rejected by the network, and misbehaving masternodes get dismissed.
+The team consists of 32 dPoS validators, and every block one masternode (the oldest one) leaves the team, and a random one (according to PoW hash) joins the team.
+
+Doublesign is mitigated as the p2p protocol allows to find and reject doublesign votes. All the nodes do validate all the p2p votes, and doublesign votes get rejected by the network. Currently, misbehaving masternode won't get dismissed after doublesign attempt, it'll be a part of future updates.
 
 Security Warnings
 -----------------
