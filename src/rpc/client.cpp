@@ -150,7 +150,12 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "mn_finalizedismissvoting", 1},
     { "dpos_gettxvotes", 0},
     { "mn_setoperator", 0},
-    { "mn_setoperator", 1}
+    { "mn_setoperator", 1},
+    { "mn_list", 0},
+    { "mn_list", 1},
+    { "mn_listactive", 0},
+    { "mn_listactive", 1},
+    { "mn_listdismissvotes", 0}
 };
 
 class CRPCConvertTable

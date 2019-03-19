@@ -4050,7 +4050,7 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
     if (!ActivateBestChain(state, pblock))
         return error("%s: ActivateBestChain failed", __func__);
 
-    if (Params().NetworkIDString() != "regtest" || !GetBoolArg("-nomnautomation", false))
+    if (!IsInitialBlockDownload() && (Params().NetworkIDString() != "regtest" || !GetBoolArg("-nomnautomation", false)))
     {
         LOCK(cs_main);
         int height = chainActive.Height();

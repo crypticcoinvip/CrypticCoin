@@ -728,6 +728,25 @@ UniValue i_listtransactions(const UniValue& params, bool fHelp)
     return rv;
 }
 
+UniValue isinitialblockdownload(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0) {
+        throw runtime_error(
+            "isinitialblockdownload\n"
+            "\nChecks if it is initial block download."
+            "\nResult:\n"
+            "true|false\n"
+            "\nExamples:\n"
+            + HelpExampleCli("isinitialblockdownload", "")
+            + HelpExampleRpc("isinitialblockdownload", "")
+        );
+    }
+
+    UniValue rv(UniValue::VBOOL);
+    rv.setBool(IsInitialBlockDownload());
+    return rv;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -736,6 +755,7 @@ static const CRPCCommand commands[] =
     { "util",               "z_validateaddress",      &z_validateaddress,      true  }, /* uses wallet if enabled */
     { "util",               "createmultisig",         &createmultisig,         true  },
     { "util",               "verifymessage",          &verifymessage,          true  },
+    { "control",            "isinitialblockdownload", &isinitialblockdownload, true  },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            true  },
