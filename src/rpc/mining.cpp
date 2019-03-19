@@ -732,7 +732,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
             entry.push_back(Pair("required", true));
             txCoinbase = entry;
         } else {
-            if (tx.fInstant && dpos::getController()->isEnabled(pblock->GetBlockTime(), pindexPrev)) {
+            if (tx.fInstant) {
                 entry.push_back(Pair("required", true));
             }
             transactions.push_back(entry);
