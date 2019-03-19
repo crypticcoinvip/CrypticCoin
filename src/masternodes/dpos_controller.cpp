@@ -241,7 +241,11 @@ bool CDposController::isEnabled(int64_t time, const CBlockIndex* pindexTip) cons
 bool CDposController::isEnabled(int64_t time, int tipHeight) const
 {
     LOCK(cs_main);
-    return isEnabled(time, chainActive[tipHeight]);
+    CBlockIndex* pindexTip{chainActive[tipHeight]};
+    if (tipHeight < 0 || tipHeight > chainActive.Height()) {
+        pindexTip = nullptr;
+    }
+    return isEnabled(time, pindexTip);
 }
 
 bool CDposController::isEnabled(int64_t time, const BlockHash& tipHash) const
