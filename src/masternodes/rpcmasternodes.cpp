@@ -248,6 +248,31 @@ std::string ProvideAuth(CKeyID const & auth, UniValue & inputs)
     return "";
 }
 
+CAmount EstimateAnnouncementFee()
+{
+    // Current height + (1 day blocks) to avoid rejection;
+    CAmount const blockSubsidy = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
+    int targetHeight = chainActive.Height() + 1 + (60 * 60 / Params().GetConsensus().nPowTargetSpacing);
+    size_t targetMnCount = pmasternodesview->GetActiveMasternodes().size() < 4 ? 0 : pmasternodesview->GetActiveMasternodes().size() - 4;
+    return GetMnAnnouncementFee(blockSubsidy, targetHeight, targetMnCount);
+}
+
+UniValue mn_estimateannouncementfee(UniValue const & params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw std::runtime_error(
+            "mn_estimateannouncmentfee\n"
+            "\nEstimates the approximate masternode announcement fee\n"
+            "\nResult:\n"
+            "n :    (numeric) estimated fee\n"
+            "\n"
+            "\nExample:\n"
+            + HelpExampleCli("mn_estimateannouncmentfee", ""));
+
+    LOCK(cs_main);
+    return ValueFromAmount(EstimateAnnouncementFee());
+}
+
 /*
  *
  *  Issued by: any
@@ -389,13 +414,8 @@ UniValue mn_announce(UniValue const & params, bool fHelp)
     CScript scriptMeta;
     scriptMeta << OP_RETURN << ToByteVector(metadata);
 
-    // Current height + (1 day blocks) to avoid rejection;
-    CAmount const blockSubsidy = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
-    int targetHeight = chainActive.Height() + 1 + (60 * 60 / Params().GetConsensus().nPowTargetSpacing);
-    size_t targetMnCount = pmasternodesview->GetActiveMasternodes().size() < 4 ? 0 : pmasternodesview->GetActiveMasternodes().size() - 4;
-
     UniValue vouts(UniValue::VOBJ);
-    vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptMeta)), ValueFromAmount(GetMnAnnouncementFee(blockSubsidy, targetHeight, targetMnCount))));
+    vouts.push_back(Pair(EncodeDestination(CTxDestination(scriptMeta)), ValueFromAmount(EstimateAnnouncementFee())));
     vouts.push_back(Pair(EncodeDestination(collateralDest), ValueFromAmount(GetMnCollateralAmount())));
 
     UniValue newparams(UniValue::VARR);
@@ -1092,6 +1112,7 @@ UniValue mn_listdismissvotes(UniValue const & params, bool fHelp)
 static const CRPCCommand commands[] =
 { //  category          name                          actor (function)              okSafeMode
   //  ----------------- ------------------------      -----------------------       ----------
+    { "masternodes",    "mn_estimateannouncementfee", &mn_estimateannouncementfee, true  },
     { "masternodes",    "mn_announce",                &mn_announce,                 true  },
     { "masternodes",    "mn_activate",                &mn_activate,                 true  },
     { "masternodes",    "mn_dismissvote",             &mn_dismissvote,              true  },
