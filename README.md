@@ -27,13 +27,13 @@ Announcement fee brings a financial penalty of misbehaving. After dismissing or 
 
 Masternode must stay online 24/7. Otherwise it'll get dismissed during dimissal voting.
 
-Instant transactions over Byzantine Fault Tolerance protocol
+Instant transactions over BFT protocol
 -----------------
 
-Instant transactions are based on an unique interpretation of Delegated Proof Of Stake consensus, where each block is confirmed by both PoW and dPoS.
-Masternodes take part in BFT p2p voting as dPoS validators, ensuring consistency and finality of instant transactions.
+Instant transactions are based on an unique interpretation of Delegated Proof Of Stake (dPoS) consensus, where each block is confirmed by both PoW and dPoS.
+Masternodes take part in Byzantine Fault Tolerant (BFT) p2p voting as validators, ensuring consistency and finality of instant transactions.
 
-Unlike other implementations, CRYP instant transactions may be zero-knowledge private, based on zk-SNARKs. That's why it uses a complex BFT protocol.
+Unlike other implementations, CRYP instant transactions may be zero-knowledge private, based on zk-SNARKs. That's why it uses a complex BFT protocol instead of TxLocks.
 
 The team consists of 32 dPoS validators, and every block one masternode (the oldest one) leaves the team, and a random one (according to PoW hash) joins the team.
 
