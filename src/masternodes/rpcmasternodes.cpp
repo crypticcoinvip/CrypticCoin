@@ -284,7 +284,7 @@ UniValue mn_announce(UniValue const & params, bool fHelp)
             "mn_announce [{\"txid\":\"id\",\"vout\":n},...] {\"address\":amount,...}\n"
             "\nCreates (and submits to local node and network) a masternode announcement transaction with given metadata, spending the given inputs.\n"
             "\nArguments:\n"
-            "1. \"transactions\"        (string, required) A json array of json objects\n"
+            "1. \"transactions\"        (string, optional) A json array of json objects. Provide it if you want to spent specific outputs\n"
             "     [\n"
             "       {\n"
             "         \"txid\":\"id\",  (string, required) The transaction id\n"
@@ -295,17 +295,35 @@ UniValue mn_announce(UniValue const & params, bool fHelp)
             "     ]\n"
             "2. \"metadata\"           (string, required) a json object with masternode metadata keys and values\n"
             "    {\n"
-            "      \"name\": name                        (string, required) Masternode human-friendly name, should be at least size 3 and less than 255\n"
-            "      \"ownerAuthAddress\": P2PKH           (string, required) Masternode owner auth address (P2PKH only, unique)\n"
-            "      \"operatorAuthAddress\": P2PKH        (string, required) Masternode operator auth address (P2PKH only, unique)\n"
-            "      \"ownerRewardAddress\": P2PKH or P2SH (string, required) Masternode owner reward address (any P2PKH or P2SH address)\n"
-            "      \"collateralAddress\": P2PKH or P2SH  (string, required) Any valid address for keeping collateral amount (any P2PKH or P2SH address)\n"
+            "      \"name\": name             (string, required) Masternode human-friendly name, should be at least size 3 and not greater than 31\n"
+            "      \"ownerAuthAddress\":      (string, required) Masternode owner auth address (P2PKH only, unique)\n"
+            "      \"operatorAuthAddress\":   (string, required) Masternode operator auth address (P2PKH only, unique)\n"
+            "      \"ownerRewardAddress\":    (string, required) Masternode owner reward address (any P2PKH or P2SH address)\n"
+            "      \"operatorRewardAddress\": (string, optional) Masternode operator reward address (any P2PKH or P2SH address)\n"
+            "      \"operatorRewardRatio\":   (number, optional) Masternode operator reward ratio (any number from 0 to 1)\n"
+            "      \"collateralAddress\":     (string, required) Any valid address for keeping collateral amount (any P2PKH or P2SH address)\n"
             "    }\n"
             "\nResult:\n"
             "\"hex\"             (string) The transaction hash in hex\n"
-//            "\nExamples\n"
-//            + HelpExampleCli("mn_announce", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\" \"{\\\"address\\\":0.01}\"")
-//            + HelpExampleRpc("mn_announce", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\", \"{\\\"address\\\":0.01}\"")
+            "\nExamples\n"
+            + HelpExampleCli("mn_announce", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" "
+                                            "\"{\\\"name\\\":\\\"nodename\\\","
+                                               "\\\"ownerAuthAddress\\\":\\\"address\\\","
+                                               "\\\"operatorAuthAddress\\\":\\\"address\\\","
+                                               "\\\"ownerRewardAddress\\\":\\\"address\\\","
+                                               "\\\"operatorRewardAddress\\\":\\\"address\\\","
+                                               "\\\"operatorRewardRatio\\\":0.25,"
+                                               "\\\"collateralAddress\\\":\\\"address\\\""
+                                            "}\"")
+            + HelpExampleRpc("mn_announce", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" "
+                                            "\"{\\\"name\\\":\\\"nodename\\\","
+                                               "\\\"ownerAuthAddress\\\":\\\"address\\\","
+                                               "\\\"operatorAuthAddress\\\":\\\"address\\\","
+                                               "\\\"ownerRewardAddress\\\":\\\"address\\\","
+                                               "\\\"operatorRewardAddress\\\":\\\"address\\\","
+                                               "\\\"operatorRewardRatio\\\":0.25,"
+                                               "\\\"collateralAddress\\\":\\\"address\\\""
+                                            "}\"")
         );
     EnsureBlocksDownloaded();
     EnsureSaplingUpgrade();
@@ -433,8 +451,24 @@ UniValue mn_announce(UniValue const & params, bool fHelp)
 UniValue mn_activate(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
-        throw std::runtime_error("@todo: Help"
-    );
+        throw std::runtime_error("mn_activate [{\"txid\":\"id\",\"vout\":n},...]\n"
+                                 "\nCreates (and submits to local node and network) a masternode activation transaction, spending the given inputs.\n"
+                                 "\nArguments:\n"
+                                 "1. \"transactions\"        (string, optional) A json array of json objects. Provide it if you want to spent specific outputs\n"
+                                 "     [\n"
+                                 "       {\n"
+                                 "         \"txid\":\"id\",  (string, required) The transaction id\n"
+                                 "         \"vout\":n        (numeric, required) The output number\n"
+                                 "         \"sequence\":n    (numeric, optional) The sequence number\n"
+                                 "       }\n"
+                                 "       ,...\n"
+                                 "     ]\n"
+                                 "\nResult:\n"
+                                 "\"hex\"             (string) The transaction hash in hex\n"
+                                 "\nExamples\n"
+                                 + HelpExampleCli("mn_activate", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\"")
+                                 + HelpExampleRpc("mn_activate", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\"")
+        );
     EnsureBlocksDownloaded();
     EnsureSaplingUpgrade();
 
@@ -499,8 +533,38 @@ UniValue mn_activate(UniValue const & params, bool fHelp)
 UniValue mn_dismissvote(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
-        throw std::runtime_error("@todo: Help"
-    );
+        throw std::runtime_error("mn_dismissvote [{\"txid\":\"id\",\"vout\":n},...] {\"against\":MN-id,\"reason_code\":n,\"reason_desc\":\"description\"}\n"
+                                 "\nCreates (and submits to local node and network) a masternode dismiss vote transaction, spending the given inputs.\n"
+                                 "\nArguments:\n"
+                                 "1. \"transactions\"        (string, optional) A json array of json objects. Provide it if you want to spent specific outputs\n"
+                                 "     [\n"
+                                 "       {\n"
+                                 "         \"txid\":\"id\",  (string, required) The transaction id\n"
+                                 "         \"vout\":n        (numeric, required) The output number\n"
+                                 "         \"sequence\":n    (numeric, optional) The sequence number\n"
+                                 "       }\n"
+                                 "       ,...\n"
+                                 "     ]\n"
+                                 "2. \"metadata\"                   (string, required) a json object with 'enemy' masternode metadata keys and values\n"
+                                 "    {\n"
+                                 "      \"against\":\"MN-id\"       (string, required) ID of an 'enemy' masternode\n"
+                                 "      \"reason_code\":n           (number, required) Reason code (arbitrary for now)\n"
+                                 "      \"reason_desc\":\"desc\"    (string, required) Reason description (arbitrary)\n"
+                                 "    }\n"
+                                 "\nResult:\n"
+                                 "\"hex\"                           (string) The transaction hash in hex\n"
+                                 "\nExamples\n"
+                                 + HelpExampleCli("mn_dismissvote", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" "
+                                                                    "\"{\\\"against\\\":\\\"address\\\","
+                                                                       "\\\"reason_code\\\":0,"
+                                                                       "\\\"reason_desc\\\":\\\"some description\\\""
+                                                                    "}\"")
+                                 + HelpExampleRpc("mn_dismissvote", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" "
+                                                                    "\"{\\\"against\\\":\\\"address\\\","
+                                                                       "\\\"reason_code\\\":0,"
+                                                                       "\\\"reason_desc\\\":\\\"some description\\\""
+                                                                    "}\"")
+        );
     EnsureBlocksDownloaded();
     EnsureSaplingUpgrade();
 
@@ -585,8 +649,28 @@ UniValue mn_dismissvote(UniValue const & params, bool fHelp)
 UniValue mn_dismissvoterecall(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
-        throw std::runtime_error("@todo: Help"
-    );
+        throw std::runtime_error("mn_dismissvoterecall [{\"txid\":\"id\",\"vout\":n},...] {\"against\":MN-id}\n"
+                                 "\nCreates (and submits to local node and network) a masternode dismiss vote recall transaction, spending the given inputs.\n"
+                                 "\nArguments:\n"
+                                 "1. \"transactions\"        (string, optional) A json array of json objects. Provide it if you want to spent specific outputs\n"
+                                 "     [\n"
+                                 "       {\n"
+                                 "         \"txid\":\"id\",  (string, required) The transaction id\n"
+                                 "         \"vout\":n        (numeric, required) The output number\n"
+                                 "         \"sequence\":n    (numeric, optional) The sequence number\n"
+                                 "       }\n"
+                                 "       ,...\n"
+                                 "     ]\n"
+                                 "2. \"metadata\"             (string, required) a json object with 'enemy' masternode metadata keys and values\n"
+                                 "    {\n"
+                                 "      \"against\":\"MN-id\" (string, required) ID of an 'enemy' masternode to recall vote\n"
+                                 "    }\n"
+                                 "\nResult:\n"
+                                 "\"hex\"                     (string) The transaction hash in hex\n"
+                                 "\nExamples\n"
+                                 + HelpExampleCli("mn_dismissvoterecall", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" \"{\\\"against\\\":\\\"address\\\"}\"")
+                                 + HelpExampleRpc("mn_dismissvoterecall", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" \"{\\\"against\\\":\\\"address\\\"}\"")
+        );
     EnsureBlocksDownloaded();
     EnsureSaplingUpgrade();
 
@@ -655,8 +739,28 @@ UniValue mn_dismissvoterecall(UniValue const & params, bool fHelp)
 UniValue mn_finalizedismissvoting(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() == 0)
-        throw std::runtime_error("@todo: Help"
-    );
+        throw std::runtime_error("mn_finalizedismissvoting [{\"txid\":\"id\",\"vout\":n},...] {\"against\":MN-id}\n"
+                                 "\nCreates (and submits to local node and network) a masternode finalize dismiss vote transaction, spending the given inputs.\n"
+                                 "\nArguments:\n"
+                                 "1. \"transactions\"        (string, optional) A json array of json objects. Provide it if you want to spent specific outputs\n"
+                                 "     [\n"
+                                 "       {\n"
+                                 "         \"txid\":\"id\",  (string, required) The transaction id\n"
+                                 "         \"vout\":n        (numeric, required) The output number\n"
+                                 "         \"sequence\":n    (numeric, optional) The sequence number\n"
+                                 "       }\n"
+                                 "       ,...\n"
+                                 "     ]\n"
+                                 "2. \"metadata\"             (string, required) a json object with 'enemy' masternode metadata keys and values\n"
+                                 "    {\n"
+                                 "      \"against\":\"MN-id\" (string, required) ID of an 'enemy' masternode\n"
+                                 "    }\n"
+                                 "\nResult:\n"
+                                 "\"hex\"                     (string) The transaction hash in hex\n"
+                                 "\nExamples\n"
+                                 + HelpExampleCli("mn_finalizedismissvoting", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" \"{\\\"against\\\":\\\"address\\\"}\"")
+                                 + HelpExampleRpc("mn_finalizedismissvoting", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" \"{\\\"against\\\":\\\"address\\\"}\"")
+        );
     EnsureBlocksDownloaded();
     EnsureSaplingUpgrade();
 
@@ -724,8 +828,39 @@ UniValue mn_finalizedismissvoting(UniValue const & params, bool fHelp)
 UniValue mn_setoperator(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() == 0)
-        throw std::runtime_error("@todo: Help"
-    );
+        throw std::runtime_error(
+                "mn_setoperator [{\"txid\":\"id\",\"vout\":n},...] {\"operatorAuthAddress\":\"address\",...}\n"
+                "\nCreates (and submits to local node and network) a masternode setoperator transaction with given metadata, spending the given inputs.\n"
+                "\nArguments:\n"
+                "1. \"transactions\"        (string, optional) A json array of json objects. Provide it if you want to spent specific outputs\n"
+                "     [\n"
+                "       {\n"
+                "         \"txid\":\"id\",  (string, required) The transaction id\n"
+                "         \"vout\":n        (numeric, required) The output number\n"
+                "         \"sequence\":n    (numeric, optional) The sequence number\n"
+                "       }\n"
+                "       ,...\n"
+                "     ]\n"
+                "2. \"metadata\"            (string, required) a json object with masternode metadata keys and values\n"
+                "    {\n"
+                "      \"operatorAuthAddress\":   (string, required) New masternode operator auth address (P2PKH only, unique)\n"
+                "      \"operatorRewardAddress\": (string, optional) New masternode operator reward address (any P2PKH or P2SH address)\n"
+                "      \"operatorRewardRatio\":   (number, optional) New masternode operator reward ratio (any number from 0 to 1)\n"
+                "    }\n"
+                "\nResult:\n"
+                "\"hex\"             (string) The transaction hash in hex\n"
+                "\nExamples\n"
+                + HelpExampleCli("mn_setoperator", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" "
+                                                    "\"{\\\"operatorAuthAddress\\\":\\\"address\\\","
+                                                       "\\\"operatorRewardAddress\\\":\\\"address\\\","
+                                                       "\\\"operatorRewardRatio\\\":0.25"
+                                                    "}\"")
+                + HelpExampleRpc("mn_setoperator", "\"[{\\\"txid\\\":\\\"id\\\",\\\"vout\\\":0}]\" "
+                                                    "\"{\\\"operatorAuthAddress\\\":\\\"address\\\","
+                                                       "\\\"operatorRewardAddress\\\":\\\"address\\\","
+                                                       "\\\"operatorRewardRatio\\\":0.25"
+                                                    "}\"")
+        );
     EnsureBlocksDownloaded();
     EnsureSaplingUpgrade();
 
@@ -812,8 +947,18 @@ UniValue mn_setoperator(UniValue const & params, bool fHelp)
 UniValue mn_resign(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
-        throw std::runtime_error("@todo: Help"
-    );
+        throw std::runtime_error(
+                "mn_resign \"MN-id\" \"address\"\n"
+                "\nCreates (and submits to local node and network) a transaction spending your masternode's collateral.\n"
+                "\nArguments:\n"
+                "1. \"MN-id\"        (string, required) A masternode id for resign\n"
+                "2. \"address\"      (string, required) Address to send collateral to (any P2PKH or P2SH address)\n"
+                "\nResult:\n"
+                "\"hex\"             (string) The transaction hash in hex\n"
+                "\nExamples\n"
+                + HelpExampleCli("mn_resign", "\"your-mn-id\" \"address\"")
+                + HelpExampleRpc("mn_resign", "\"your-mn-id\" \"address\"")
+        );
     EnsureBlocksDownloaded();
     EnsureSaplingUpgrade();
 
@@ -935,7 +1080,20 @@ UniValue dumpnode(uint256 const & id, CMasternode const & node, bool verbose)
 UniValue mn_list(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() > 2)
-        throw std::runtime_error("@todo: Help"
+        throw std::runtime_error(
+                "mn_list [\"MN-id\",...]\n"
+                "\nReturns information about specified masternodes (or all, if list of ids is empty).\n"
+                "\nArguments:\n"
+                "1.   [\n"
+                "         \"id\"            (string, optional) A json array of masternode ids\n"
+                "       ,...\n"
+                "     ]\n"
+                "2. \"verbose\"             (bool, optional) Flag to specify verbose list\n"
+                "\nResult:\n"
+                "[{...},...]                (array) Json array of json objects with masternodes information\n"
+                "\nExamples\n"
+                + HelpExampleCli("mn_list", "\"[]\"")
+                + HelpExampleRpc("mn_list", "\"[]\"")
     );
     EnsureSaplingUpgrade();
 
@@ -982,7 +1140,20 @@ UniValue mn_list(UniValue const & params, bool fHelp)
 UniValue mn_listactive(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() > 2)
-        throw std::runtime_error("@todo: Help"
+        throw std::runtime_error(
+                "mn_listactive [\"MN-id\",...]\n"
+                "\nReturns information about specified active masternodes (or all, if list of ids is empty).\n"
+                "\nArguments:\n"
+                "1.   [\n"
+                "         \"id\"            (string, optional) A json array of masternode ids\n"
+                "       ,...\n"
+                "     ]\n"
+                "2. \"verbose\"             (bool, optional) Flag to specify verbose list\n"
+                "\nResult:\n"
+                "[{...},...]                (array) Json array of json objects with masternodes information\n"
+                "\nExamples\n"
+                + HelpExampleCli("mn_listactive", "\"[]\"")
+                + HelpExampleRpc("mn_listactive", "\"[]\"")
     );
     EnsureSaplingUpgrade();
 
@@ -1070,8 +1241,20 @@ UniValue dumpnodevotes(uint256 const & nodeId, CMasternode const & node)
 UniValue mn_listdismissvotes(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
-        throw std::runtime_error("@todo: Help"
-    );
+        throw std::runtime_error(
+                "mn_listdismissvotes [\"MN-id\",...]\n"
+                "\nReturns information about dismiss votes of specified masternodes (or all, if list of ids is empty).\n"
+                "\nArguments:\n"
+                "1.   [\n"
+                "         \"id\"            (string, optional) A json array of masternode ids\n"
+                "       ,...\n"
+                "     ]\n"
+                "\nResult:\n"
+                "[{...},...]                (array) Json array of json objects with votes information\n"
+                "\nExamples\n"
+                + HelpExampleCli("mn_listdismissvotes", "\"[]\"")
+                + HelpExampleRpc("mn_listdismissvotes", "\"[]\"")
+        );
     EnsureSaplingUpgrade();
 
     LOCK(cs_main);
