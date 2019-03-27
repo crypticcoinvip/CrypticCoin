@@ -39,6 +39,60 @@ The team consists of 32 dPoS validators, and every block one masternode (the old
 
 Doublesign is mitigated as the p2p protocol allows to find and reject doublesign votes. All the nodes do validate all the p2p votes, and doublesign votes get rejected by the network. Currently, misbehaving masternode won't get dismissed after doublesign attempt, it'll be a part of future updates.
 
+Masternodes short manual
+-----------------
+The full docker manual is avalible at https://github.com/crypticcoinvip/docker
+
+#### For owners who operate their masternodes
+1. Use an Ubuntu 16.04/18.04 server with at least 300GB of disk space available, 2 CPU cores, 4GB RAM.
+2. Install docker on your machine. On Ubuntu 16.04/18.04:
+```
+cat /etc/apt/sources.list # check that universe repo is enabled
+sudo apt-get update
+sudo apt-get install docker.io
+```
+3. Announce masternode with your owner reward address (the script will take care of other addresses). THE OPERATION WILL BURN ANNOUNCEMENT FEE! Don't do it you're not sure that the address is correct.
+```
+wget -qO- https://raw.githubusercontent.com/crypticcoinvip/docker/master/tools | ownerRewardAddress=YOUR-REWARD-ADDRESS bash /dev/stdin mn_announce
+```
+4. Ensure that the server is online 24/7 - you'll get dismissed instead.
+5. If needed, resign and refund your collateral (retrieve your MASTERNODE_ID by calling ```./tools cli mn_list [] true```):
+```
+./tools cli mn_resign MASTERNODE_ID new_t-address
+```
+
+#### For owners who outsource operation
+Your operator should provide you with an instruction. The process will have the following steps:
+1. Announce masternode (or call mn_setoperator on an announced masternode), specify operator's reward ratio, operator's addresses and YOUR collateral address, YOUR owner auth address, YOUR owner reward address.
+2. Most importantly, to prevent a fraud, collateral must be stored on an address which is controlled by owner, not operator.
+2. Operator runs your masternode. Both owner and operator do receive their reward shares.
+3. If operator misbehaves, it may lead to masternode's dismissal.
+4. Ensure the operator activated your masternode by running:
+```crypticcoin-cli mn_list [] true```
+Check that status of your masternode is ```"activated"```.
+
+#### For masternode operators
+The general flow is as below:
+1. Operator generates 2 addresses: operator auth address, operator reward address
+2. Owner and operator agree on a certain operator reward ratio.
+3. Operator provides owner with his addresses.
+4. Owner announces masternode or calls mn_setoperator on an announced masternode.
+5. Operator ensures that owner specified correct addresses and a certain operator reward ratio.
+6. Operator restarts the node with ```-masternode_operator=YOUR-OPERATOR-AUTH-ADDRESS```.
+7. Both owner and operator do receive their reward shares.
+
+#### For developers
+If you know what you're doing, and you need to look under the hood, then just check ```tools``` script at https://github.com/crypticcoinvip/docker .
+
+The process of masternode announcement looks like this:
+
+- Owner calls ```crypticcoin-cli mn_announce [] '{"name":"nodename","ownerAuthAddress":"address1","operatorAuthAddress":"address2","ownerRewardAddress":"address3","operatorRewardAddress":"address4","operatorRewardRatio":0,"collateralAddress":"address5"}'```
+- Sending this transaction doesn't mean that you're starting to operate masternode. To start operating masternode, add ```masternode_operator=YOUR-OPERATOR-AUTH-ADDRESS```, ```txindex=1``` into the config and restart the operator's node. I'll need to do ```-reindex``` if ```-txindex``` wasn't set before.
+- Make sure that you have at least 10 CRYP on operator's wallet on any transparent address (aside collateral).
+- You probably want to specify ```masternode_owner``` in owner's config to call owner's RPC commands.
+- No need to call ```mn_activate``` manually, the operator will self-activate after a certain height.
+- Node uses only Tor connections by default.
+
 Security Warnings
 -----------------
 
