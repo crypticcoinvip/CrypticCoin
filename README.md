@@ -77,7 +77,7 @@ The general flow is as below:
 2. Owner and operator agree on a certain operator reward ratio.
 3. Operator provides owner with his addresses.
 4. Owner announces masternode or calls mn_setoperator on an announced masternode.
-5. Operator ensures that owner specified correct addresses and a certain operator reward ratio.
+5. Operator ensures that owner specified correct addresses and a certain operator reward ratio. Owner may change these parameters at any time, so it should be re-checked every block.
 6. Operator restarts the node with ```-masternode_operator=YOUR-OPERATOR-AUTH-ADDRESS```.
 7. Both owner and operator do receive their reward shares.
 
@@ -87,10 +87,11 @@ If you know what you're doing, and you need to look under the hood, then just ch
 The process of masternode announcement looks like this:
 
 - Owner calls ```crypticcoin-cli mn_announce [] '{"name":"nodename","ownerAuthAddress":"address1","operatorAuthAddress":"address2","ownerRewardAddress":"address3","operatorRewardAddress":"address4","operatorRewardRatio":0,"collateralAddress":"address5"}'```
-- Sending this transaction doesn't mean that you're starting to operate masternode. To start operating masternode, add ```masternode_operator=YOUR-OPERATOR-AUTH-ADDRESS```, ```txindex=1``` into the config and restart the operator's node. I'll need to do ```-reindex``` if ```-txindex``` wasn't set before.
+- Sending this transaction doesn't mean that you're starting to operate masternode. To start operating masternode, add ```masternode_operator=YOUR-OPERATOR-AUTH-ADDRESS```, ```txindex=1``` into the config and restart the operator's node. You'll need to do ```-reindex``` if ```-txindex``` wasn't set before.
 - Make sure that you have at least 10 CRYP on operator's wallet on any transparent address (aside collateral).
 - You probably want to specify ```masternode_owner``` in owner's config to call owner's RPC commands.
 - No need to call ```mn_activate``` manually, the operator will self-activate after a certain height.
+- Check that operator sends heartbeats by calling ```crypticcoin-cli mn_filterheartbeats``` on another node.
 - Node uses only Tor connections by default.
 
 Security Warnings
