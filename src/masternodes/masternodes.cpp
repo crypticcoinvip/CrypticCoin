@@ -103,8 +103,8 @@ void CMasternode::FromTx(CTransaction const & tx, int heightIn, std::vector<unsi
     collateralSpentTx = uint256();
     dismissFinalizedTx = uint256();
 
-    counterVotesFrom = 0;
-    counterVotesAgainst = 0;
+    dismissVotesFrom = 0;
+    dismissVotesAgainst = 0;
 }
 
 std::string CMasternode::GetHumanReadableStatus() const
@@ -141,8 +141,8 @@ bool operator==(CMasternode const & a, CMasternode const & b)
             a.activationTx == b.activationTx &&
             a.collateralSpentTx == b.collateralSpentTx &&
             a.dismissFinalizedTx == b.dismissFinalizedTx &&
-            a.counterVotesFrom == b.counterVotesFrom &&
-            a.counterVotesAgainst == b.counterVotesAgainst
+            a.dismissVotesFrom == b.dismissVotesFrom &&
+            a.dismissVotesAgainst == b.dismissVotesAgainst
             );
 }
 
@@ -230,8 +230,8 @@ void CMasternodesView::Load()
     // Load masternodes itself, creating indexes
     db.LoadMasternodes([this] (uint256 & nodeId, CMasternode & node)
     {
-        node.counterVotesFrom = 0;
-        node.counterVotesAgainst = 0;
+        node.dismissVotesFrom = 0;
+        node.dismissVotesAgainst = 0;
         allNodes.insert(std::make_pair(nodeId, node));
         nodesByOwner.insert(std::make_pair(node.ownerAuthAddress, nodeId));
         nodesByOperator.insert(std::make_pair(node.operatorAuthAddress, nodeId));
@@ -254,8 +254,8 @@ void CMasternodesView::Load()
             votesAgainst.insert(std::make_pair(vote.against, voteId));
 
             // Assumed that node exists
-            ++allNodes.at(vote.from).counterVotesFrom;
-            ++allNodes.at(vote.against).counterVotesAgainst;
+            ++allNodes.at(vote.from).dismissVotesFrom;
+            ++allNodes.at(vote.against).dismissVotesAgainst;
         }
     });
 
@@ -284,8 +284,8 @@ void CMasternodesView::DeactivateVote(uint256 const & voteId, uint256 const & tx
 
     vote.disabledByTx = txid;
     vote.deadSinceHeight = height;
-    --allNodes.at(vote.from).counterVotesFrom;
-    --allNodes.at(vote.against).counterVotesAgainst;
+    --allNodes.at(vote.from).dismissVotesFrom;
+    --allNodes.at(vote.against).dismissVotesAgainst;
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(voteId, MasternodesTxType::DismissVoteRecall)));
     db.WriteUndo(height, txid, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall));
@@ -325,9 +325,9 @@ void CMasternodesView::DeactivateVotesFor(uint256 const & nodeId, uint256 const 
         });
         votesAgainst.erase(range.first, range.second);
     }
-    // Like a checksum, count that node.counterVotesFrom == node.counterVotesAgainst == 0 !!!
-    assert (node.counterVotesFrom == 0);
-    assert (node.counterVotesAgainst == 0);
+    // Like a checksum, count that node.dismissVotesFrom == node.dismissVotesAgainst == 0 !!!
+    assert (node.dismissVotesFrom == 0);
+    assert (node.dismissVotesAgainst == 0);
 }
 
 bool CMasternodesView::OnCollateralSpent(uint256 const & nodeId, uint256 const & txid, uint32_t input, int height)
@@ -436,7 +436,7 @@ bool CMasternodesView::OnDismissVote(uint256 const & txid, CDismissVote const & 
     }
     CMasternode & nodeFrom = allNodes.at(idNodeFrom);
     CMasternode & nodeAgainst = itAgainst->second;
-    if (nodeFrom.counterVotesFrom >= MAX_DISMISS_VOTES_PER_MN)
+    if (nodeFrom.dismissVotesFrom >= MAX_DISMISS_VOTES_PER_MN)
     {
         return false;
     }
@@ -455,8 +455,8 @@ bool CMasternodesView::OnDismissVote(uint256 const & txid, CDismissVote const & 
     votesAgainst.insert(std::make_pair(copy.against, txid));
 
     // Updating counters
-    ++nodeFrom.counterVotesFrom;
-    ++nodeAgainst.counterVotesAgainst;
+    ++nodeFrom.dismissVotesFrom;
+    ++nodeAgainst.dismissVotesAgainst;
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(txid, MasternodesTxType::DismissVote)));
 
@@ -515,8 +515,8 @@ bool CMasternodesView::OnDismissVoteRecall(uint256 const & txid, uint256 const &
     vote.disabledByTx = txid;
     vote.deadSinceHeight = height;
 
-    --allNodes.at(idNodeFrom).counterVotesFrom;
-    --allNodes.at(against).counterVotesAgainst; // important, was skipped first time!
+    --allNodes.at(idNodeFrom).dismissVotesFrom;
+    --allNodes.at(against).dismissVotesAgainst; // important, was skipped first time!
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(voteId, MasternodesTxType::DismissVoteRecall)));
 
@@ -540,7 +540,7 @@ bool CMasternodesView::OnFinalizeDismissVoting(uint256 const & txid, uint256 con
     auto it = allNodes.find(nodeId);
     // We can check only 'deadSinceHeight != -1' so it must be consistent with 'collateralSpentTx' and 'dismissFinalizedTx'
     // It will not be accepted if collateral was spent, cause votes were not accepted too (collateral spent is absolute blocking condition)
-    if (it == allNodes.end() || it->second.counterVotesAgainst < GetMinDismissingQuorum() || it->second.deadSinceHeight != -1)
+    if (it == allNodes.end() || it->second.dismissVotesAgainst < GetMinDismissingQuorum() || it->second.deadSinceHeight != -1)
     {
         return false;
     }
@@ -685,8 +685,8 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 CDismissVote & vote = votes.at(id);
 
                 // Updating counters first
-                --allNodes.at(vote.from).counterVotesFrom;
-                --allNodes.at(vote.against).counterVotesAgainst;
+                --allNodes.at(vote.from).dismissVotesFrom;
+                --allNodes.at(vote.against).dismissVotesAgainst;
 
                 votesFrom.erase(vote.from);
                 votesAgainst.erase(vote.against);
@@ -699,8 +699,8 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
             {
                 CDismissVote & vote = votes.at(id);
 
-                ++allNodes.at(vote.from).counterVotesFrom;
-                ++allNodes.at(vote.against).counterVotesAgainst;
+                ++allNodes.at(vote.from).dismissVotesFrom;
+                ++allNodes.at(vote.against).dismissVotesAgainst;
 
                 votesFrom.insert(std::make_pair(vote.from, id));
                 votesAgainst.insert(std::make_pair(vote.against, id));

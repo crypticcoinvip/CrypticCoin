@@ -129,23 +129,23 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
             time.sleep(0.5)
 
         dump0 = self.dump_mn(0)
-        assert_equal(dump0['mn']['counterVotesAgainst'], 3)
-        assert_equal(dump0['mn']['counterVotesFrom'], 1)
+        assert_equal(dump0['mn']['dismissVotesAgainst'], 3)
+        assert_equal(dump0['mn']['dismissVotesFrom'], 1)
         assert_equal(dump0['status'], "active")
 
         dump1 = self.dump_mn(1)
-        assert_equal(dump1['mn']['counterVotesAgainst'], 1)
-        assert_equal(dump1['mn']['counterVotesFrom'], 1)
+        assert_equal(dump1['mn']['dismissVotesAgainst'], 1)
+        assert_equal(dump1['mn']['dismissVotesFrom'], 1)
         assert_equal(dump1['status'], "active")
 
         dump2 = self.dump_mn(2)
-        assert_equal(dump2['mn']['counterVotesAgainst'], 0)
-        assert_equal(dump2['mn']['counterVotesFrom'], 1)
+        assert_equal(dump2['mn']['dismissVotesAgainst'], 0)
+        assert_equal(dump2['mn']['dismissVotesFrom'], 1)
         assert_equal(dump2['status'], "active")
 
         dump3 = self.dump_mn(3)
-        assert_equal(dump3['mn']['counterVotesAgainst'], 0)
-        assert_equal(dump3['mn']['counterVotesFrom'], 1)
+        assert_equal(dump3['mn']['dismissVotesAgainst'], 0)
+        assert_equal(dump3['mn']['dismissVotesFrom'], 1)
         assert_equal(dump3['status'], "active")
 
 
@@ -181,23 +181,23 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
             time.sleep(0.5)
 
         dump0 = self.dump_mn(0)
-        assert_equal(dump0['mn']['counterVotesAgainst'], 0)
-        assert_equal(dump0['mn']['counterVotesFrom'], 0)
+        assert_equal(dump0['mn']['dismissVotesAgainst'], 0)
+        assert_equal(dump0['mn']['dismissVotesFrom'], 0)
         assert_equal(dump0['status'], "activated, dismissed")
 
         dump1 = self.dump_mn(1)
-        assert_equal(dump1['mn']['counterVotesAgainst'], 0)
-        assert_equal(dump1['mn']['counterVotesFrom'], 0)
+        assert_equal(dump1['mn']['dismissVotesAgainst'], 0)
+        assert_equal(dump1['mn']['dismissVotesFrom'], 0)
         assert_equal(dump1['status'], "active")
 
         dump2 = self.dump_mn(2)
-        assert_equal(dump2['mn']['counterVotesAgainst'], 0)
-        assert_equal(dump2['mn']['counterVotesFrom'], 0)
+        assert_equal(dump2['mn']['dismissVotesAgainst'], 0)
+        assert_equal(dump2['mn']['dismissVotesFrom'], 0)
         assert_equal(dump2['status'], "active")
 
         dump3 = self.dump_mn(3)
-        assert_equal(dump3['mn']['counterVotesAgainst'], 0)
-        assert_equal(dump3['mn']['counterVotesFrom'], 0)
+        assert_equal(dump3['mn']['dismissVotesAgainst'], 0)
+        assert_equal(dump3['mn']['dismissVotesFrom'], 0)
         assert_equal(dump3['status'], "active")
 
         print "Done"

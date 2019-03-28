@@ -128,18 +128,18 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
 #        pp.pprint(self.nodes[0].mn_list([], True))
 
         # Check dimissvoterecall
-        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 1)
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['dismissVotesFrom'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['dismissVotesAgainst'], 1)
         self.dismissvoterecall_mn(0, 2)
         self.nodes[0].generate(1) #(total +12)
 #        time.sleep(4)
-        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 0)
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 0)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['dismissVotesFrom'], 0)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['dismissVotesAgainst'], 0)
         self.dismissvote_mn(0, 2)
         self.nodes[0].generate(1) #(total +13)
 #        time.sleep(4)
-        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 1)
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['dismissVotesFrom'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['dismissVotesAgainst'], 1)
 
 
         print "Node 0(1??) autofinalize dismiss voting against #2 (offline)"
@@ -150,9 +150,9 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
         self.nodes[0].generate(1) #(total +14)
         sync_blocks([self.nodes[0], self.nodes[1]])
         time.sleep(4)
-        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 1)
-        assert_equal(self.nodes[0].mn_list([self.mns[1].id], True)[0]['mn']['counterVotesFrom'], 1)
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 2)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['dismissVotesFrom'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[1].id], True)[0]['mn']['dismissVotesFrom'], 1)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['dismissVotesAgainst'], 2)
         # Autofinalize should happen here
         self.nodes[0].generate(1) #+15
         sync_blocks([self.nodes[0], self.nodes[1]])
@@ -162,8 +162,8 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
 
 
         # Check that node #2 dismissed and counters decreased
-        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['counterVotesFrom'], 0)
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['counterVotesAgainst'], 0)
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id], True)[0]['mn']['dismissVotesFrom'], 0)
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['mn']['dismissVotesAgainst'], 0)
         assert_equal(self.nodes[0].mn_list([self.mns[2].id], True)[0]['status'], "announced, dismissed")
         sync_blocks([self.nodes[0], self.nodes[1]])
 

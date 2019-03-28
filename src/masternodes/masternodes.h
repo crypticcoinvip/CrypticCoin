@@ -82,8 +82,8 @@ public:
     uint256 collateralSpentTx;
     uint256 dismissFinalizedTx;
 
-    uint32_t counterVotesFrom;
-    uint32_t counterVotesAgainst;
+    uint32_t dismissVotesFrom;
+    uint32_t dismissVotesAgainst;
 
     //! empty constructor
     CMasternode() {}
@@ -126,8 +126,8 @@ public:
         READWRITE(dismissFinalizedTx);
 
         // no need to store in DB! real-time counters
-//        READWRITE(counterVotesFrom);
-//        READWRITE(counterVotesAgainst);
+//        READWRITE(dismissVotesFrom);
+//        READWRITE(dismissVotesAgainst);
     }
 
     //! equality test

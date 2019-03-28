@@ -6871,7 +6871,7 @@ void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int)
     {
         return;
     }
-    int myVotes = mnview.GetMasternodes().at((*ids).id).counterVotesFrom;
+    int myVotes = mnview.GetMasternodes().at((*ids).id).dismissVotesFrom;
 
     // First, try to recall recently respawned MN
     if (myVotes > 0)
@@ -6944,7 +6944,7 @@ void TryMasternodeAutoFinalizeDismissVoting(CMasternodesView & mnview, int heigh
     }
     for (auto const & pair : mnview.GetMasternodes())
     {
-        if (pair.second.deadSinceHeight == -1 && pair.second.counterVotesAgainst >= mnview.GetMinDismissingQuorum())
+        if (pair.second.deadSinceHeight == -1 && pair.second.dismissVotesAgainst >= mnview.GetMinDismissingQuorum())
         {
             UniValue obj(UniValue::VOBJ);
             obj.push_back(Pair("against", pair.first.GetHex()));

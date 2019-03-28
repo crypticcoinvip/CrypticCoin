@@ -110,12 +110,12 @@ class MasternodesRpcBasicTest (BitcoinTestFramework):
         self.sync_all()
 
         node0dump = self.nodes[0].mn_list([idnode0], True)
-        assert_equal(node0dump[0]['mn']['counterVotesAgainst'], 1)
-        assert_equal(node0dump[0]['mn']['counterVotesFrom'], 1)
+        assert_equal(node0dump[0]['mn']['dismissVotesAgainst'], 1)
+        assert_equal(node0dump[0]['mn']['dismissVotesFrom'], 1)
 
         node1dump = self.nodes[0].mn_list([idnode1], True)
-        assert_equal(node1dump[0]['mn']['counterVotesAgainst'], 1)
-        assert_equal(node1dump[0]['mn']['counterVotesFrom'], 1)
+        assert_equal(node1dump[0]['mn']['dismissVotesAgainst'], 1)
+        assert_equal(node1dump[0]['mn']['dismissVotesFrom'], 1)
 
 
         # Resign node0
@@ -126,12 +126,12 @@ class MasternodesRpcBasicTest (BitcoinTestFramework):
         self.sync_all()
         node0dump = self.nodes[0].mn_list([idnode0], True)
         assert_equal(node0dump[0]['status'], "activated, resigned")
-        assert_equal(node0dump[0]['mn']['counterVotesAgainst'], 0)
-        assert_equal(node0dump[0]['mn']['counterVotesFrom'], 0)
+        assert_equal(node0dump[0]['mn']['dismissVotesAgainst'], 0)
+        assert_equal(node0dump[0]['mn']['dismissVotesFrom'], 0)
         node1dump = self.nodes[0].mn_list([idnode1], True)
         assert_equal(node1dump[0]['status'], "activated")
-        assert_equal(node1dump[0]['mn']['counterVotesAgainst'], 0)
-        assert_equal(node1dump[0]['mn']['counterVotesFrom'], 0)
+        assert_equal(node1dump[0]['mn']['dismissVotesAgainst'], 0)
+        assert_equal(node1dump[0]['mn']['dismissVotesFrom'], 0)
 
         print "Done"
 

@@ -612,7 +612,7 @@ UniValue mn_dismissvote(UniValue const & params, bool fHelp)
     CMasternode const & node = *optNode;
 
     // Checking votes from|against
-    if (node.counterVotesFrom >= MAX_DISMISS_VOTES_PER_MN)
+    if (node.dismissVotesFrom >= MAX_DISMISS_VOTES_PER_MN)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("You've reached MAX_DISMISS_VOTES_PER_MN! (%d)", MAX_DISMISS_VOTES_PER_MN));
     }
@@ -793,9 +793,9 @@ UniValue mn_finalizedismissvoting(UniValue const & params, bool fHelp)
     CMasternode const & node = *optNode;
 
     // Checking votes from|against
-    if (node.counterVotesAgainst < pmasternodesview->GetMinDismissingQuorum())
+    if (node.dismissVotesAgainst < pmasternodesview->GetMinDismissingQuorum())
     {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Dismissing quorum not reached! (min quorum = %d, current votes = %d)", pmasternodesview->GetMinDismissingQuorum(), node.counterVotesAgainst));
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Dismissing quorum not reached! (min quorum = %d, current votes = %d)", pmasternodesview->GetMinDismissingQuorum(), node.dismissVotesAgainst));
     }
 
     UniValue inputs = params[0].get_array();
@@ -1059,8 +1059,8 @@ UniValue mnToJSON(CMasternode const & node)
     ret.push_back(Pair("collateralSpentTx", node.collateralSpentTx.GetHex()));
     ret.push_back(Pair("dismissFinalizedTx", node.dismissFinalizedTx.GetHex()));
 
-    ret.push_back(Pair("counterVotesFrom", static_cast<uint64_t>(node.counterVotesFrom)));
-    ret.push_back(Pair("counterVotesAgainst", static_cast<uint64_t>(node.counterVotesAgainst)));
+    ret.push_back(Pair("dismissVotesFrom", static_cast<uint64_t>(node.dismissVotesFrom)));
+    ret.push_back(Pair("dismissVotesAgainst", static_cast<uint64_t>(node.dismissVotesAgainst)));
 
     return ret;
 }
