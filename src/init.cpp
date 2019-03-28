@@ -242,11 +242,6 @@ void Shutdown()
         if (pcoinsTip != nullptr) {
             FlushStateToDisk();
         }
-        if (pmasternodesview != nullptr) {
-            // @todo @egor i suggest you to remove it, cause it can bring more troubles than profits
-            // or we should make flush|sync of system buffers, not current batch
-            pmasternodesview->CommitBatch();
-        }
         if (pdposdb != nullptr) {
             pdposdb->Flush();
         }
@@ -258,6 +253,8 @@ void Shutdown()
         pcoinsdbview = nullptr;
         delete pblocktree;
         pblocktree = nullptr;
+        delete pmasternodesview;
+        pmasternodesview = nullptr;
         delete pdposdb;
         pdposdb = nullptr;
     }
