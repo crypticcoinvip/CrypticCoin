@@ -114,7 +114,7 @@ class MasternodesRpcVoteOutdatedTest (BitcoinTestFramework):
         time.sleep(4)
 
         for i in range(self.num_nodes):
-            assert_equal(self.dump_mn(i)['status'], "active")
+            assert_equal(self.dump_mn(i)['status'], "activated")
 
         print "Nodes activated. Waiting for node #3 became outdated (30 sec)"
         time.sleep(30)

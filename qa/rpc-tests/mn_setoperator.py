@@ -102,7 +102,7 @@ class MasternodesRpcSetOperatorTest (BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.nodes[0].mn_activate([])
         self.nodes[0].generate(1)
-        assert_equal(self.nodes[0].mn_list([idnode0])[0]['status'], "active")
+        assert_equal(self.nodes[0].mn_list([idnode0])[0]['status'], "activated")
 
         # Reverting state of node0 by mining at node1
         self.nodes[1].generate(5)

@@ -126,15 +126,15 @@ class MasternodesRpcTeamRewardTest (BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.sync_all()
 
-        assert_equal(self.dump_mn(0)['status'], "active")
-        assert_equal(self.dump_mn(1)['status'], "active")
-        assert_equal(self.dump_mn(2)['status'], "active")
+        assert_equal(self.dump_mn(0)['status'], "activated")
+        assert_equal(self.dump_mn(1)['status'], "activated")
+        assert_equal(self.dump_mn(2)['status'], "activated")
         assert_equal(self.dump_mn(3)['status'], "announced")
 
         self.activate_mn(3)
         self.nodes[3].generate(1)
         self.sync_all()
-        assert_equal(self.dump_mn(3)['status'], "active")
+        assert_equal(self.dump_mn(3)['status'], "activated")
 
         # Just for sure that dpos has started after activation
         time.sleep(4)

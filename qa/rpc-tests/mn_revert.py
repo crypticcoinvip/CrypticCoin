@@ -111,8 +111,8 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
         sync_blocks([self.nodes[0], self.nodes[1]])
         time.sleep(4)
 
-        assert_equal(self.dump_mn(0)['status'], "active")
-        assert_equal(self.dump_mn(1)['status'], "active")
+        assert_equal(self.dump_mn(0)['status'], "activated")
+        assert_equal(self.dump_mn(1)['status'], "activated")
         assert_equal(self.dump_mn(2)['status'], "announced")
 
 
@@ -193,7 +193,7 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
         time.sleep(4)
         assert_equal(self.nodes[0].mn_list([self.mns[0].id])[0]['status'], "announced")
         assert_equal(self.nodes[0].mn_list([self.mns[1].id])[0]['status'], "announced")
-        assert_equal(self.nodes[0].mn_list([self.mns[2].id])[0]['status'], "active") # cause autoactivation
+        assert_equal(self.nodes[0].mn_list([self.mns[2].id])[0]['status'], "activated") # cause autoactivation
 
 
         print "Resigning node 1, reverting node #2 work"
@@ -203,7 +203,7 @@ class MasternodesRpcRevertTest (BitcoinTestFramework):
 
         connect_nodes_bi(self.nodes, 0, 1)
         sync_blocks([self.nodes[0], self.nodes[1]])
-        assert_equal(self.nodes[0].mn_list([self.mns[0].id])[0]['status'], "active")
+        assert_equal(self.nodes[0].mn_list([self.mns[0].id])[0]['status'], "activated")
         assert_equal(self.nodes[0].mn_list([self.mns[1].id])[0]['status'], "activated, resigned")
         assert_equal(self.nodes[0].mn_list([self.mns[2].id])[0]['status'], "announced, dismissed")
 

@@ -116,7 +116,7 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
 
 #        pp.pprint(self.nodes[0].mn_list([], True))
         for i in range(self.num_nodes):
-            assert_equal(self.dump_mn(i)['status'], "active")
+            assert_equal(self.dump_mn(i)['status'], "activated")
 
 
         print "Voting..."
@@ -138,22 +138,22 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         dump0 = self.dump_mn(0)
         assert_equal(dump0['mn']['counterVotesAgainst'], 3)
         assert_equal(dump0['mn']['counterVotesFrom'], 1)
-        assert_equal(dump0['status'], "active")
+        assert_equal(dump0['status'], "activated")
 
         dump1 = self.dump_mn(1)
         assert_equal(dump1['mn']['counterVotesAgainst'], 1)
         assert_equal(dump1['mn']['counterVotesFrom'], 1)
-        assert_equal(dump1['status'], "active")
+        assert_equal(dump1['status'], "activated")
 
         dump2 = self.dump_mn(2)
         assert_equal(dump2['mn']['counterVotesAgainst'], 0)
         assert_equal(dump2['mn']['counterVotesFrom'], 1)
-        assert_equal(dump2['status'], "active")
+        assert_equal(dump2['status'], "activated")
 
         dump3 = self.dump_mn(3)
         assert_equal(dump3['mn']['counterVotesAgainst'], 0)
         assert_equal(dump3['mn']['counterVotesFrom'], 1)
-        assert_equal(dump3['status'], "active")
+        assert_equal(dump3['status'], "activated")
 
 
         print "Restarting nodes, checking VerifyDB"
@@ -202,17 +202,17 @@ class MasternodesRpcVotingTest (BitcoinTestFramework):
         dump1 = self.dump_mn(1)
         assert_equal(dump1['mn']['counterVotesAgainst'], 0)
         assert_equal(dump1['mn']['counterVotesFrom'], 0)
-        assert_equal(dump1['status'], "active")
+        assert_equal(dump1['status'], "activated")
 
         dump2 = self.dump_mn(2)
         assert_equal(dump2['mn']['counterVotesAgainst'], 0)
         assert_equal(dump2['mn']['counterVotesFrom'], 0)
-        assert_equal(dump2['status'], "active")
+        assert_equal(dump2['status'], "activated")
 
         dump3 = self.dump_mn(3)
         assert_equal(dump3['mn']['counterVotesAgainst'], 0)
         assert_equal(dump3['mn']['counterVotesFrom'], 0)
-        assert_equal(dump3['status'], "active")
+        assert_equal(dump3['status'], "activated")
 
         print "Done"
 

@@ -129,7 +129,7 @@ class MasternodesRpcBasicTest (BitcoinTestFramework):
         assert_equal(node0dump[0]['mn']['counterVotesAgainst'], 0)
         assert_equal(node0dump[0]['mn']['counterVotesFrom'], 0)
         node1dump = self.nodes[0].mn_list([idnode1], True)
-        assert_equal(node1dump[0]['status'], "active")
+        assert_equal(node1dump[0]['status'], "activated")
         assert_equal(node1dump[0]['mn']['counterVotesAgainst'], 0)
         assert_equal(node1dump[0]['mn']['counterVotesFrom'], 0)
 

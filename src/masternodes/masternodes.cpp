@@ -112,7 +112,7 @@ std::string CMasternode::GetHumanReadableStatus() const
     std::string status;
     if (IsActive())
     {
-        return "active";
+        return "activated";
     }
     status += (activationTx == uint256()) ? "announced" : "activated";
     if (collateralSpentTx != uint256())
