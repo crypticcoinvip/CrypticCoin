@@ -123,7 +123,7 @@ class SendHeartbeatTest(BitcoinTestFramework):
         for node in self.nodes:
             assert_equal(node.getblockcount(), self.num_nodes)
         for node in self.nodes:
-            assert_equal(node.mn_readheartbeats(), before_messages)
+            assert_equal(node.mn_listheartbeats(), before_messages)
 
         # Check that all nodes recieved heartbeat
         msg = self.nodes[sender_idx].mn_sendheartbeat(_WALLET_KEYS[sender_idx][1], hb_msg[0])
@@ -133,7 +133,7 @@ class SendHeartbeatTest(BitcoinTestFramework):
         time.sleep(1)
         rv = before_messages + [msg]
         for n in range(self.num_nodes):
-            assert_equal(self.nodes[n].mn_readheartbeats(), rv)
+            assert_equal(self.nodes[n].mn_listheartbeats(), rv)
         return rv
 
     def check_heartbeat_sync(self):

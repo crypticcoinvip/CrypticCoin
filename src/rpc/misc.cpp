@@ -620,11 +620,11 @@ UniValue mn_sendheartbeat(const UniValue& params, bool fHelp)
     return rv;
 }
 
-UniValue mn_readheartbeats(const UniValue& params, bool fHelp)
+UniValue mn_listheartbeats(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0) {
         throw runtime_error(
-            "mn_readheartbeats\n"
+            "mn_listheartbeats\n"
             "\nReads heartbeat p2p messages.\n"
             "\nResult:\n"
             "[\n"
@@ -635,8 +635,8 @@ UniValue mn_readheartbeats(const UniValue& params, bool fHelp)
             "\t},...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("mn_readheartbeats", "")
-            + HelpExampleRpc("mn_readheartbeats", "")
+            + HelpExampleCli("mn_listheartbeats", "")
+            + HelpExampleRpc("mn_listheartbeats", "")
         );
     }
 
@@ -759,14 +759,14 @@ static const CRPCCommand commands[] =
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            true  },
-    { "hidden",             "dpos_gettxvotes",       &dpos_gettxvotes,       true  },
-    { "hidden",             "dpos_getroundvotes",    &dpos_getroundvotes,    true  },
+    { "hidden",             "dpos_gettxvotes",        &dpos_gettxvotes,        true  },
+    { "hidden",             "dpos_getroundvotes",     &dpos_getroundvotes,     true  },
     /* heartbeat */
-    { "hidden",             "mn_sendheartbeat",       &mn_sendheartbeat,        true  },
-    { "hidden",             "mn_readheartbeats",      &mn_readheartbeats,       true  },
-    { "hidden",             "mn_filterheartbeats", &mn_filterheartbeats,  true  },
+    { "hidden",             "mn_sendheartbeat",       &mn_sendheartbeat,       true  },
+    { "hidden",             "mn_listheartbeats",      &mn_listheartbeats,      true  },
+    { "hidden",             "mn_filterheartbeats",    &mn_filterheartbeats,    true  },
     /* dPoS */
-    { "hidden",             "i_listtransactions",    &i_listtransactions,     true  },
+    { "hidden",             "i_listtransactions",     &i_listtransactions,     true  },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &tableRPC)
