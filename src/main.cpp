@@ -6819,6 +6819,7 @@ bool CheckMasternodeTx(CMasternodesView & mnview, CTransaction const & tx, Conse
 
 extern UniValue mn_activate(UniValue const & params, bool fHelp);
 extern UniValue mn_dismissvote(UniValue const & params, bool fHelp);
+extern UniValue mn_dismissvoterecall(UniValue const & params, bool fHelp);
 extern UniValue mn_finalizedismissvoting(UniValue const & params, bool fHelp);
 
 UniValue TryRpcCall(std::function<UniValue(UniValue const & params, bool fHelp)> function, UniValue const & params, std::string const & message)
@@ -6871,29 +6872,54 @@ void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int)
         return;
     }
     int myVotes = mnview.GetMasternodes().at((*ids).id).counterVotesFrom;
-    // Just to be a little faster
-    if (myVotes >= MAX_DISMISS_VOTES_PER_MN)
-    {
-        return;
-    }
-    for (auto const & pair : CHeartBeatTracker::getInstance().filterMasternodes(CHeartBeatTracker::OUTDATED))
-    {
-        // We don't check node status here, cause filter did it
-        if (!mnview.ExistActiveVoteIndex(CMasternodesView::VoteIndex::From, (*ids).id, pair.first))
-        {
-            UniValue obj(UniValue::VOBJ);
-            obj.push_back(Pair("against", pair.first.GetHex()));
-            obj.push_back(Pair("reason_code", 1));
-            obj.push_back(Pair("reason_desc", "OUTDATED heartbeat, autovote"));
-            UniValue params(UniValue::VARR);
-            params.push_back(UniValue(UniValue::VARR));
-            params.push_back(obj);
-            TryRpcCall(&mn_dismissvote, params, "MN auto voting against outdated");
 
-            ++myVotes;
-            if (myVotes >= MAX_DISMISS_VOTES_PER_MN)
+    // First, try to recall recently respawned MN
+    if (myVotes > 0)
+    {
+        // Using secondary tmp counter, overwise part of generated dismiss txs will be skipped, cause recalls were not accepted yet
+        int tmpVotes{myVotes};
+        for (auto const & pair : CHeartBeatTracker::getInstance().filterMasternodes(CHeartBeatTracker::RECENTLY))
+        {
+            // We don't check node status here, cause filter did it
+            if (mnview.ExistActiveVoteIndex(CMasternodesView::VoteIndex::From, (*ids).id, pair.first))
             {
-                break;
+                UniValue obj(UniValue::VOBJ);
+                obj.push_back(Pair("against", pair.first.GetHex()));
+                UniValue params(UniValue::VARR);
+                params.push_back(UniValue(UniValue::VARR));
+                params.push_back(obj);
+                TryRpcCall(&mn_dismissvoterecall, params, "MN auto voting recall");
+
+                --tmpVotes;
+                if (tmpVotes == 0)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    if (myVotes <  MAX_DISMISS_VOTES_PER_MN)
+    {
+        for (auto const & pair : CHeartBeatTracker::getInstance().filterMasternodes(CHeartBeatTracker::OUTDATED))
+        {
+            // We don't check node status here, cause filter did it
+            if (!mnview.ExistActiveVoteIndex(CMasternodesView::VoteIndex::From, (*ids).id, pair.first))
+            {
+                UniValue obj(UniValue::VOBJ);
+                obj.push_back(Pair("against", pair.first.GetHex()));
+                obj.push_back(Pair("reason_code", 1));
+                obj.push_back(Pair("reason_desc", "OUTDATED heartbeat, autovote"));
+                UniValue params(UniValue::VARR);
+                params.push_back(UniValue(UniValue::VARR));
+                params.push_back(obj);
+                TryRpcCall(&mn_dismissvote, params, "MN auto voting against outdated");
+
+                ++myVotes;
+                if (myVotes >= MAX_DISMISS_VOTES_PER_MN)
+                {
+                    break;
+                }
             }
         }
     }
