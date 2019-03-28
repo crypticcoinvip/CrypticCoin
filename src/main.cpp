@@ -6903,6 +6903,10 @@ void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int)
     {
         for (auto const & pair : CHeartBeatTracker::getInstance().filterMasternodes(CHeartBeatTracker::OUTDATED))
         {
+            if (pair.first == ids->id)
+            {
+                continue; // don't vote against myself
+            }
             // We don't check node status here, cause filter did it
             if (!mnview.ExistActiveVoteIndex(CMasternodesView::VoteIndex::From, (*ids).id, pair.first))
             {

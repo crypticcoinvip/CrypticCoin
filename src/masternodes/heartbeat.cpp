@@ -21,7 +21,7 @@ CKey getMasternodeKey()
     CKey rv{};
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain->cs_wallet);
-    const boost::optional<CMasternodesView::CMasternodeIDs> mnId{pmasternodesview->AmIActiveOperator()};
+    const boost::optional<CMasternodesView::CMasternodeIDs> mnId{pmasternodesview->AmIOperator()};
     if (mnId != boost::none) {
         if (!pwalletMain->GetKey(mnId.get().operatorAuthAddress, rv)) {
             LogPrintf("%s: Can't read masternode operator private key", __func__);
@@ -254,34 +254,29 @@ std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
     return rv;
 }
 
-int CHeartBeatTracker::getMinPeriod() const
+int64_t CHeartBeatTracker::getMinPeriod() const
 {
     LOCK(cs_main);
-    const std::size_t period{1u * Params().GetConsensus().nMasternodesHeartbeatPeriod};
-    return std::max(pmasternodesview->GetMasternodes().size(), period) * 1000;
+    const int64_t period{Params().GetConsensus().nMasternodesHeartbeatPeriod};
+    return std::max((int64_t) pmasternodesview->GetMasternodes().size(), period) * ms;
 }
 
-int CHeartBeatTracker::getMaxPeriod() const
+int64_t CHeartBeatTracker::getMaxPeriod() const
 {
     if (Params().NetworkIDString() == "regtest")
     {
         return getMinPeriod() * 6;
     }
-    return std::max(getMinPeriod() * 20, 6 * 60 * 60); // 20 minimum periods or 6h, whatever is greater
+    return std::max(getMinPeriod() * 20, 6 * 60 * 60 * ms); // 20 minimum periods or 6h, whichever is greater
 }
 
 CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
     CMasternodes rv{};
     const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
-    const auto mnKey{getMasternodeKey()};
     LOCK(cs_main);
 
     for (const auto& mnPair : pmasternodesview->GetMasternodesByOperator()) {
-        if (!mnKey.IsValid() || mnPair.first == mnKey.GetPubKey().GetID()) {
-            // skip me or if not masternode
-            continue;
-        }
         const CMasternode& mn{pmasternodesview->GetMasternodes().at(mnPair.second)};
         if (mn.deadSinceHeight != -1) {
             // skip if masternode is already dead
@@ -291,7 +286,7 @@ CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 
         const auto it{keyMessageMap.find(mnPair.first)};
         const int64_t previousTime{(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime)};
-        const int64_t previousMaxTime{std::max(previousTime, chainActive[mn.height]->GetBlockTime() * 1000)};
+        const int64_t previousMaxTime{std::max(previousTime, chainActive[mn.height]->GetBlockTime() * ms)};
         const int64_t elapsed{GetTimeMillis() - previousMaxTime};
 
         if ((elapsed < period.first && ageFilter == RECENTLY) ||

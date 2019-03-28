@@ -52,7 +52,8 @@ class CHeartBeatTracker
 {
     using LockGuard = std::lock_guard<std::mutex>;
     using MessageList = std::list<CHeartBeatMessage>;
-    static constexpr std::int64_t maxHeartbeatInFuture{2 * 60 * 60 * 1000ll};
+    static constexpr std::int64_t ms{1000ll};
+    static constexpr std::int64_t maxHeartbeatInFuture{2 * 60 * 60 * ms};
 
 public:
     enum AgeFilter {RECENTLY, STALE, OUTDATED};
@@ -67,8 +68,8 @@ public:
     bool findReceivedMessage(const uint256& hash, CHeartBeatMessage* message = nullptr) const;
     std::vector<CHeartBeatMessage> getReceivedMessages() const;
 
-    int getMinPeriod() const;
-    int getMaxPeriod() const;
+    int64_t getMinPeriod() const;
+    int64_t getMaxPeriod() const;
 
     CMasternodes filterMasternodes(AgeFilter ageFilter) const;
 
