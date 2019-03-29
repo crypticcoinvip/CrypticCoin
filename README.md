@@ -67,8 +67,8 @@ Your operator should provide you with an instruction. The process will have the 
 2. Most importantly, to prevent a fraud, collateral must be stored on an address which is controlled by owner, not operator.
 2. Operator runs your masternode. Both owner and operator do receive their reward shares.
 3. If operator misbehaves, it may lead to masternode's dismissal.
-4. Ensure the operator activated your masternode by running:
-```crypticcoin-cli mn_list [] true```
+4. Check that operator sends heartbeats by calling:
+```crypticcoin-cli mn_filterheartbeats recently```
 Check that status of your masternode is ```"activated"```.
 
 #### For masternode operators
@@ -91,7 +91,6 @@ The process of masternode announcement looks like this:
 - Make sure that you have at least 10 CRYP on operator's wallet on any transparent address (aside collateral).
 - You probably want to specify ```masternode_owner``` in owner's config to call owner's RPC commands.
 - No need to call ```mn_activate``` manually, the operator will self-activate after a certain height.
-- Check that operator sends heartbeats by calling ```crypticcoin-cli mn_filterheartbeats``` on another node.
 - Node uses only Tor connections by default.
 
 Security Warnings

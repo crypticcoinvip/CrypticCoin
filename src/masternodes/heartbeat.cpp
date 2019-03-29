@@ -41,12 +41,12 @@ bool checkMasternodeKeyAndStatus(const CKeyID& keyId)
 
 }
 
-CHeartBeatMessage::CHeartBeatMessage(const int64_t timestamp)
+CHeartBeatMessage::CHeartBeatMessage(const time_ms timestamp)
 {
     this->timestamp = timestamp;
 }
 
-int64_t CHeartBeatMessage::GetTimestamp() const
+time_ms CHeartBeatMessage::GetTimestamp() const
 {
     return timestamp;
 }
@@ -99,14 +99,14 @@ uint256 CHeartBeatMessage::getSignHash() const
 void CHeartBeatTracker::runTickerLoop()
 {
     CHeartBeatTracker& tracker{CHeartBeatTracker::getInstance()};
-    int64_t lastTime{GetTimeMillis()};
+    time_ms lastTime{GetTimeMillis()};
     tracker.startupTime = lastTime;
 
     while (true) {
         boost::this_thread::interruption_point();
-        const int64_t currentTime{GetTimeMillis()};
+        const time_ms currentTime{GetTimeMillis()};
 
-        if (currentTime - lastTime > tracker.getMinPeriod() * 2) {
+        if (currentTime - lastTime > tracker.getAvgPeriod()) {
             const CKey masternodeKey{getMasternodeKey()};
             if (masternodeKey.IsValid()) {
                 tracker.postMessage(masternodeKey);
@@ -132,7 +132,7 @@ CHeartBeatTracker& CHeartBeatTracker::getInstance()
     return *instance;
 }
 
-CHeartBeatMessage CHeartBeatTracker::postMessage(const CKey& signKey, int64_t timestamp)
+CHeartBeatMessage CHeartBeatTracker::postMessage(const CKey& signKey, time_ms timestamp)
 {
     if (timestamp == 0) {
         timestamp = GetTimeMillis();
@@ -153,7 +153,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
 {
     bool rv{false};
     CPubKey pubKey{};
-    const std::int64_t now{GetTimeMillis()};
+    const time_ms now{GetTimeMillis()};
     const uint256 hash{message.GetHash()};
 
     if (message.GetPubKey(pubKey)) {
@@ -254,26 +254,31 @@ std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
     return rv;
 }
 
-int64_t CHeartBeatTracker::getMinPeriod() const
+time_ms CHeartBeatTracker::getMinPeriod() const
 {
     LOCK(cs_main);
-    const int64_t period{Params().GetConsensus().nMasternodesHeartbeatPeriod};
-    return std::max((int64_t) pmasternodesview->GetMasternodes().size(), period) * ms;
+    const time_ms period{Params().GetConsensus().nMasternodesHeartbeatPeriod};
+    return std::max((time_ms) pmasternodesview->GetMasternodes().size(), period) * sec;
 }
 
-int64_t CHeartBeatTracker::getMaxPeriod() const
+time_ms CHeartBeatTracker::getAvgPeriod() const
+{
+    return getMinPeriod() * 2;
+}
+
+time_ms CHeartBeatTracker::getMaxPeriod() const
 {
     if (Params().NetworkIDString() == "regtest")
     {
         return getMinPeriod() * 6;
     }
-    return std::max(getMinPeriod() * 20, 6 * 60 * 60 * ms); // 20 minimum periods or 6h, whichever is greater
+    return std::max(getMinPeriod() * 20, 6 * 60 * 60 * sec); // 20 minimum periods or 6h, whichever is greater
 }
 
 CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
     CMasternodes rv{};
-    const auto period{std::make_pair(getMinPeriod(), getMaxPeriod())};
+    const auto bounds{std::make_pair(getAvgPeriod() * 2, getMaxPeriod())};
     LOCK(cs_main);
 
     for (const auto& mnPair : pmasternodesview->GetMasternodesByOperator()) {
@@ -285,13 +290,14 @@ CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
         assert(chainActive[mn.height] != nullptr);
 
         const auto it{keyMessageMap.find(mnPair.first)};
-        const int64_t previousTime{(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime)};
-        const int64_t previousMaxTime{std::max(previousTime, chainActive[mn.height]->GetBlockTime() * ms)};
-        const int64_t elapsed{GetTimeMillis() - previousMaxTime};
+        const time_ms previousTime{(it != keyMessageMap.end() ? it->second->GetTimestamp() : startupTime)};
+        const time_ms previousMaxTime{std::max(previousTime, chainActive[mn.height]->GetBlockTime() * sec)};
+        const time_ms elapsed{GetTimeMillis() - previousMaxTime};
 
-        if ((elapsed < period.first && ageFilter == RECENTLY) ||
-            (elapsed > period.second && ageFilter == OUTDATED) ||
-            (elapsed >= period.first && elapsed < period.second && ageFilter == STALE))
+        const bool recently = elapsed < bounds.first&& ageFilter == RECENTLY;
+        const bool stale = elapsed >= bounds.first && elapsed < bounds.second && ageFilter == OUTDATED;
+        const bool outdated = elapsed > bounds.second && ageFilter == STALE;
+        if (recently || outdated || stale)
         {
             rv.emplace(std::make_pair(mnPair.second, mn));
         }

@@ -12,6 +12,8 @@
 class CKey;
 class CInv;
 
+using time_ms = std::int64_t;
+
 class CHeartBeatMessage
 {
     using Signature = std::vector<unsigned char>;
@@ -52,24 +54,27 @@ class CHeartBeatTracker
 {
     using LockGuard = std::lock_guard<std::mutex>;
     using MessageList = std::list<CHeartBeatMessage>;
-    static constexpr std::int64_t ms{1000ll};
-    static constexpr std::int64_t maxHeartbeatInFuture{2 * 60 * 60 * ms};
+    static constexpr time_ms sec{1000ll};
+    static constexpr time_ms maxHeartbeatInFuture{2 * 60 * 60 * sec};
+
 
 public:
+
     enum AgeFilter {RECENTLY, STALE, OUTDATED};
 
     static void runTickerLoop();
     static CHeartBeatTracker& getInstance();
 
-    CHeartBeatMessage postMessage(const CKey& signKey, std::int64_t timestamp = 0);
+    CHeartBeatMessage postMessage(const CKey& signKey, time_ms timestamp = 0);
     bool recieveMessage(const CHeartBeatMessage& message);
     bool relayMessage(const CHeartBeatMessage& message);
 
     bool findReceivedMessage(const uint256& hash, CHeartBeatMessage* message = nullptr) const;
     std::vector<CHeartBeatMessage> getReceivedMessages() const;
 
-    int64_t getMinPeriod() const;
-    int64_t getMaxPeriod() const;
+    time_ms getMinPeriod() const; // minimum allowed time between heartbeats
+    time_ms getAvgPeriod() const; // default time between heartbeats
+    time_ms getMaxPeriod() const; // maximum allowed time between heartbeats
 
     CMasternodes filterMasternodes(AgeFilter ageFilter) const;
 
@@ -78,7 +83,7 @@ private:
     ~CHeartBeatTracker();
 
 private:
-    int64_t startupTime;
+    time_ms startupTime;
     MessageList messageList;
     std::map<CKeyID, MessageList::const_iterator> keyMessageMap;
     std::map<uint256, MessageList::const_iterator> hashMessageMap;

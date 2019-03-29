@@ -690,8 +690,8 @@ UniValue mn_filterheartbeats(const UniValue& params, bool fHelp)
         UniValue mn{UniValue::VOBJ};
         mn.push_back(Pair("id", mnPair.first.ToString()));
         mn.push_back(Pair("name", mnPair.second.name));
-        mn.push_back(Pair("owner", mnPair.second.ownerAuthAddress.ToString()));
-        mn.push_back(Pair("operator", mnPair.second.operatorAuthAddress.ToString()));
+        mn.push_back(Pair("owner", EncodeDestination(mnPair.second.ownerAuthAddress)));
+        mn.push_back(Pair("operator", EncodeDestination(mnPair.second.operatorAuthAddress)));
         rv.push_back(mn);
     }
     return rv;
