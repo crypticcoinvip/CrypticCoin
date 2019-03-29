@@ -41,7 +41,15 @@ Doublesign is mitigated as the p2p protocol allows to find and reject doublesign
 
 Masternodes short manual
 -----------------
-The full docker manual is avalible at https://github.com/crypticcoinvip/docker
+The full docker manual is available at https://github.com/crypticcoinvip/docker
+
+This manual often refers to ```tools``` script, which is located at https://raw.githubusercontent.com/crypticcoinvip/docker/master/tools . Remember that using it via ```wget -qO- https://raw.githubusercontent.com/crypticcoinvip/docker/master/tools | bash``` isn't safe, so download and review the script before using it:
+```
+wget -qO- https://raw.githubusercontent.com/crypticcoinvip/docker/master/tools > tools
+chmod +x tools # executable rights
+cat tools # make sure it's not a malicious script
+./tools cli getinfo # use it now
+```
 
 #### For owners who operate their masternodes
 1. Use an Ubuntu 16.04/18.04 server with at least 50GB of disk space available, 2 CPU cores, 4GB RAM.
@@ -65,10 +73,12 @@ wget -qO- https://raw.githubusercontent.com/crypticcoinvip/docker/master/tools |
 Your operator should provide you with an instruction. The process will have the following steps:
 1. Announce masternode (or call mn_setoperator on an announced masternode), specify operator's reward ratio, operator's addresses and YOUR collateral address, YOUR owner auth address, YOUR owner reward address.
 2. Most importantly, to prevent a fraud, collateral must be stored on an address which is controlled by owner, not operator.
-2. Operator runs your masternode. Both owner and operator do receive their reward shares.
-3. If operator misbehaves, it may lead to masternode's dismissal.
-4. Check that operator sends heartbeats by calling:
+3. Operator runs your masternode. Both owner and operator do receive their reward shares.
+4. If operator misbehaves, it may lead to masternode's dismissal.
+5. Check that operator sends heartbeats by calling:
 ```crypticcoin-cli mn_filterheartbeats recently```.
+6. Operator can be changed by calling:
+```./tools cli mn_setoperator [] '{"operatorAuthAddress":"addr1","operatorRewardAddress":"addr2","operatorRewardRatio":0.05}'```, where 0.05 is operator's reward share.
 
 #### For masternode operators
 The general flow is as below:
@@ -95,6 +105,7 @@ Other details:
 - If Masternode gets dismissed or resigns, it isn't removed from the list at once. Instead, it's marked as dead via "deadSinceHeight".
 - Minimum number of activated masternodes before dPoS may be enabled is 32. dPoS will get disabled if more than 24h passed since last block.
 - If dPoS isn't active, masternodes don't receive their reward (because they don't do anything useful yet)
+- Owner addresses cannot be changed, operator addresses can be changed via setoperator RPC call
 - Node uses only Tor connections by default.
 
 Security Warnings
