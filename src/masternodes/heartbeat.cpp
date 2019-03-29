@@ -41,7 +41,7 @@ bool checkMasternodeKeyAndStatus(const CKeyID& keyId)
 
 }
 
-CHeartBeatMessage::CHeartBeatMessage(const time_ms timestamp)
+CHeartBeatMessage::CHeartBeatMessage(time_ms timestamp)
 {
     this->timestamp = timestamp;
 }

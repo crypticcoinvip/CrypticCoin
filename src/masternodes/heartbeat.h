@@ -22,9 +22,9 @@ public:
     static const int32_t CURRENT_VERSION = 1;
     int32_t nVersion = CURRENT_VERSION;
     
-    explicit CHeartBeatMessage(const std::int64_t timestamp = 0);
+    explicit CHeartBeatMessage(time_ms timestamp = 0);
 
-    std::int64_t GetTimestamp() const;
+    time_ms GetTimestamp() const;
     Signature GetSignature() const;
     uint256 GetHash() const;
 
@@ -46,7 +46,7 @@ private:
     uint256 getSignHash() const;
 
 private:
-    std::int64_t timestamp;
+    time_ms timestamp;
     Signature signature;
 };
 
