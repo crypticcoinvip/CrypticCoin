@@ -44,7 +44,7 @@ Masternodes short manual
 The full docker manual is avalible at https://github.com/crypticcoinvip/docker
 
 #### For owners who operate their masternodes
-1. Use an Ubuntu 16.04/18.04 server with at least 300GB of disk space available, 2 CPU cores, 4GB RAM.
+1. Use an Ubuntu 16.04/18.04 server with at least 50GB of disk space available, 2 CPU cores, 4GB RAM.
 2. Install docker on your machine. On Ubuntu 16.04/18.04:
 ```
 cat /etc/apt/sources.list # check that universe repo is enabled
@@ -68,8 +68,7 @@ Your operator should provide you with an instruction. The process will have the 
 2. Operator runs your masternode. Both owner and operator do receive their reward shares.
 3. If operator misbehaves, it may lead to masternode's dismissal.
 4. Check that operator sends heartbeats by calling:
-```crypticcoin-cli mn_filterheartbeats recently```
-Check that status of your masternode is ```"activated"```.
+```crypticcoin-cli mn_filterheartbeats recently```.
 
 #### For masternode operators
 The general flow is as below:
@@ -85,12 +84,17 @@ The general flow is as below:
 If you know what you're doing, and you need to look under the hood, then just check ```tools``` script at https://github.com/crypticcoinvip/docker .
 
 The process of masternode announcement looks like this:
-
 - Owner calls ```crypticcoin-cli mn_announce [] '{"name":"nodename","ownerAuthAddress":"address1","operatorAuthAddress":"address2","ownerRewardAddress":"address3","operatorRewardAddress":"address4","operatorRewardRatio":0,"collateralAddress":"address5"}'```
 - Sending this transaction doesn't mean that you're starting to operate masternode. To start operating masternode, add ```masternode_operator=YOUR-OPERATOR-AUTH-ADDRESS```, ```txindex=1``` into the config and restart the operator's node. You'll need to do ```-reindex``` if ```-txindex``` wasn't set before.
 - Make sure that you have at least 10 CRYP on operator's wallet on any transparent address (aside collateral).
 - You probably want to specify ```masternode_owner``` in owner's config to call owner's RPC commands.
 - No need to call ```mn_activate``` manually, the operator will self-activate after a certain height.
+- Masternode's ID is announcement transaction hash.
+
+Other details:
+- If Masternode gets dismissed or resigns, it isn't removed from the list at once. Instead, it's marked as dead via "deadSinceHeight".
+- Minimum number of activated masternodes before dPoS may be enabled is 32. dPoS will get disabled if more than 24h passed since last block.
+- If dPoS isn't active, masternodes don't receive their reward (because they don't do anything useful yet)
 - Node uses only Tor connections by default.
 
 Security Warnings
