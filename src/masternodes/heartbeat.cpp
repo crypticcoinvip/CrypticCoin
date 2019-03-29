@@ -294,9 +294,9 @@ CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
         const time_ms previousMaxTime{std::max(previousTime, chainActive[mn.height]->GetBlockTime() * sec)};
         const time_ms elapsed{GetTimeMillis() - previousMaxTime};
 
-        const bool recently = elapsed < bounds.first&& ageFilter == RECENTLY;
-        const bool stale = elapsed >= bounds.first && elapsed < bounds.second && ageFilter == OUTDATED;
-        const bool outdated = elapsed > bounds.second && ageFilter == STALE;
+        const bool recently = elapsed < bounds.first && ageFilter == RECENTLY;
+        const bool stale = elapsed >= bounds.first && elapsed < bounds.second && ageFilter == STALE;
+        const bool outdated = elapsed > bounds.second && ageFilter == OUTDATED;
         if (recently || outdated || stale)
         {
             rv.emplace(std::make_pair(mnPair.second, mn));
