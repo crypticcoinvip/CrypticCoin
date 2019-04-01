@@ -1075,13 +1075,16 @@ void CMasternodesView::Clear()
 */
 MasternodesTxType GuessMasternodeTxType(CTransaction const & tx, std::vector<unsigned char> & metadata)
 {
-    assert(tx.vout.size() > 0);
+    if (tx.vout.size() == 0)
+    {
+        return MasternodesTxType::None;
+    }
     CScript const & memo = tx.vout[0].scriptPubKey;
     CScript::const_iterator pc = memo.begin();
     opcodetype opcode;
     if (!memo.GetOp(pc, opcode) || opcode != OP_RETURN)
     {
-        return MasternodesTxType::None;;
+        return MasternodesTxType::None;
     }
     if (!memo.GetOp(pc, opcode, metadata) ||
             (opcode > OP_PUSHDATA1 &&
