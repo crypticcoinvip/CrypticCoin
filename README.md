@@ -25,7 +25,7 @@ Masternodes list can be altered only by special transactions - that's why the li
 
 Announcement fee brings a financial penalty of misbehaving. After dismissing or reassignment, announcement fee isn't refunded (only masternode collateral is refunded). After the MN_Sapling upgrade activation, the amount of announcement fee starts from 1 day worth masternode's income, and slowly grows (during 2 years) until it reaches 31 days worth of income.
 
-Masternode must stay online 24/7. Otherwise it'll get dismissed during dimissal voting.
+Masternode must stay online 24/7. Otherwise it'll get dismissed during dismissal voting.
 
 Instant transactions over BFT protocol
 -----------------
@@ -59,12 +59,13 @@ cat /etc/apt/sources.list # check that universe repo is enabled
 sudo apt-get update
 sudo apt-get install docker.io
 ```
-3. Announce masternode with your owner reward address (the script will take care of other addresses). THE OPERATION WILL BURN ANNOUNCEMENT FEE! Don't do it you're not sure that the address is correct.
+3. Update the Crypticcoin node image to the latest version: ```docker pull sevenswen/crypticcoinubuntu18.04```. It'll not run the node, only install it.
+4. Announce masternode with your owner reward address (the script will take care of other addresses). THE OPERATION WILL BURN ANNOUNCEMENT FEE! Don't do it you're not sure that the address is correct.
 ```
 wget -qO- https://raw.githubusercontent.com/crypticcoinvip/docker/master/tools | ownerRewardAddress=YOUR-REWARD-ADDRESS bash /dev/stdin mn_announce
 ```
-4. Ensure that the server is online 24/7 - you'll get dismissed instead.
-5. If needed, resign and refund your collateral (retrieve your MASTERNODE_ID by calling ```./tools cli mn_list [] true```):
+5. After prev. step, your node is supposed to be running. Check that it's online: ```./tools cli getinfo```, ```docker ps -a```. Ensure that the server is online 24/7 - you'll get dismissed instead.
+6. If needed, resign and refund your collateral (retrieve your MASTERNODE_ID by calling ```./tools cli mn_list [] true```):
 ```
 ./tools cli mn_resign MASTERNODE_ID new_t-address
 ```
@@ -102,6 +103,7 @@ The process of masternode announcement looks like this:
 - Masternode's ID is announcement transaction hash.
 
 Other details:
+- ```./tools run_i``` opens a bash shell into the running container
 - If Masternode gets dismissed or resigns, it isn't removed from the list at once. Instead, it's marked as dead via "deadSinceHeight".
 - Minimum number of activated masternodes before dPoS may be enabled is 32. dPoS will get disabled if more than 24h passed since last block.
 - If dPoS isn't active, masternodes don't receive their reward (because they don't do anything useful yet)
