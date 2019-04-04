@@ -110,6 +110,18 @@ Other details:
 - Owner addresses cannot be changed, operator addresses can be changed via setoperator RPC call
 - Node uses only Tor connections by default.
 
+Masternode Announcement Warnings
+--------------------------------
+1. The announcement operation WILL BURN ANNOUNCEMENT FEE! Don't do it you're not sure.
+You can check announcement fee amount by "mn_estimateannouncementfee" CLI command ("./tools cli mn_estimateannouncementfee").
+
+2. It is *VERY IMPORTANT* do not make ANY transactions from masternode wallet until announcement transaction got into the blockchain.
+It can take more than one block so keep patience.
+You should check that announcement is completed by "mn_list" CLI command ("./tools cli mn_list").
+Overwise you can occasionally spend announcement collateral and so resign the masternode immidiately after announcement.
+After the announcement tx got into blockchain your collateral will be protected from casual spend.
+
+
 Security Warnings
 -----------------
 

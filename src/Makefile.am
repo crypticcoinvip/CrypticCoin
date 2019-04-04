@@ -623,8 +623,9 @@ clean-local:
 	-$(MAKE) -C secp256k1 clean
 	-$(MAKE) -C snark clean
 	-$(MAKE) -C univalue clean
-	rm -f leveldb/*/*.gcno leveldb/helpers/memenv/*.gcno
+	-rm -f leveldb/*/*.gcno leveldb/helpers/memenv/*.gcno
 	-rm -f config.h
+	-rm -f crypto/libbitcoin_crypto.a libzcash.a libbitcoin_*.a
 
 .rc.o:
 	@test -f $(WINDRES)
