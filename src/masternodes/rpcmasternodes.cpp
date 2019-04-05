@@ -261,13 +261,13 @@ UniValue mn_estimateannouncementfee(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
         throw std::runtime_error(
-            "mn_estimateannouncmentfee\n"
+            "mn_estimateannouncementfee\n"
             "\nEstimates the approximate masternode announcement fee\n"
             "\nResult:\n"
             "n :    (numeric) estimated fee\n"
             "\n"
             "\nExample:\n"
-            + HelpExampleCli("mn_estimateannouncmentfee", ""));
+            + HelpExampleCli("mn_estimateannouncementfee", ""));
 
     LOCK(cs_main);
     return ValueFromAmount(EstimateAnnouncementFee());
