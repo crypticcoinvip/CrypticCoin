@@ -203,19 +203,16 @@ class dPoS_BaseTest(BitcoinTestFramework):
             next_idx = n + 1 if n + 1 < self.num_nodes else 0
             zdst = [{ "address": self.operators[next_idx], "amount": 33.33 }]
             ztx = self.nodes[n].z_sendmany(z_coins[n], zdst)
-            time.sleep(2)
+            time.sleep(4)
             ztx = self.nodes[n].z_getoperationstatus([ztx])
             assert_equal(ztx[0]["status"], "success")
             self.nodes[n].generate(1)
             self.wait_block(self.nodes[n], blockCount)
 
-        # Activate mannualy
-        for n in range(self.num_nodes):
-            if n in indexes:
-                self.nodes[n].mn_activate([])
-                blockCount = self.nodes[n].getblockcount() + 1
-                self.nodes[n].generate(1)
-                self.wait_block(self.nodes[n], blockCount)
+        # Autoactivation should happen
+        time.sleep(5) # wait for mempool sync
+        self.nodes[0].generate(1)
+        self.sync_all()
 
         self.check_nodes_block_count(INITIAL_BLOCK_COUNT + 4 * self.num_nodes + 1)
 
@@ -223,7 +220,7 @@ class dPoS_BaseTest(BitcoinTestFramework):
             assert_equal(node.getinfo()["dpos"], True)
             for idnode in rv:
                 if idnode:
-                    assert_equal(node.mn_list([idnode])[0]['status'], "active")
+                    assert_equal(node.mn_list([idnode])[0]['status'], "activated")
         return rv
 
     def create_transaction(self, node_idx, to_address, amount, instantly):
