@@ -738,6 +738,9 @@ boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockH
 {
     LOCK(cs_main);
     const int height{Validator::computeBlockHeight(blockHash, MAX_BLOCKS_TO_KEEP)};
+    if (height == -1) {
+        return boost::none;
+    }
     const CTeam team = pmasternodesview->ReadDposTeam(height);
     for (auto&& member : team)
     {
