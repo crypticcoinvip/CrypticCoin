@@ -125,7 +125,7 @@ void CDposController::runEventLoop()
     std::pair<BlockHash, Round> lastRound{};
     int64_t lastRoundChangeT{GetTimeMillis()};
 
-    int64_t lastSyncT{GetTimeMillis() - 1000000};
+    int64_t lastSyncT{0};
 
     int64_t initialBlocksDownloadPassedT{0};
 
@@ -144,7 +144,7 @@ void CDposController::runEventLoop()
         const int64_t now_sec = GetAdjustedTime();
         const int64_t now{GetTimeMillis()};
 
-        if (self->isEnabled(now_sec, tip)) {
+        {
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
                 if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
                     initialBlocksDownloadPassedT = now;
