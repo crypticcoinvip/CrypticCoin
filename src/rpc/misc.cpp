@@ -686,6 +686,7 @@ UniValue mn_filterheartbeats(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid filter_name argument");
     }
 
+    LOCK(cs_main);
     for (const auto& mnPair : CHeartBeatTracker::getInstance().filterMasternodes(ageFilter)) {
         UniValue mn{UniValue::VOBJ};
         mn.push_back(Pair("id", mnPair.first.ToString()));

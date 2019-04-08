@@ -6,7 +6,6 @@
 
 #include "masternodes.h"
 #include "../serialize.h"
-#include <mutex>
 #include <list>
 
 class CKey;
@@ -52,7 +51,6 @@ private:
 
 class CHeartBeatTracker
 {
-    using LockGuard = std::lock_guard<std::mutex>;
     using MessageList = std::list<CHeartBeatMessage>;
     static constexpr time_ms sec{1000ll};
     static constexpr time_ms maxHeartbeatInFuture{2 * 60 * 60 * sec};

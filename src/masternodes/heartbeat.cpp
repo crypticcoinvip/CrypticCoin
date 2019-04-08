@@ -12,7 +12,7 @@
 
 namespace
 {
-std::mutex mutex{};
+CCriticalSection cs{};
 CHeartBeatTracker* instance{nullptr};
 std::array<unsigned char, 16> salt_{0x36, 0x4D, 0x2B, 0x44, 0x58, 0x37, 0x78, 0x39, 0x7A, 0x78, 0x5E, 0x58, 0x68, 0x7A, 0x35, 0x75};
 
@@ -20,7 +20,8 @@ CKey getMasternodeKey()
 {
     CKey rv{};
 #ifdef ENABLE_WALLET
-    LOCK2(cs_main, pwalletMain->cs_wallet);
+    AssertLockHeld(cs_main);
+    AssertLockHeld(pwalletMain->cs_wallet);
     const boost::optional<CMasternodesView::CMasternodeIDs> mnId{pmasternodesview->AmIOperator()};
     if (mnId != boost::none) {
         if (!pwalletMain->GetKey(mnId.get().operatorAuthAddress, rv)) {
@@ -34,7 +35,7 @@ CKey getMasternodeKey()
 
 bool checkMasternodeKeyAndStatus(const CKeyID& keyId)
 {
-    LOCK(cs_main);
+    AssertLockHeld(cs_main);
     const auto pair = pmasternodesview->ExistMasternode(CMasternodesView::AuthIndex::ByOperator, keyId);
     return pair != boost::none && pmasternodesview->GetMasternodes().at((*pair)->second).deadSinceHeight == -1;
 }
@@ -106,12 +107,15 @@ void CHeartBeatTracker::runTickerLoop()
         boost::this_thread::interruption_point();
         const time_ms currentTime{GetTimeMillis()};
 
-        if (currentTime - lastTime > tracker.getAvgPeriod()) {
-            const CKey masternodeKey{getMasternodeKey()};
-            if (masternodeKey.IsValid()) {
-                tracker.postMessage(masternodeKey);
+        {
+            LOCK2(cs_main, pwalletMain->cs_wallet);
+            if (currentTime - lastTime > tracker.getAvgPeriod()) {
+                const CKey masternodeKey{getMasternodeKey()};
+                if (masternodeKey.IsValid()) {
+                    tracker.postMessage(masternodeKey);
+                }
+                lastTime = currentTime;
             }
-            lastTime = currentTime;
         }
 
         MilliSleep(500);
@@ -121,8 +125,7 @@ void CHeartBeatTracker::runTickerLoop()
 CHeartBeatTracker& CHeartBeatTracker::getInstance()
 {
     if (instance == nullptr) {
-        LockGuard lock{mutex};
-        libsnark::UNUSED(lock);
+        LOCK(cs);
         if (instance == nullptr) {
             instance = new CHeartBeatTracker{};
         }
@@ -157,13 +160,13 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
     const uint256 hash{message.GetHash()};
 
     if (message.GetPubKey(pubKey)) {
+        AssertLockHeld(cs_main);
         const CKeyID masternodeKey{pubKey.GetID()};
 
         if (checkMasternodeKeyAndStatus(masternodeKey) &&
             message.GetTimestamp() < now + maxHeartbeatInFuture)
         {
-            LockGuard lock{mutex};
-            libsnark::UNUSED(lock);
+            LOCK(cs);
 
             const auto it{keyMessageMap.find(masternodeKey)};
 
@@ -188,6 +191,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
 
 bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
 {
+    AssertLockHeld(cs_main);
     if (recieveMessage(message)) {
         // Expire old relay messages
         LOCK(cs_mapRelay);
@@ -216,8 +220,7 @@ bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
 
 bool CHeartBeatTracker::findReceivedMessage(const uint256& hash, CHeartBeatMessage* message) const
 {
-    LockGuard lock{mutex};
-    libsnark::UNUSED(lock);
+    LOCK(cs);
 
     assert(messageList.size() == keyMessageMap.size());
     assert(keyMessageMap.size() == hashMessageMap.size());
@@ -241,8 +244,7 @@ bool CHeartBeatTracker::findReceivedMessage(const uint256& hash, CHeartBeatMessa
 
 std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
 {
-    LockGuard lock{mutex};
-    libsnark::UNUSED(lock);
+    LOCK(cs);
     std::vector<CHeartBeatMessage> rv{};
 
     assert(messageList.size() == keyMessageMap.size());
@@ -256,7 +258,7 @@ std::vector<CHeartBeatMessage> CHeartBeatTracker::getReceivedMessages() const
 
 time_ms CHeartBeatTracker::getMinPeriod() const
 {
-    LOCK(cs_main);
+    AssertLockHeld(cs_main);
     const time_ms period{Params().GetConsensus().nMasternodesHeartbeatPeriod};
     return std::max((time_ms) pmasternodesview->GetMasternodes().size(), period) * sec;
 }
@@ -277,9 +279,9 @@ time_ms CHeartBeatTracker::getMaxPeriod() const
 
 CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
 {
+    AssertLockHeld(cs_main);
     CMasternodes rv{};
     const auto bounds{std::make_pair(getAvgPeriod() * 2, getMaxPeriod())};
-    LOCK(cs_main);
 
     for (const auto& mnPair : pmasternodesview->GetMasternodesByOperator()) {
         const CMasternode& mn{pmasternodesview->GetMasternodes().at(mnPair.second)};
