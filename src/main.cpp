@@ -6881,7 +6881,8 @@ void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int)
         for (auto const & pair : CHeartBeatTracker::getInstance().filterMasternodes(CHeartBeatTracker::RECENTLY))
         {
             // We don't check node status here, cause filter did it
-            if (mnview.ExistActiveVoteIndex(CMasternodesView::VoteIndex::From, (*ids).id, pair.first))
+            auto const optOldVote = mnview.ExistActiveVoteIndex(CMasternodesView::VoteIndex::From, (*ids).id, pair.first);
+            if (optOldVote && mnview.GetVotes().at((*optOldVote)->second).reasonCode == 1)
             {
                 UniValue obj(UniValue::VOBJ);
                 obj.push_back(Pair("against", pair.first.GetHex()));
