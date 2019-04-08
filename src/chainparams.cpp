@@ -125,7 +125,7 @@ public:
         // dPoS
         consensus.dpos.nTeamSize = 32;
         consensus.dpos.nMinQuorum = 23;
-        consensus.dpos.nDelayIBD = 60 * 60;
+        consensus.dpos.nDelayIBD = 30 * 60;
         consensus.dpos.nPollingPeriod = 60;
         consensus.dpos.nRoundTooLong = 5 * 60;
         consensus.dpos.nMaxNotVotedTxsToKeep = 2048;
