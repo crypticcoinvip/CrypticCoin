@@ -210,7 +210,7 @@ bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
         ss << message;
 
         mapRelay.insert(std::make_pair(inv, ss));
-        vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
+        vRelayExpiration.emplace_back(GetTime() + 15 * 60, inv);
 
         BroadcastInventory(inv);
         return true;
@@ -274,7 +274,7 @@ time_ms CHeartBeatTracker::getMaxPeriod() const
     {
         return getMinPeriod() * 6;
     }
-    return std::max(getMinPeriod() * 20, 6 * 60 * 60 * sec); // 20 minimum periods or 6h, whichever is greater
+    return std::max(getMinPeriod() * 20, 3 * 24 * 60 * 60 * sec); // 20 minimum periods or 3 days, whichever is greater
 }
 
 CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const
