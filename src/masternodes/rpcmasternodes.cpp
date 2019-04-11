@@ -1308,7 +1308,7 @@ static const CRPCCommand commands[] =
     { "masternodes",    "mn_listdismissvotes",        &mn_listdismissvotes,         true  },
 
     /* Not shown in help */
-    { "hidden",         "mn_resign",                  &mn_resign,                   true  },
+    { "masternodes",         "mn_resign",             &mn_resign,                   true  },
 };
 
 void RegisterMasternodesRPCCommands(CRPCTable &tableRPC)
