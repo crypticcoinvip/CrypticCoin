@@ -744,7 +744,7 @@ bool CMasternodesView::IsTeamMember(int height, CKeyID const & operatorAuth) con
     CTeam team = ReadDposTeam(height);
     for (auto const & member : team)
     {
-        if (member.second.second == operatorAuth)
+        if (member.second.operatorAuth == operatorAuth)
             return true;
     }
     return false;
@@ -777,17 +777,29 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
     size_t const dPosTeamSize = Params().GetConsensus().dpos.nTeamSize;
 
     assert(team.size() <= dPosTeamSize);
+
+    std::function<bool(CTeam::value_type const & lhs, CTeam::value_type const & rhs)> calcDposTeamV1 = [](CTeam::value_type const & lhs, CTeam::value_type const & rhs) {
+        if (lhs.second.joinHeight == rhs.second.joinHeight && lhs.second.operatorAuth == rhs.second.operatorAuth)
+        {
+            return UintToArith256(lhs.first) < UintToArith256(rhs.first);
+        }
+        // it's a canonical version of "operator <" for std::pair:
+        return lhs.second.joinHeight < rhs.second.joinHeight || (!(rhs.second.joinHeight < lhs.second.joinHeight) && lhs.second.operatorAuth < rhs.second.operatorAuth);
+    };
+    std::function<bool(CTeam::value_type const & lhs, CTeam::value_type const & rhs)> calcDposTeamV2 = [](CTeam::value_type const & lhs, CTeam::value_type const & rhs) {
+        if (lhs.second.joinHeight == rhs.second.joinHeight)
+        {
+            return UintToArith256(lhs.first) < UintToArith256(rhs.first);
+        }
+        return lhs.second.joinHeight < lhs.second.joinHeight;
+    };
+    const int TEAM_V2_HARDFORK_HEIGHT = 1000000;
+    auto calcDposTeam = height < TEAM_V2_HARDFORK_HEIGHT ? calcDposTeamV1 : calcDposTeamV2;
+
     // erase oldest member
     if (team.size() == dPosTeamSize)
     {
-        auto oldest_it = std::max_element(team.begin(), team.end(), [](CTeam::value_type const & lhs, CTeam::value_type const & rhs)
-        {
-            if (lhs.second == rhs.second)
-            {
-                return UintToArith256(lhs.first) < UintToArith256(rhs.first);
-            }
-            return lhs.second < rhs.second;
-        });
+        auto oldest_it = std::max_element(team.begin(), team.end(), calcDposTeam);
         if (oldest_it != team.end())
         {
             team.erase(oldest_it);
@@ -812,13 +824,13 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
     {
         CDataStream lhs_ss(SER_GETHASH, 0);
         lhs_ss << lhs << blockHash;
-        arith_uint256 lhs_selector = UintToArith256(Hash(lhs_ss.begin(), lhs_ss.end())); // '<' operators of uint256 and uint256_arith are different
+        uint256 const lhs_selector = Hash(lhs_ss.begin(), lhs_ss.end());
 
         CDataStream rhs_ss(SER_GETHASH, 0);
         rhs_ss << rhs << blockHash;
-        arith_uint256 rhs_selector = UintToArith256(Hash(rhs_ss.begin(), rhs_ss.end())); // '<' operators of uint256 and uint256_arith are different
+        uint256 const rhs_selector = Hash(rhs_ss.begin(), rhs_ss.end());
 
-        return ArithToUint256(lhs_selector) < ArithToUint256(rhs_selector);
+        return lhs_selector < rhs_selector;
     });
 
     // calc new members
@@ -827,7 +839,7 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
 
     for (size_t i = 0; i < toJoin; ++i)
     {
-        team.insert(std::make_pair(mayJoin[i], std::make_pair(height, allNodes.at(mayJoin[i]).operatorAuthAddress)));
+        team.insert(std::make_pair(mayJoin[i], TeamData{height, allNodes.at(mayJoin[i]).operatorAuthAddress}));
     }
 
     if (!db.WriteTeam(height+1, team))

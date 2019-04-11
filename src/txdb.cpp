@@ -508,7 +508,7 @@ bool CMasternodesDB::ReadTeam(int blockHeight, CTeam & team) const
             std::pair<int32_t, CKeyID> value;
             if (pcursor->GetValue(value))
             {
-                team.insert(make_pair(key.second, value));
+                team.insert(make_pair(key.second, TeamData { value.first, value.second }));
             }
             else
             {
@@ -538,7 +538,7 @@ bool CMasternodesDB::WriteTeam(int blockHeight, CTeam const & team)
     CDBBatch batch(*db);
     for (CTeam::const_iterator it = team.begin(); it != team.end(); ++it)
     {
-        batch.Write(make_pair(make_pair(DB_TEAM, static_cast<int32_t>(blockHeight)), it->first), it->second);
+        batch.Write(make_pair(make_pair(DB_TEAM, static_cast<int32_t>(blockHeight)), it->first), make_pair(it->second.joinHeight, it->second.operatorAuth));
     }
     return erased && db->WriteBatch(batch);
 }

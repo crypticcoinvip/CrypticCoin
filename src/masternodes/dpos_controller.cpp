@@ -744,7 +744,7 @@ boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockH
     const CTeam team = pmasternodesview->ReadDposTeam(height);
     for (auto&& member : team)
     {
-        if (member.second.second == operatorAuth)
+        if (member.second.operatorAuth == operatorAuth)
             return {member.first};
     }
     if (team.empty()) {
