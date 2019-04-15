@@ -49,7 +49,8 @@ crypticcoin_gtest_SOURCES += \
 	gtest/test_dpos.cpp \
 	gtest/test_dpos_dummy.cpp \
     gtest/test_dpos_calls.cpp \
-    gtest/test_dpos_storm.cpp
+    gtest/test_dpos_storm.cpp \
+    gtest/test_mn_calcdposteam.cpp
 if ENABLE_WALLET
 crypticcoin_gtest_SOURCES += \
 	wallet/gtest/test_wallet.cpp

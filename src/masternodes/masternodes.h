@@ -86,7 +86,7 @@ public:
     uint32_t dismissVotesAgainst;
 
     //! empty constructor
-    CMasternode() {}
+    CMasternode();
 
     //! constructor helper, runs without any checks
     void FromTx(CTransaction const & tx, int heightIn, std::vector<unsigned char> const & metadata);
@@ -225,7 +225,7 @@ public:
     enum class VoteIndex { From, Against };
 
 private:
-    CMasternodesDB db;
+    boost::scoped_ptr<CMasternodesDB> db;
 
     CMasternodes allNodes;
     CActiveMasternodes activeNodes;
@@ -239,15 +239,18 @@ private:
     CTxUndo txsUndo;
     COperatorUndo operatorUndo;
 
+protected:
+    CMasternodesView(CMasternodesDB * db) : db(db)  {}
+
 public:
-    CMasternodesView(size_t nCacheSize, bool fMemory = false, bool fWipe = false) : db(nCacheSize, fMemory, fWipe) {}
+    CMasternodesView(size_t nCacheSize, bool fMemory = false, bool fWipe = false) : db(new CMasternodesDB(nCacheSize, fMemory, fWipe)) {}
     CMasternodesView(CMasternodesView const & other);
 
     CMasternodesView & operator=(CMasternodesView const & other) = delete;
 
     ~CMasternodesView() {}
 
-    bool IsReadOnlyDB() const { return db.IsReadOnly(); }
+    bool IsReadOnlyDB() const { return db->IsReadOnly(); }
 
     CMasternodes const & GetMasternodes() const
     {

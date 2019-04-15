@@ -416,6 +416,12 @@ CMasternodesDB::CMasternodesDB(const CMasternodesDB & other)
 {
 }
 
+CMasternodesDB::CMasternodesDB(CDBWrapper * db)
+    : db(db)
+    , readOnly(false)
+{
+}
+
 bool CMasternodesDB::IsReadOnly() const
 {
     return readOnly;

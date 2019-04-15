@@ -90,7 +90,16 @@ private:
 
 public:
     CMasternodesDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    virtual ~CMasternodesDB() = default;
+    virtual CMasternodesDB * Clone() const
+    {
+        return new CMasternodesDB(*this);
+    }
+
+protected:
     CMasternodesDB(CMasternodesDB const & other);
+    // for test purposes only
+    CMasternodesDB(CDBWrapper * db);
 
 private:
     CMasternodesDB & operator=(CMasternodesDB const &) = delete;
@@ -123,37 +132,37 @@ private:
     }
 
 public:
-    bool IsReadOnly() const;
-    void CommitBatch();
-    void DropBatch();
+    virtual bool IsReadOnly() const;
+    virtual void CommitBatch();
+    virtual void DropBatch();
 
-    void WriteMasternode(uint256 const & txid, CMasternode const & node);
-    void EraseMasternode(uint256 const & txid);
+    virtual void WriteMasternode(uint256 const & txid, CMasternode const & node);
+    virtual void EraseMasternode(uint256 const & txid);
 
-    void WriteVote(uint256 const & txid, CDismissVote const & vote);
-    void EraseVote(uint256 const & txid);
+    virtual void WriteVote(uint256 const & txid, CDismissVote const & vote);
+    virtual void EraseVote(uint256 const & txid);
 
-    void WriteDeadIndex(int height, uint256 const & txid, char type);
-    void EraseDeadIndex(int height, uint256 const & txid);
+    virtual void WriteDeadIndex(int height, uint256 const & txid, char type);
+    virtual void EraseDeadIndex(int height, uint256 const & txid);
 
-    void WriteUndo(int height, uint256 const & txid, uint256 const & affectedNode, char undoType);
-    void EraseUndo(int height, uint256 const & txid, uint256 const & affectedItem);
+    virtual void WriteUndo(int height, uint256 const & txid, uint256 const & affectedNode, char undoType);
+    virtual void EraseUndo(int height, uint256 const & txid, uint256 const & affectedItem);
 
-    void ReadOperatorUndo(uint256 const & txid, COperatorUndoRec & value);
-    void WriteOperatorUndo(uint256 const & txid, COperatorUndoRec const & value);
-    void EraseOperatorUndo(uint256 const & txid);
+    virtual void ReadOperatorUndo(uint256 const & txid, COperatorUndoRec & value);
+    virtual void WriteOperatorUndo(uint256 const & txid, COperatorUndoRec const & value);
+    virtual void EraseOperatorUndo(uint256 const & txid);
 
-    bool ReadTeam(int blockHeight, CTeam & team) const;
-    bool WriteTeam(int blockHeight, CTeam const & team);
-    bool EraseTeam(int blockHeight);
+    virtual bool ReadTeam(int blockHeight, CTeam & team) const;
+    virtual bool WriteTeam(int blockHeight, CTeam const & team);
+    virtual bool EraseTeam(int blockHeight);
 
-    bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode) const;
-    bool LoadVotes(std::function<void(uint256 const &, CDismissVote const &)> onVote) const;
-    bool LoadUndo(std::function<void(int, uint256 const &, uint256 const &, char)> onUndo) const;
+    virtual bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode) const;
+    virtual bool LoadVotes(std::function<void(uint256 const &, CDismissVote const &)> onVote) const;
+    virtual bool LoadUndo(std::function<void(int, uint256 const &, uint256 const &, char)> onUndo) const;
 
-    bool PruneMasternodesOlder(int height, std::function<void(int, uint256 const &, char)> onErase);
-    bool PruneUndoesOlder(int height, std::function<void(int, uint256 const &, uint256 const &, char)> onErase);
-    bool PruneTeamsOlder(int height);
+    virtual bool PruneMasternodesOlder(int height, std::function<void(int, uint256 const &, char)> onErase);
+    virtual bool PruneUndoesOlder(int height, std::function<void(int, uint256 const &, uint256 const &, char)> onErase);
+    virtual bool PruneTeamsOlder(int height);
 
 };
 
