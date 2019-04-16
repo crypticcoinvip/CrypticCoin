@@ -35,10 +35,10 @@ extern void ScriptPubKeyToJSON(CScript const & scriptPubKey, UniValue & out, boo
 
 void EnsureBlocksDownloaded()
 {
-//    if (IsInitialBlockDownload() && Params().NetworkIDString() != "regtest")
-//    {
-//        throw JSONRPCError(RPC_IN_WARMUP, "Try it later. It is initial block download!");
-//    }
+    if (IsInitialBlockDownload() && Params().NetworkIDString() != "regtest")
+    {
+        throw JSONRPCError(RPC_IN_WARMUP, "Try it later. It is initial block download!");
+    }
 }
 
 void EnsureSaplingUpgrade()
