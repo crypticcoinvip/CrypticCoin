@@ -786,11 +786,13 @@ void CDposController::cleanUpDb()
     const auto tipHeight{chainActive.Height()};
 
     for (auto itV{this->voter->v.begin()}; itV != this->voter->v.end();) {
-        const int vblockTipHeight{Validator::computeBlockHeight(itV->first, MAX_BLOCKS_TO_KEEP)};
+        const BlockHash& vot = itV->first;
+        const int votingTipHeight{Validator::computeBlockHeight(vot, MAX_BLOCKS_TO_KEEP * 2)};
 
-        if (vblockTipHeight > 0 && tipHeight - vblockTipHeight > MAX_BLOCKS_TO_KEEP) {
+        // if unknown, or old
+        if (votingTipHeight < 0 || ((tipHeight - votingTipHeight) > MAX_BLOCKS_TO_KEEP)) {
             for (auto it{this->receivedRoundVotes.begin()}; it != this->receivedRoundVotes.end();) {
-                if (it->second.tip == itV->first) {
+                if (it->second.tip == vot) {
                     pdposdb->EraseRoundVote(it->first);
                     it = this->receivedRoundVotes.erase(it);
                 } else {
@@ -798,7 +800,7 @@ void CDposController::cleanUpDb()
                 }
             }
             for (auto it{this->receivedTxVotes.begin()}; it != this->receivedTxVotes.end();) {
-                if (it->second.tip == itV->first) {
+                if (it->second.tip == vot) {
                     pdposdb->EraseTxVote(it->first);
                     it = this->receivedTxVotes.erase(it);
                 } else {
