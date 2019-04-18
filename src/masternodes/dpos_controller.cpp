@@ -181,14 +181,19 @@ void CDposController::runEventLoop()
                     if (!nodes.empty()) {
                         lastSyncT = now;
                         std::vector<CInv> reqsToSend;
+                        std::vector<BlockHash> interestedVotings;
                         {
                             LOCK(cs_main);
                             reqsToSend.insert(reqsToSend.end(), self->vReqs.begin(), self->vReqs.end());
+                            for (int i = chainActive.Height(); i > 0 && i > (chainActive.Height() - CDposVoter::VOTING_MEMORY); i--)
+                                interestedVotings.push_back(chainActive[i]->GetBlockHash());
                         }
-                        for (auto&& node : nodes) {
-                            node->PushMessage("getvblocks", tip);
-                            node->PushMessage("getrvotes", tip);
-                            node->PushMessage("gettxvotes", tip, self->getTxsFilter());
+                        for (auto&& node : nodes) { // don't lock cs_main here
+                            for (auto&& v : interestedVotings) {
+                                node->PushMessage("getvblocks", v);
+                                node->PushMessage("getrvotes", v);
+                                node->PushMessage("gettxvotes", v, self->getTxsFilter());
+                            }
                             if (!reqsToSend.empty())
                                 node->PushMessage("getdata", reqsToSend);
                         }
