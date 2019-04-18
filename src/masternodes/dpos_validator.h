@@ -18,9 +18,10 @@ class CDposController::Validator : public CValidationInterface
 {
 public:
     bool validateTx(const CTransaction& tx);
-    bool validateTxs(const std::map<TxIdSorted, CTransaction>& txMap);
-    bool validateBlock(const CBlock& block, const std::map<TxIdSorted, CTransaction>& txMap, bool flag);
+    bool preValidateTx(const CTransaction& tx, uint32_t txExpiringSoonThreshold);
+    bool validateBlock(const CBlock& block, bool fJustCheckPoW);
     bool allowArchiving(const BlockHash& blockHash);
+    BlockHash getPrevBlock(const BlockHash& blockHash);
 
     static int computeBlockHeight(const BlockHash& blockHash, int maxDeep = -1);
 

@@ -5,11 +5,19 @@
 #include "../main.h"
 #include "../snark/libsnark/common/utils.hpp"
 
-namespace dpos
+namespace dpos {
+
+BlockHash CDposController::Validator::getPrevBlock(const BlockHash &blockHash)
 {
+    AssertLockHeld(cs_main);
+    const int height = computeBlockHeight(blockHash, MAX_BLOCKS_TO_KEEP);
+    if (height <= 0)
+        return BlockHash{};
+    return chainActive[height - 1]->GetBlockHash();
+}
 
 /// @return false if tx is unusable in any future block
-bool CDposController::Validator::validateTx(const CTransaction& tx)
+bool CDposController::Validator::preValidateTx(const CTransaction& tx, uint32_t txExpiringSoonThreshold)
 {
     AssertLockHeld(cs_main);
     ScopedNoLogging noLogging; // suppress logs
@@ -17,20 +25,8 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
     if (!tx.fInstant)
         return false;
 
-    // check inputs if prevout is already included into a block
-    for (auto&& in : tx.vin) {
-        BlockHash blockHash{};
-        CTransaction dummy;
-        const bool knownTxInView = pcoinsTip->HaveCoins(in.prevout.hash);
-        const bool knownTx = knownTxInView || (GetTransaction(in.prevout.hash, dummy, blockHash, false) && !blockHash.IsNull());
-
-        if (knownTx) { // check inputs only for known txs, because if tx isn't known, it may depend on another instant tx, which is checked by validateTxs()
-            const CCoins* coins = pcoinsTip->AccessCoins(in.prevout.hash);
-            if (!coins || !coins->IsAvailable(in.prevout.n)) {
-                return false;
-            }
-        }
-    }
+    if (!tx.vjoinsplit.empty()) // no sprout txs
+        return false;
 
     {
         std::vector<unsigned char> metadata_dummy;
@@ -52,7 +48,7 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
     }
 
     // DoS mitigation: reject transactions expiring soon
-    if (IsExpiringSoonTx(tx, nextBlockHeight)) {
+    if (IsExpiredTx(tx, nextBlockHeight + txExpiringSoonThreshold)) {
         return state.DoS(0, error("validateTx(): transaction is expiring soon"), REJECT_INVALID, "tx-expiring-soon");
     }
 
@@ -60,10 +56,13 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
 }
 
 /// @return false if txs cannot be added into next block
-bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransaction>& txMap)
+bool CDposController::Validator::validateTx(const CTransaction& tx)
 {
     AssertLockHeld(cs_main);
     ScopedNoLogging noLogging; // suppress logs
+
+    if (!preValidateTx(tx, 1))
+        return false;
 
     // create dummy block
     CBlock block;
@@ -78,9 +77,8 @@ bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransac
     txNew.nExpiryHeight = 0;
     block.vtx.emplace_back(txNew);
 
-    // insert txs (which we validate) into the block
-    for (const auto& tx_p : txMap)
-        block.vtx.push_back(tx_p.second);
+    // insert tx (which we validate) into the block
+    block.vtx.push_back(tx);
 
     // check block validity
     CValidationState state;
@@ -112,45 +110,15 @@ bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransac
 }
 
 /// @return false if the block cannot be connected
-bool CDposController::Validator::validateBlock(const CBlock& block, const std::map<TxIdSorted, CTransaction>& instantTxsExpected, bool fJustCheckPoW)
+bool CDposController::Validator::validateBlock(const CBlock& block, bool fJustCheckPoW)
 {
     AssertLockHeld(cs_main);
-    ScopedNoLogging noLogging; // suppress logs
     CValidationState state;
 
     if (fJustCheckPoW) {
-        assert(instantTxsExpected.empty());
         if (!CheckBlockHeader(block, state, true))
             return false;
         return ContextualCheckBlockHeader(block, state, chainActive.Tip());
-    }
-
-    // check instant txs are equal to the template
-    const size_t instSectionStart = 1;
-    size_t instSectionEnd = 0;
-    for (unsigned int i = instSectionStart; i < block.vtx.size(); i++) {
-        const CTransaction &tx = block.vtx[i];
-        if (!tx.fInstant) {
-            // txs order will be checked inside TestBlockValidity
-            instSectionEnd = i;
-            break;
-        }
-    }
-    if (instSectionEnd == 0) { // didn't meet !tx.fInstant => all the txs are instant
-        instSectionEnd = block.vtx.size();
-    }
-    if (!instantTxsExpected.empty()) {
-        // check size
-        const size_t instTxsNum = instSectionEnd - instSectionStart;
-        if (instTxsNum != instantTxsExpected.size())
-            return false;
-        // compare txs
-        auto matchInstTx_it = instantTxsExpected.begin();
-        for (size_t i = instSectionStart; i < instSectionEnd; i++) {
-            if (block.vtx[i] != matchInstTx_it->second)
-                return false;
-            matchInstTx_it++;
-        }
     }
 
     // check block validity

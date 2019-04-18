@@ -19,7 +19,7 @@ public:
 
     enum Decision
     {
-        YES = 1, PASS = 2, NO = 3
+        YES = 1
     };
 
     uint256 subject;
@@ -27,7 +27,7 @@ public:
 
     bool isStandardDecision() const
     {
-        return decision == Decision::YES || decision == Decision::PASS || decision == Decision::NO;
+        return decision == Decision::YES;
     }
 
     ADD_SERIALIZE_METHODS;

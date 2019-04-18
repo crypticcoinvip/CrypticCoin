@@ -56,6 +56,8 @@ public:
 
     std::vector<CTransaction> listCommittedTxs() const;
     bool isCommittedTx(const TxId& txid) const;
+    bool checkTxNotCommittable(const TxId& txid) const;
+    bool excludeTxFromBlock_miner(const CTransaction& tx) const;
     bool isTxApprovedByMe(const TxId& txid) const;
     CTxVotingDistribution calcTxVotingStats(const TxId& txid) const;
 
@@ -84,7 +86,7 @@ private:
     bool initialVotesDownload = true;
     std::shared_ptr<CDposVoter> voter;
     std::shared_ptr<Validator> validator;
-    std::set<CInv> vTxReqs;
+    std::set<CInv> vReqs;
     std::map<uint256, CTxVote_p2p> receivedTxVotes;
     std::map<uint256, CRoundVote_p2p> receivedRoundVotes;
 };

@@ -127,11 +127,10 @@ public:
         consensus.dpos.nMinQuorum = 23;
         consensus.dpos.nDelayIBD = 30 * 60;
         consensus.dpos.nPollingPeriod = 60;
-        consensus.dpos.nRoundTooLong = 5 * 60;
         consensus.dpos.nMaxNotVotedTxsToKeep = 2048;
-        consensus.dpos.nMaxTxVotesFromVoter = 1024;
-        consensus.dpos.nMaxTimeBetweenBlocks = 24 * 60 * 60;
-        consensus.dpos.nVotersWaitingTimeout = 6 * 60 * 60;
+        consensus.dpos.nMaxTxVotesFromVoter = 256;
+        consensus.dpos.nMaxTimeBetweenBlocks_v0 = 24 * 60 * 60;
+        consensus.dpos.nMaxTimeBetweenBlocks_v1 = 2 * 60 * 60;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -259,11 +258,10 @@ public:
         consensus.dpos.nMinQuorum = 4;
         consensus.dpos.nDelayIBD = 12 * 60;
         consensus.dpos.nPollingPeriod = 3 * 60;
-        consensus.dpos.nRoundTooLong = 2 * 60;
-        consensus.dpos.nMaxNotVotedTxsToKeep = 1024;
-        consensus.dpos.nMaxTxVotesFromVoter = 64;
-        consensus.dpos.nMaxTimeBetweenBlocks = 20 * 60;
-        consensus.dpos.nVotersWaitingTimeout = 10 * 60;
+        consensus.dpos.nMaxNotVotedTxsToKeep = 12;
+        consensus.dpos.nMaxTxVotesFromVoter = 8;
+        consensus.dpos.nMaxTimeBetweenBlocks_v0 = 20 * 60;
+        consensus.dpos.nMaxTimeBetweenBlocks_v1 = 20 * 60;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -383,13 +381,12 @@ public:
         consensus.dpos.nMinQuorum = 3;
         consensus.dpos.nDelayIBD = 1;
         consensus.dpos.nPollingPeriod = 2;
-        consensus.dpos.nRoundTooLong = 10 * 60;
         consensus.dpos.nMaxNotVotedTxsToKeep = 12;
         consensus.dpos.nMaxTxVotesFromVoter = 8;
-        consensus.dpos.nMaxTimeBetweenBlocks = 60;
-        consensus.dpos.nVotersWaitingTimeout = 30;
+        consensus.dpos.nMaxTimeBetweenBlocks_v0 = 60;
+        consensus.dpos.nMaxTimeBetweenBlocks_v1 = 60;
 
-        consensus.nDposMinPeriodOfIncome = (1 * 60 * 60);
+        consensus.nDposMinPeriodOfIncome = (1 * 30 * 60);
         consensus.nDposMaxPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
 

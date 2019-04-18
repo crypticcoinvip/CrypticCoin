@@ -118,13 +118,19 @@ struct Params {
         size_t nMinQuorum;
         int64_t nDelayIBD;
         int64_t nPollingPeriod;
-        int64_t nRoundTooLong;
 
         size_t nMaxNotVotedTxsToKeep;
         size_t nMaxTxVotesFromVoter;
 
-        int64_t nMaxTimeBetweenBlocks;
-        int64_t nVotersWaitingTimeout;
+        int64_t nMaxTimeBetweenBlocks_v0;
+        int64_t nMaxTimeBetweenBlocks_v1;
+
+        int64_t nMaxTimeBetweenBlocks(int nHeight) const {
+            if (nHeight >= 1000000) {
+                return nMaxTimeBetweenBlocks_v1;
+            }
+            return nMaxTimeBetweenBlocks_v0;
+        }
     };
     dPoS dpos;
     /** dPOS announcement fee */

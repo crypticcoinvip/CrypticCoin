@@ -146,6 +146,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     CAmount nFees_inst = 0;
     bool fDposEnabled = false;
 
+
     const std::vector<CTransaction> committedList = dpos::getController()->listCommittedTxs();
     {
         LOCK2(cs_main, mempool.cs);
@@ -184,6 +185,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         {
             const CTransaction& tx = mi->GetTx();
             if (tx.fInstant)
+                continue;
+            if (dpos::getController()->excludeTxFromBlock_miner(tx))
                 continue;
 
             int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
@@ -260,7 +263,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         }
 
         // Collect transactions into block
-        uint64_t nBlockSize = 1000;
+        uint64_t nBlockSize = 10000;
         uint64_t nBlockTx = 0;
         int nBlockSigOps = 100;
         bool fSortedByFee = (nBlockPrioritySize <= 0);
@@ -275,7 +278,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
                 { // check
                     if (!view.HaveInputs(tx)) {
-                        LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
+                        //LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
                         continue;
                     }
 
@@ -283,7 +286,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                     PrecomputedTransactionData txdata(tx);
                     const unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
                     if (!ContextualCheckInputs(tx, state, view, true, flags, true, txdata, Params().GetConsensus(), consensusBranchId)) {
-                        LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
+                        //LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
                         continue;
                     }
                 }

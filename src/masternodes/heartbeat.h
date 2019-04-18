@@ -53,7 +53,7 @@ class CHeartBeatTracker
 {
     using MessageList = std::list<CHeartBeatMessage>;
     static constexpr time_ms sec{1000ll};
-    static constexpr time_ms maxHeartbeatInFuture{2 * 60 * 60 * sec};
+    static constexpr time_ms maxHeartbeatInFuture{1 * 30 * 60 * sec};
 
 
 public:

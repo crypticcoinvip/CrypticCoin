@@ -33,17 +33,34 @@ public:
 
     using Tick = int;
     using VoterId = size_t;
-    std::set<std::pair<TxId, TxId> > conflicts;
 
     Tick disconnectionPeriod = 5;
 
     Tick minTick = 2;
     Tick maxTick = 100;
 
-    void addConflict(TxId t1, TxId t2)
+    void addConflict(CTransaction& tx1, CTransaction& tx2, bool transperent)
     {
-        conflicts.emplace(t1, t2);
-        conflicts.emplace(t2, t1);
+        CMutableTransaction tx1_m{tx1};
+        CMutableTransaction tx2_m{tx2};
+
+        if (transperent) {
+            tx1_m.vin.resize(1);
+            tx1_m.vin[0].prevout.n = rand();
+            tx1_m.vin[0].prevout.hash = uint256S(std::to_string(rand()));
+
+            tx2_m.vin.resize(2);
+            tx2_m.vin[0] = tx1_m.vin[0];
+        } else {
+            tx1_m.vShieldedSpend.resize(1);
+            tx1_m.vShieldedSpend[0].nullifier = uint256S(std::to_string(rand()));
+
+            tx2_m.vShieldedSpend.resize(1);
+            tx2_m.vShieldedSpend[0].nullifier = tx1_m.vShieldedSpend[0].nullifier;
+        }
+
+        tx1 = {tx1_m};
+        tx2 = {tx2_m};
     }
 
     std::vector<CTransaction> txs;
@@ -99,14 +116,14 @@ public:
                 // generate new vice block, according to current state of the voter
                 if ((rand_r(&seed) % MAX_PROBABILITY) < probabilityOfBlockGeneration) {
                     CBlock newViceBlock{};
-                    newViceBlock.nRound = voters[voterId].getCurrentRound();
+                    newViceBlock.nRound = voters[voterId].getLowestNotOccupiedRound();
                     newViceBlock.nTime = seed;
                     newViceBlock.hashPrevBlock = uint256S("0xB101");
 
-                    const auto committedTxs = voters[voterId].listCommittedTxs();
+                    const auto committedTxs = voters[voterId].listCommittedTxs(uint256S("0xB101")).txs;
                     newViceBlock.vtx.reserve(committedTxs.size());
-                    for (const auto& pair : committedTxs) {
-                        newViceBlock.vtx.emplace_back(pair.second);
+                    for (const auto& tx : committedTxs) {
+                        newViceBlock.vtx.emplace_back(tx);
                     }
 
                     LogPrintf("---- voter#%d: generate vice-block with %d txs, at round %d \n\n",
@@ -151,56 +168,25 @@ public:
     dpos::CDposVoter::Callbacks getValidationCallbacks() const
     {
         dpos::CDposVoter::Callbacks callbacks;
-        auto validateTxs = [=](const std::map<TxIdSorted, CTransaction>& txsIn)
-        {
-            for (const auto& tx1_p : txsIn) {
-                const TxId txid1 = tx1_p.second.GetHash();
-
-                for (const auto& tx2_p : txsIn) {
-                    const TxId txid2 = tx2_p.second.GetHash();
-
-                    if (conflicts.count(std::pair<TxId, TxId>{txid1, txid2}) != 0) {
-                        LogPrintf("txs are conflicted: %s and %s \n", txid1.GetHex(), txid2.GetHex());
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        };
         callbacks.validateTx = [](const CTransaction&)
         {
             return true;
         };
-        callbacks.validateTxs = validateTxs;
-        callbacks.validateBlock =
-            [=](const CBlock& b, const std::map<TxIdSorted, CTransaction>& _committedTxs, bool checkTxs)
-            {
-                if (!checkTxs)
-                    return true;
-
-                std::map<TxIdSorted, CTransaction> committedTxs = _committedTxs;
-                std::map<TxIdSorted, CTransaction> committedTxs_block{};
-                std::map<TxIdSorted, CTransaction> committedTxs_all = _committedTxs;
-
-                for (const auto& tx : b.vtx) {
-                    committedTxs_block.emplace(tx.GetDposSortingHash(), tx);
-                    committedTxs_all.emplace(tx.GetDposSortingHash(), tx);
-                }
-                // check that block contains all the committed txs
-                for (const auto& tx_p : committedTxs) {
-                    if (committedTxs_block.count(tx_p.first) == 0) {
-                        LogPrintf("vice block %s doesn't contain committed tx %s \n", b.GetHash().GetHex(), tx_p.first.GetHex());
-                        return false;
-                    }
-                }
-
-                // check that txs are not controversial
-                return callbacks.validateTxs(committedTxs_all);
-            };
+        callbacks.preValidateTx = [](const CTransaction&, uint32_t)
+        {
+            return true;
+        };
+        callbacks.validateBlock = [](const CBlock& b, bool checkTxs)
+        {
+            return true;
+        };
         callbacks.allowArchiving = [](BlockHash votingId)
         {
             return true;
+        };
+        callbacks.getPrevBlock = [](BlockHash block)
+        {
+            return BlockHash{};
         };
 
         return callbacks;
@@ -293,7 +279,6 @@ TEST(dPoS_storm, OptimisticStorm)
         suit.voters[i].numOfVoters = 32;
         suit.voters[i].maxTxVotesFromVoter = 50;
         suit.voters[i].maxNotVotedTxsToKeep = 100;
-        suit.voters[i].offlineVoters = 0;
         suit.voters[i].updateTip(tip);
         suit.voters[i].setVoting(true, ArithToUint256(arith_uint256{i}));
     }
@@ -302,10 +287,11 @@ TEST(dPoS_storm, OptimisticStorm)
     suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 10;
     ASSERT_LE(suit.run(), suit.maxTick);
 
-    ASSERT_EQ(suit.voters[0].listCommittedTxs().size(), 10);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 10);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0);
 }
 
-/// 2 pairs of conflicted txs, frequent disconnections, big ping, a lot of vice-blocks. 6 mns are down
+/// 2 pairs of conflicted txs, frequent disconnections, big ping, a lot of vice-blocks. 9 mns are down, so 23 mns is jsut enough
 TEST(dPoS_storm, PessimisticStorm)
 {
     StormTestSuit suit{};
@@ -324,7 +310,7 @@ TEST(dPoS_storm, PessimisticStorm)
         LogPrintf("tx%d: %s \n", i, mtx.GetHash().GetHex());
     }
 
-    suit.addConflict(suit.txs[0].GetHash(), suit.txs[1].GetHash());
+    suit.addConflict(suit.txs[0], suit.txs[1], true);
 
     // create voters
     BlockHash tip = uint256S("0xB101");
@@ -336,9 +322,8 @@ TEST(dPoS_storm, PessimisticStorm)
         suit.voters[i].numOfVoters = 32;
         suit.voters[i].maxTxVotesFromVoter = 8;
         suit.voters[i].maxNotVotedTxsToKeep = 4;
-        suit.voters[i].offlineVoters = 6;
         suit.voters[i].updateTip(tip);
-        suit.voters[i].setVoting(i < 26, ArithToUint256(arith_uint256{i}));
+        suit.voters[i].setVoting(i < 23, ArithToUint256(arith_uint256{i}));
     }
 
     suit.randRange = 25;
@@ -348,10 +333,57 @@ TEST(dPoS_storm, PessimisticStorm)
     suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 2000;
     ASSERT_LE(suit.run(), suit.maxTick);
 
-    ASSERT_EQ(suit.voters[0].listCommittedTxs().size(), 2);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 2);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0);
 }
 
-/// 2 pairs of conflicted txs, a lot of not conflixted txs, small number of vice-blocks, rare disconnections, medium ping. 3 mns are down
+/// Like PessimisticStorm, but 10 mns are down, so any quorum is impossible
+TEST(dPoS_storm, ImporssibleStorm)
+{
+    StormTestSuit suit{};
+
+    // create dummy txs
+    for (int i = 0; i < 4; i++) {
+        CMutableTransaction mtx;
+        mtx.fInstant = true;
+        mtx.fOverwintered = true;
+        mtx.nVersion = 4;
+        mtx.nVersionGroupId = SAPLING_VERSION_GROUP_ID;
+        mtx.nExpiryHeight = 0;
+        mtx.nLockTime = i;
+
+        suit.txs.emplace_back(mtx);
+        LogPrintf("tx%d: %s \n", i, mtx.GetHash().GetHex());
+    }
+
+    suit.addConflict(suit.txs[0], suit.txs[1], true);
+
+    // create voters
+    BlockHash tip = uint256S("0xB101");
+    for (uint64_t i = 0; i < 32; i++) {
+        suit.voters.emplace_back(suit.getValidationCallbacks());
+    }
+    for (uint64_t i = 0; i < 32; i++) {
+        suit.voters[i].minQuorum = 23;
+        suit.voters[i].numOfVoters = 32;
+        suit.voters[i].maxTxVotesFromVoter = 8;
+        suit.voters[i].maxNotVotedTxsToKeep = 4;
+        suit.voters[i].updateTip(tip);
+        suit.voters[i].setVoting(i < 22, ArithToUint256(arith_uint256{i}));
+    }
+
+    suit.randRange = 25;
+    suit.maxTick = 1000;
+    suit.minTick = suit.randRange + 1;
+    suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 2000;
+    suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 2000;
+    ASSERT_EQ(suit.run(), suit.maxTick + 1);
+
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 0);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0);
+}
+
+/// 2 pairs of conflicted txs, a lot of not conflicted txs, small number of vice-blocks, rare disconnections, medium ping. 7 mns are down
 TEST(dPoS_storm, RealisticStorm)
 {
     StormTestSuit suit{};
@@ -370,8 +402,10 @@ TEST(dPoS_storm, RealisticStorm)
         LogPrintf("tx%d: %s \n", i, mtx.GetHash().GetHex());
     }
 
-    suit.addConflict(suit.txs[0].GetHash(), suit.txs[1].GetHash());
-    suit.addConflict(suit.txs[2].GetHash(), suit.txs[3].GetHash());
+    suit.addConflict(suit.txs[0], suit.txs[1], false);
+    suit.addConflict(suit.txs[2], suit.txs[3], false);
+    suit.addConflict(suit.txs[4], suit.txs[5], false);
+    suit.addConflict(suit.txs[6], suit.txs[7], false);
 
     // create voters
     BlockHash tip = uint256S("0xB101");
@@ -383,18 +417,18 @@ TEST(dPoS_storm, RealisticStorm)
         suit.voters[i].numOfVoters = 32;
         suit.voters[i].maxTxVotesFromVoter = 200;
         suit.voters[i].maxNotVotedTxsToKeep = 50;
-        suit.voters[i].offlineVoters = 3;
         suit.voters[i].updateTip(tip);
-        suit.voters[i].setVoting(i < 29, ArithToUint256(arith_uint256{i}));
+        suit.voters[i].setVoting(i < 25, ArithToUint256(arith_uint256{i}));
     }
 
     suit.randRange = 10;
-    suit.maxTick = 150;
+    suit.maxTick = 500;
     suit.minTick = suit.randRange + 1;
     suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 5000;
     suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 50000;
     ASSERT_LE(suit.run(), suit.maxTick);
 
-    ASSERT_LE(suit.voters[0].listCommittedTxs().size(), 48);
-    ASSERT_GE(suit.voters[0].listCommittedTxs().size(), 46);
+    ASSERT_LE(suit.voters[0].listCommittedTxs(tip).txs.size(), 46);
+    ASSERT_GE(suit.voters[0].listCommittedTxs(tip).txs.size(), 42);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0);
 }
