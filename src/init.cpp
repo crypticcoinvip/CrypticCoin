@@ -1599,7 +1599,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
                 pcoinsTip = new CCoinsViewCache(pcoinscatcher);
-                pmasternodesview = new CMasternodesView(nMinDbCache << 20, false, fReindex);
+                pmasternodesview = new CMasternodesViewDB(nMinDbCache << 20, false, fReindex);
                 pdposdb = new CDposDB(nMinDbCache << 20, false, fReindex);
 
                 pmasternodesview->Load();

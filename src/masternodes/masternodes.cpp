@@ -199,19 +199,19 @@ bool operator!=(const CDismissVote & a, const CDismissVote & b)
 }
 
 
-CMasternodesView::CMasternodesView(CMasternodesView const & other)
-    : db(other.db->Clone())
-    , allNodes(other.allNodes)
-    , activeNodes(other.activeNodes)
-    , nodesByOwner(other.nodesByOwner)
-    , nodesByOperator(other.nodesByOperator)
-    , votes(other.votes)
-    , votesFrom(other.votesFrom)
-    , votesAgainst(other.votesAgainst)
-    , txsUndo(other.txsUndo)
-    , operatorUndo(other.operatorUndo)
-{
-}
+//CMasternodesView::CMasternodesView(CMasternodesView const & other)
+//    : db(other.db->Clone())
+//    , allNodes(other.allNodes)
+//    , activeNodes(other.activeNodes)
+//    , nodesByOwner(other.nodesByOwner)
+//    , nodesByOperator(other.nodesByOperator)
+//    , votes(other.votes)
+//    , votesFrom(other.votesFrom)
+//    , votesAgainst(other.votesAgainst)
+//    , txsUndo(other.txsUndo)
+//    , operatorUndo(other.operatorUndo)
+//{
+//}
 
 /*
  * Searching MN index 'nodesByOwner' or 'nodesByOperator' for given 'auth' key
@@ -240,58 +240,6 @@ CMasternode const * CMasternodesView::ExistMasternode(uint256 const & id) const
     return &it->second;
 }
 
-/*
- * Loads all data from DB, creates indexes, calculates voting counters
- */
-void CMasternodesView::Load()
-{
-    Clear();
-    // Load masternodes itself, creating indexes
-    db->LoadMasternodes([this] (uint256 & nodeId, CMasternode & node)
-    {
-        node.dismissVotesFrom = 0;
-        node.dismissVotesAgainst = 0;
-        allNodes.insert(std::make_pair(nodeId, node));
-        nodesByOwner.insert(std::make_pair(node.ownerAuthAddress, nodeId));
-        nodesByOperator.insert(std::make_pair(node.operatorAuthAddress, nodeId));
-
-        if (node.IsActive())
-        {
-            activeNodes.insert(nodeId);
-        }
-    });
-
-    // Load dismiss votes and update voting counters
-    db->LoadVotes([this] (uint256 const & voteId, CDismissVote const & vote)
-    {
-        votes.insert(std::make_pair(voteId, vote));
-
-        if (vote.IsActive())
-        {
-            // Indexing only active votes
-            votesFrom.insert(std::make_pair(vote.from, voteId));
-            votesAgainst.insert(std::make_pair(vote.against, voteId));
-
-            // Assumed that node exists
-            ++allNodes.at(vote.from).dismissVotesFrom;
-            ++allNodes.at(vote.against).dismissVotesAgainst;
-        }
-    });
-
-    // Load undo information
-    db->LoadUndo([this] (int height, uint256 const & txid, uint256 const & affectedItem, char undoType)
-    {
-        txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(affectedItem, static_cast<MasternodesTxType>(undoType))));
-
-        // There is the second way: load all 'operator undo' in different loop, but i think here is more "consistent"
-        if (undoType == static_cast<char>(MasternodesTxType::SetOperatorReward))
-        {
-            COperatorUndoRec rec;
-            db->ReadOperatorUndo(txid, rec);
-            operatorUndo.insert(std::make_pair(txid, rec));
-        }
-    });
-}
 
 /*
  * Private. Deactivates vote, decrement counters, save state
@@ -307,9 +255,9 @@ void CMasternodesView::DeactivateVote(uint256 const & voteId, uint256 const & tx
     --allNodes.at(vote.against).dismissVotesAgainst;
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(voteId, MasternodesTxType::DismissVoteRecall)));
-    db->WriteUndo(height, txid, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall));
-    db->WriteDeadIndex(height, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall)); // no matter what, but "DismissVote", or just 'V'
-    db->WriteVote(voteId, vote);
+//    db->WriteUndo(height, txid, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall));
+//    db->WriteDeadIndex(height, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall)); // no matter what, but "DismissVote", or just 'V'
+//    db->WriteVote(voteId, vote);
 }
 
 /*
@@ -329,7 +277,8 @@ void CMasternodesView::DeactivateVotesFor(uint256 const & nodeId, uint256 const 
         {
             // it.first == nodeId (from), it.second == voteId
             DeactivateVote(it.second, txid, height);
-            votesAgainst.erase(votes.at(it.second).against);
+//            votesAgainst.erase(votes.at(it.second).against);
+            votesAgainst.erase(*ExistActiveVoteIndex(VoteIndex::Against, it.first, votes.at(it.second).against));
         });
         votesFrom.erase(range.first, range.second);
     }
@@ -340,13 +289,15 @@ void CMasternodesView::DeactivateVotesFor(uint256 const & nodeId, uint256 const 
         {
             // it->first == nodeId (against), it->second == voteId
             DeactivateVote(it.second, txid, height);
-            votesFrom.erase(votes.at(it.second).from);
+//            votesFrom.erase(votes.at(it.second).from);
+            votesFrom.erase(*ExistActiveVoteIndex(VoteIndex::From, votes.at(it.second).from, it.first));
         });
         votesAgainst.erase(range.first, range.second);
     }
     // Like a checksum, count that node.dismissVotesFrom == node.dismissVotesAgainst == 0 !!!
     assert (node.dismissVotesFrom == 0);
     assert (node.dismissVotesAgainst == 0);
+    assert (votesFrom.size() == votesAgainst.size());
 }
 
 bool CMasternodesView::OnCollateralSpent(uint256 const & nodeId, uint256 const & txid, uint32_t input, int height)
@@ -369,13 +320,13 @@ bool CMasternodesView::OnCollateralSpent(uint256 const & nodeId, uint256 const &
     if (node.deadSinceHeight == -1)
     {
         node.deadSinceHeight = height;
-        db->WriteDeadIndex(height, nodeId, static_cast<char>(MasternodesTxType::AnnounceMasternode)); // no matter what, but "Masternode", or just 'M'
+//        db->WriteDeadIndex(height, nodeId, static_cast<char>(MasternodesTxType::AnnounceMasternode)); // no matter what, but "Masternode", or just 'M'
     }
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(nodeId, MasternodesTxType::CollateralSpent)));
 
-    db->WriteUndo(height, txid, nodeId, static_cast<char>(MasternodesTxType::CollateralSpent));
-    db->WriteMasternode(nodeId, node);
+//    db->WriteUndo(height, txid, nodeId, static_cast<char>(MasternodesTxType::CollateralSpent));
+//    db->WriteMasternode(nodeId, node);
     return true;
 }
 
@@ -397,8 +348,8 @@ bool CMasternodesView::OnMasternodeAnnounce(uint256 const & nodeId, CMasternode 
 
     txsUndo.insert(std::make_pair(std::make_pair(node.height, nodeId), std::make_pair(nodeId, MasternodesTxType::AnnounceMasternode)));
 
-    db->WriteUndo(node.height, nodeId, nodeId, static_cast<char>(MasternodesTxType::AnnounceMasternode));
-    db->WriteMasternode(nodeId, node);
+//    db->WriteUndo(node.height, nodeId, nodeId, static_cast<char>(MasternodesTxType::AnnounceMasternode));
+//    db->WriteMasternode(nodeId, node);
     return true;
 }
 
@@ -425,8 +376,8 @@ bool CMasternodesView::OnMasternodeActivate(uint256 const & txid, uint256 const 
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(nodeId, MasternodesTxType::ActivateMasternode)));
 
-    db->WriteUndo(height, txid, nodeId, static_cast<char>(MasternodesTxType::ActivateMasternode));
-    db->WriteMasternode(nodeId, node);
+//    db->WriteUndo(height, txid, nodeId, static_cast<char>(MasternodesTxType::ActivateMasternode));
+//    db->WriteMasternode(nodeId, node);
     return true;
 }
 
@@ -479,8 +430,8 @@ bool CMasternodesView::OnDismissVote(uint256 const & txid, CDismissVote const & 
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(txid, MasternodesTxType::DismissVote)));
 
-    db->WriteUndo(height, txid, txid, static_cast<char>(MasternodesTxType::DismissVote));
-    db->WriteVote(txid, copy);
+//    db->WriteUndo(height, txid, txid, static_cast<char>(MasternodesTxType::DismissVote));
+//    db->WriteVote(txid, copy);
     // we don't write any nodes here, cause only their counters affected
     return true;
 }
@@ -539,9 +490,9 @@ bool CMasternodesView::OnDismissVoteRecall(uint256 const & txid, uint256 const &
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(voteId, MasternodesTxType::DismissVoteRecall)));
 
-    db->WriteUndo(height, txid, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall));
-    db->WriteDeadIndex(height, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall)); // no matter what, but "DismissVote", or just 'V'
-    db->WriteVote(voteId, vote);
+//    db->WriteUndo(height, txid, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall));
+//    db->WriteDeadIndex(height, voteId, static_cast<char>(MasternodesTxType::DismissVoteRecall)); // no matter what, but "DismissVote", or just 'V'
+//    db->WriteVote(voteId, vote);
 
     votesFrom.erase(*optionalIt);
 
@@ -577,13 +528,13 @@ bool CMasternodesView::OnFinalizeDismissVoting(uint256 const & txid, uint256 con
     if (node.deadSinceHeight == -1)
     {
         node.deadSinceHeight = height;
-        db->WriteDeadIndex(height, nodeId, static_cast<char>(MasternodesTxType::AnnounceMasternode)); // no matter what, but "Masternode", or just 'M'
+//        db->WriteDeadIndex(height, nodeId, static_cast<char>(MasternodesTxType::AnnounceMasternode)); // no matter what, but "Masternode", or just 'M'
     }
 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(nodeId, MasternodesTxType::FinalizeDismissVoting)));
 
-    db->WriteUndo(height, txid, nodeId, static_cast<char>(MasternodesTxType::FinalizeDismissVoting));
-    db->WriteMasternode(nodeId, node);
+//    db->WriteUndo(height, txid, nodeId, static_cast<char>(MasternodesTxType::FinalizeDismissVoting));
+//    db->WriteMasternode(nodeId, node);
 
     return true;
 }
@@ -618,10 +569,10 @@ bool CMasternodesView::OnSetOperatorReward(uint256 const & txid, CKeyID const & 
     txsUndo.insert(std::make_pair(std::make_pair(height, txid), std::make_pair(nodeId, MasternodesTxType::SetOperatorReward)));
     operatorUndo.insert(std::make_pair(txid, operatorUndoRec));
 
-    db->WriteUndo(height, txid, nodeId, static_cast<char>(MasternodesTxType::SetOperatorReward));
-    db->WriteOperatorUndo(txid, operatorUndoRec);
+//    db->WriteUndo(height, txid, nodeId, static_cast<char>(MasternodesTxType::SetOperatorReward));
+//    db->WriteOperatorUndo(txid, operatorUndoRec);
 
-    db->WriteMasternode(nodeId, node);
+//    db->WriteMasternode(nodeId, node);
     return true;
 }
 
@@ -651,10 +602,10 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 if (node.dismissFinalizedTx == uint256())
                 {
                     node.deadSinceHeight = -1;
-                    db->EraseDeadIndex(height, id);
+//                    db->EraseDeadIndex(height, id);
                     activeNodes.insert(id);
                 }
-                db->WriteMasternode(id, node);
+//                db->WriteMasternode(id, node);
             }
             break;
             case MasternodesTxType::AnnounceMasternode:
@@ -665,7 +616,7 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 nodesByOperator.erase(node.operatorAuthAddress);
                 allNodes.erase(id);
 
-                db->EraseMasternode(id);
+//                db->EraseMasternode(id);
             }
             break;
             case MasternodesTxType::ActivateMasternode:
@@ -677,7 +628,7 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
 
                 activeNodes.erase(id);
 
-                db->WriteMasternode(id, node);
+//                db->WriteMasternode(id, node);
             }
             break;
             case MasternodesTxType::SetOperatorReward:
@@ -694,9 +645,9 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 nodesByOperator.insert(std::make_pair(node.operatorAuthAddress, id));
 
                 operatorUndo.erase(txid);
-                db->EraseOperatorUndo(txid);
+//                db->EraseOperatorUndo(txid);
 
-                db->WriteMasternode(id, node);
+//                db->WriteMasternode(id, node);
             }
             break;
             case MasternodesTxType::DismissVote:
@@ -707,11 +658,11 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 --allNodes.at(vote.from).dismissVotesFrom;
                 --allNodes.at(vote.against).dismissVotesAgainst;
 
-                votesFrom.erase(vote.from);
-                votesAgainst.erase(vote.against);
+                votesFrom.erase(*ExistActiveVoteIndex(VoteIndex::From, vote.from, vote.against));
+                votesAgainst.erase(*ExistActiveVoteIndex(VoteIndex::Against, vote.from, vote.against));
                 votes.erase(id);    // last!
 
-                db->EraseVote(id);
+//                db->EraseVote(id);
             }
             break;
             case MasternodesTxType::DismissVoteRecall:
@@ -727,8 +678,8 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 vote.disabledByTx = uint256();
                 vote.deadSinceHeight = -1;
 
-                db->EraseDeadIndex(height, id);
-                db->WriteVote(id, vote);
+//                db->EraseDeadIndex(height, id);
+//                db->WriteVote(id, vote);
             }
             break;
             case MasternodesTxType::FinalizeDismissVoting: // notify that all deactivated child votes will be restored by DismissVoteRecall additional undo
@@ -739,20 +690,20 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 if (node.collateralSpentTx == uint256())
                 {
                     node.deadSinceHeight = -1;
-                    db->EraseDeadIndex(height, id);
+//                    db->EraseDeadIndex(height, id);
                 }
                 if (node.IsActive())
                 {
                     activeNodes.insert(id);
                 }
-                db->WriteMasternode(id, node);
+//                db->WriteMasternode(id, node);
             }
             break;
 
             default:
                 break;
         }
-        db->EraseUndo(height, txid, id); // erase db first! then map (cause iterator)!
+//        db->EraseUndo(height, txid, id); // erase db first! then map (cause iterator)!
         itUndo = txsUndo.erase(itUndo); // instead ++itUndo;
     }
     return true;
@@ -865,27 +816,32 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
         team.insert(std::make_pair(mayJoin[i], TeamData{height, allNodes.at(mayJoin[i]).operatorAuthAddress}));
     }
 
-    if (!db->WriteTeam(height+1, team))
+    if (!WriteDposTeam(height+1, team))
     {
         throw std::runtime_error("Masternodes database is corrupted (writing dPoS team)! Please restart with -reindex to recover.");
     }
     return team;
 }
 
-CTeam CMasternodesView::ReadDposTeam(int height) const
+CTeam CMasternodesView::ReadDposTeam(int) const
 {
-    CTeam team;
-    if (!db->ReadTeam(height, team))
-    {
-        throw std::runtime_error("Masternodes database is corrupted (reading dPoS team)! Please restart with -reindex to recover.");
-    }
-    return team;
+    // we should never got here!
+    assert(false);
+    return {};
+}
+
+bool CMasternodesView::WriteDposTeam(int, const CTeam &)
+{
+    // we should never got here!
+    assert(false);
+    return false;
 }
 
 /*
  *
 */
 extern CFeeRate minRelayTxFee;
+
 std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAmount totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const
 {
     try {
@@ -963,80 +919,120 @@ uint32_t CMasternodesView::GetMinDismissingQuorum()
     }
 }
 
-void CMasternodesView::CommitBatch()
-{
-    db->CommitBatch();
-}
-
-void CMasternodesView::DropBatch()
-{
-    db->DropBatch();
-}
-
-bool CMasternodesView::PruneMasternodesOlder(int height)
+void CMasternodesView::PruneOlder(int height)
 {
     if (height < 0)
     {
-        return true;
+        return;
     }
-    return db->PruneMasternodesOlder(height, [this] (int height, uint256 const & txid, char type)
-    {
-        if (type == static_cast<char>(MasternodesTxType::AnnounceMasternode))
-        {
-            /// @todo @mn assert everything!
-            CMasternode const & node = allNodes.at(txid);
-            assert(!node.IsActive());
 
+    // erase dead nodes
+    for (auto && it = allNodes.begin(); it != allNodes.end(); )
+    {
+        CMasternode const & node = it->second;
+        if(node.deadSinceHeight != -1 && node.deadSinceHeight < height)
+        {
             nodesByOwner.erase(node.ownerAuthAddress);
             nodesByOperator.erase(node.operatorAuthAddress);
-            allNodes.erase(txid);
-
-            db->EraseMasternode(txid);
+            it = allNodes.erase(it);
         }
-        else
+        else ++it;
+    }
+
+    // erase dead votes
+    for (auto && it = votes.begin(); it != votes.end(); )
+    {
+        CDismissVote const & vote = it->second;
+        if(vote.deadSinceHeight != -1 && vote.deadSinceHeight < height)
         {
-            CDismissVote const & vote = votes.at(txid);
-            assert(!vote.IsActive());
             // We dont check vote indexes here, cause it is 'active votes' indexes
-            db->EraseVote(txid);
+            it = votes.erase(it);
         }
-        db->EraseDeadIndex(height, txid);
-    });
+        else ++it;
+    }
+
+    // erase undo info
+    for (auto && it = txsUndo.begin(); it != txsUndo.end(); )
+    {
+        if(it->first.first < height)
+        {
+            // if type is 'SetOperatorReward', erase operatorUndo too
+            if (it->second.second == MasternodesTxType::SetOperatorReward)
+            {
+                operatorUndo.erase(it->first.second);
+            }
+            it = txsUndo.erase(it);
+        }
+        else ++it;
+    }
+
+
 }
 
-bool CMasternodesView::PruneUndoesOlder(int height)
-{
-    if (height < 0)
-    {
-        return true;
-    }
-    return db->PruneUndoesOlder(height, [this] (int height, uint256 const & txid, uint256 const & affectedItem, char undoType)
-    {
-        // Nothing to check or assert here, cause this is only undo info, independed from view state
-        if (undoType == static_cast<char>(MasternodesTxType::SetOperatorReward))
-        {
-            operatorUndo.erase(txid);
-            db->EraseOperatorUndo(txid);
-        }
-        // Remember, that txsUndo is multimap, so erase carefully!!!
-        auto const & range = txsUndo.equal_range(std::make_pair(height, txid));
-        auto const & it = std::find_if(range.first, range.second, [ &affectedItem ] (CTxUndo::value_type const & value) { return value.second.first == affectedItem; });
-        if (it != range.second)
-        {
-            txsUndo.erase(it);
-        }
-        db->EraseUndo(height, txid, affectedItem);
-    });
-}
+//bool CMasternodesView::PruneMasternodesOlder(int height)
+//{
+//    if (height < 0)
+//    {
+//        return true;
+//    }
+//    return db->PruneMasternodesOlder(height, [this] (int height, uint256 const & txid, char type)
+//    {
+//        if (type == static_cast<char>(MasternodesTxType::AnnounceMasternode))
+//        {
+//            /// @todo @mn assert everything!
+//            CMasternode const & node = allNodes.at(txid);
+//            assert(!node.IsActive());
 
-bool CMasternodesView::PruneTeamsOlder(int height)
-{
-    if (height < 0)
-    {
-        return true;
-    }
-    return db->PruneTeamsOlder(height);
-}
+//            nodesByOwner.erase(node.ownerAuthAddress);
+//            nodesByOperator.erase(node.operatorAuthAddress);
+//            allNodes.erase(txid);
+
+//            db->EraseMasternode(txid);
+//        }
+//        else
+//        {
+//            CDismissVote const & vote = votes.at(txid);
+//            assert(!vote.IsActive());
+//            // We dont check vote indexes here, cause it is 'active votes' indexes
+//            db->EraseVote(txid);
+//        }
+//        db->EraseDeadIndex(height, txid);
+//    });
+//}
+
+//bool CMasternodesView::PruneUndoesOlder(int height)
+//{
+//    if (height < 0)
+//    {
+//        return true;
+//    }
+//    return db->PruneUndoesOlder(height, [this] (int height, uint256 const & txid, uint256 const & affectedItem, char undoType)
+//    {
+//        // Nothing to check or assert here, cause this is only undo info, independed from view state
+//        if (undoType == static_cast<char>(MasternodesTxType::SetOperatorReward))
+//        {
+//            operatorUndo.erase(txid);
+//            db->EraseOperatorUndo(txid);
+//        }
+//        // Remember, that txsUndo is multimap, so erase carefully!!!
+//        auto const & range = txsUndo.equal_range(std::make_pair(height, txid));
+//        auto const & it = std::find_if(range.first, range.second, [ &affectedItem ] (CTxUndo::value_type const & value) { return value.second.first == affectedItem; });
+//        if (it != range.second)
+//        {
+//            txsUndo.erase(it);
+//        }
+//        db->EraseUndo(height, txid, affectedItem);
+//    });
+//}
+
+//bool CMasternodesView::PruneTeamsOlder(int height)
+//{
+//    if (height < 0)
+//    {
+//        return true;
+//    }
+//    return db->PruneTeamsOlder(height);
+//}
 
 boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmI(AuthIndex where) const
 {
@@ -1092,6 +1088,7 @@ boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmIActiveOwn
 
 void CMasternodesView::Clear()
 {
+    lastHeight = 0;
     allNodes.clear();
     activeNodes.clear();
     nodesByOwner.clear();
@@ -1103,7 +1100,6 @@ void CMasternodesView::Clear()
 
     txsUndo.clear();
 }
-
 
 /*
  * Checks if given tx is probably one of 'MasternodeTx', returns tx type and serialized metadata in 'data'
@@ -1138,4 +1134,3 @@ MasternodesTxType GuessMasternodeTxType(CTransaction const & tx, std::vector<uns
     metadata.erase(metadata.begin(), metadata.begin() + MnTxMarker.size() + 1);
     return it->second;
 }
-

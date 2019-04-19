@@ -4423,8 +4423,8 @@ bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree, bool fRejectAbsurdFee)
 {
     CValidationState state;
     // May be we don't need to check here against MN tx at all
-    CMasternodesView mnview(*pmasternodesview);
-    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3), fRejectAbsurdFee);
+    CMasternodesViewCache mnview(pmasternodesview);
+    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3, true), fRejectAbsurdFee);
 }
 
 /**

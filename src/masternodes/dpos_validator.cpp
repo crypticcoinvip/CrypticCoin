@@ -94,7 +94,7 @@ bool CDposController::Validator::validateTxs(const std::map<TxIdSorted, CTransac
 
     CCoinsViewCache viewNew(pcoinsTip);
     // Read-only copy of masternodesview. But anyway, it runs 'ConnectBlock' with 'justCheck' here
-    CMasternodesView mnview(*pmasternodesview);
+    CMasternodesViewCache mnview(pmasternodesview);
     CBlockIndex indexDummy(block);
     indexDummy.pprev = chainActive.Tip();
     indexDummy.nHeight = chainActive.Tip()->nHeight + 1;

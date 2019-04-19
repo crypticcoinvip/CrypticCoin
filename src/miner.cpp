@@ -154,7 +154,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         uint32_t consensusBranchId = CurrentEpochBranchId(nHeight, chainparams.GetConsensus());
         const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
         CCoinsViewCache view(pcoinsTip);
-        CMasternodesView mnview(*pmasternodesview);
+
+        CMasternodesViewCache mnview(pmasternodesview);
 
         pblock->nTime = GetAdjustedTime();
         pblock->nRound = dpos::getController()->getCurrentVotingRound(pblock->GetBlockTime(), nHeight);
