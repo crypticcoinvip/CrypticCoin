@@ -24,7 +24,8 @@ CDposController* dposControllerInstance_{nullptr};
 BlockHash getTipHash()
 {
     LOCK(cs_main);
-    assert(chainActive.Tip() != nullptr);
+    if (chainActive.Tip() == nullptr)
+        return BlockHash{};
     return chainActive.Tip()->GetBlockHash();
 }
 
@@ -128,6 +129,10 @@ void CDposController::runEventLoop()
     CDposController* self{getController()};
     const Consensus::Params& params{Params().GetConsensus()};
 
+    while(chainActive.Tip() == nullptr) {
+        MilliSleep(100);
+    }
+
     {
         LOCK(cs_main);
         self->onChainTipUpdated(getTipHash());
@@ -176,24 +181,30 @@ void CDposController::runEventLoop()
                 if (syncPeriod < 1000) // not more often than once in 1s
                     syncPeriod = 1000;
 
-                if (now - lastSyncT > syncPeriod) {
-                    const auto nodes = getNodes(); // protected by cs inside
-                    if (!nodes.empty()) {
-                        lastSyncT = now;
-                        std::vector<CInv> reqsToSend;
-                        std::vector<BlockHash> interestedVotings;
-                        {
-                            LOCK(cs_main);
-                            reqsToSend.insert(reqsToSend.end(), self->vReqs.begin(), self->vReqs.end());
-                            for (int i = chainActive.Height(); i > 0 && i > (chainActive.Height() - CDposVoter::VOTING_MEMORY); i--)
-                                interestedVotings.push_back(chainActive[i]->GetBlockHash());
-                        }
-                        for (auto&& node : nodes) { // don't lock cs_main here
+                {
+                    std::vector<CInv> reqsToSend;
+                    std::vector<BlockHash> interestedVotings;
+                    {
+                        LOCK(cs_main);
+                        reqsToSend.insert(reqsToSend.end(), self->vReqs.begin(), self->vReqs.end());
+                        for (int i = chainActive.Height(); i > 0 && i > (chainActive.Height() - CDposVoter::VOTING_MEMORY); i--)
+                            interestedVotings.push_back(chainActive[i]->GetBlockHash());
+                    }
+
+                    LOCK(cs_vNodes);
+                    if (!vNodes.empty()) {
+                        // don't lock cs_main here
+                        const auto& fullSyncNode = vNodes[rand() % vNodes.size()];
+                        if (now - lastSyncT > syncPeriod) { // send full sync req only to one node, only once within syncPeriod
                             for (auto&& v : interestedVotings) {
-                                node->PushMessage("getvblocks", v);
-                                node->PushMessage("getrvotes", v);
-                                node->PushMessage("gettxvotes", v, self->getTxsFilter());
+                                fullSyncNode->PushMessage("getvblocks", v);
+                                fullSyncNode->PushMessage("getrvotes", v);
+                                fullSyncNode->PushMessage("gettxvotes", v, self->getTxsFilter());
                             }
+                            lastSyncT = now;
+                        }
+
+                        for (auto&& node : vNodes) { // send concrete requests to all the vNodes every second
                             if (!reqsToSend.empty())
                                 node->PushMessage("getdata", reqsToSend);
                         }
