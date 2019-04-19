@@ -285,13 +285,13 @@ void test_disjunction_gadget(const size_t n)
         d.generate_r1cs_witness();
 
 #ifdef DEBUG
-        printf("positive test for %zu\n", w);
+//        printf("positive test for %zu\n", w);
 #endif
         assert(pb.val(output) == (w ? FieldT::one() : FieldT::zero()));
         assert(pb.is_satisfied());
 
 #ifdef DEBUG
-        printf("negative test for %zu\n", w);
+//        printf("negative test for %zu\n", w);
 #endif
         pb.val(output) = (w ? FieldT::zero() : FieldT::one());
         assert(!pb.is_satisfied());
@@ -376,13 +376,13 @@ void test_conjunction_gadget(const size_t n)
         c.generate_r1cs_witness();
 
 #ifdef DEBUG
-        printf("positive test for %zu\n", w);
+//        printf("positive test for %zu\n", w);
 #endif
         assert(pb.val(output) == (w == (UINT64_C(1)<<n) - 1 ? FieldT::one() : FieldT::zero()));
         assert(pb.is_satisfied());
 
 #ifdef DEBUG
-        printf("negative test for %zu\n", w);
+//        printf("negative test for %zu\n", w);
 #endif
         pb.val(output) = (w == (UINT64_C(1)<<n) - 1 ? FieldT::zero() : FieldT::one());
         assert(!pb.is_satisfied());
@@ -464,7 +464,7 @@ void test_comparison_gadget(const size_t n)
             cmp.generate_r1cs_witness();
 
 #ifdef DEBUG
-            printf("positive test for %zu < %zu\n", a, b);
+//            printf("positive test for %zu < %zu\n", a, b);
 #endif
             assert(pb.val(less) == (a < b ? FieldT::one() : FieldT::zero()));
             assert(pb.val(less_or_eq) == (a <= b ? FieldT::one() : FieldT::zero()));
@@ -537,13 +537,13 @@ void test_inner_product_gadget(const size_t n)
 
             g.generate_r1cs_witness();
 #ifdef DEBUG
-            printf("positive test for (%zu, %zu)\n", i, j);
+//            printf("positive test for (%zu, %zu)\n", i, j);
 #endif
             assert(pb.val(result) == FieldT(correct));
             assert(pb.is_satisfied());
 
 #ifdef DEBUG
-            printf("negative test for (%zu, %zu)\n", i, j);
+//            printf("negative test for (%zu, %zu)\n", i, j);
 #endif
             pb.val(result) = FieldT(100*n+19);
             assert(!pb.is_satisfied());

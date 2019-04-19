@@ -147,13 +147,13 @@ bool r1cs_constraint_system<FieldT>::is_satisfied(const r1cs_primary_input<Field
         if (!(ares*bres == cres))
         {
 #ifdef DEBUG
-            auto it = constraint_annotations.find(c);
-            printf("constraint %zu (%s) unsatisfied\n", c, (it == constraint_annotations.end() ? "no annotation" : it->second.c_str()));
-            printf("<a,(1,x)> = "); ares.print();
-            printf("<b,(1,x)> = "); bres.print();
-            printf("<c,(1,x)> = "); cres.print();
-            printf("constraint was:\n");
-            dump_r1cs_constraint(constraints[c], full_variable_assignment, variable_annotations);
+//            auto it = constraint_annotations.find(c);
+//            printf("constraint %zu (%s) unsatisfied\n", c, (it == constraint_annotations.end() ? "no annotation" : it->second.c_str()));
+//            printf("<a,(1,x)> = "); ares.print();
+//            printf("<b,(1,x)> = "); bres.print();
+//            printf("<c,(1,x)> = "); cres.print();
+//            printf("constraint was:\n");
+//            dump_r1cs_constraint(constraints[c], full_variable_assignment, variable_annotations);
 #endif // DEBUG
             return false;
         }
@@ -300,7 +300,7 @@ void r1cs_constraint_system<FieldT>::report_linear_constraint_statistics() const
         if (a_is_const || b_is_const)
         {
             auto it = constraint_annotations.find(i);
-            printf("%s\n", (it == constraint_annotations.end() ? FORMAT("", "constraint_%zu", i) : it->second).c_str());
+//            printf("%s\n", (it == constraint_annotations.end() ? FORMAT("", "constraint_%zu", i) : it->second).c_str());
         }
     }
 #endif

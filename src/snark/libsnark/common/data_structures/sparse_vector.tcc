@@ -213,7 +213,7 @@ std::pair<T, sparse_vector<T> > sparse_vector<T>::accumulate(const typename std:
                 copy_over = true;
 
 #ifdef DEBUG
-                print_indent(); printf("doing multiexp for w_%zu ... w_%zu\n", indices[first_pos], indices[last_pos]);
+//                print_indent(); printf("doing multiexp for w_%zu ... w_%zu\n", indices[first_pos], indices[last_pos]);
 #endif
                 accumulated_value = accumulated_value + multi_exp<T, FieldT>(values.begin() + first_pos,
                                                                              values.begin() + last_pos + 1,
@@ -248,7 +248,7 @@ std::pair<T, sparse_vector<T> > sparse_vector<T>::accumulate(const typename std:
     if (in_block)
     {
 #ifdef DEBUG
-        print_indent(); printf("doing multiexp for w_%zu ... w_%zu\n", indices[first_pos], indices[last_pos]);
+//        print_indent(); printf("doing multiexp for w_%zu ... w_%zu\n", indices[first_pos], indices[last_pos]);
 #endif
         accumulated_value = accumulated_value + multi_exp<T, FieldT>(values.begin() + first_pos,
                                                                      values.begin() + last_pos + 1,

@@ -155,7 +155,7 @@ void _basic_parallel_radix2_FFT(std::vector<FieldT> &a, const FieldT &omega)
     const size_t log_cpus = ((num_cpus & (num_cpus - 1)) == 0 ? log2(num_cpus) : log2(num_cpus) - 1);
 
 #ifdef DEBUG
-    print_indent(); printf("* Invoking parallel FFT on 2^%zu CPUs (omp_get_max_threads = %zu)\n", log_cpus, num_cpus);
+//    print_indent(); printf("* Invoking parallel FFT on 2^%zu CPUs (omp_get_max_threads = %zu)\n", log_cpus, num_cpus);
 #endif
 
     if (log_cpus == 0)
