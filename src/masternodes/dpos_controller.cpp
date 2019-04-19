@@ -603,7 +603,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
     AssertLockHeld(cs_main);
     if (!out.vErrors.empty()) {
         for (const auto& error : out.vErrors) {
-            LogPrintf("dpos: %s: %s\n", __func__, error);
+            LogPrint("dpos", "dpos: %s: %s\n", __func__, error);
         }
         return false;
     }
