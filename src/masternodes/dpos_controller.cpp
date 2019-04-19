@@ -41,12 +41,6 @@ std::size_t getTeamSizeCount(int height)
     return pmasternodesview->ReadDposTeam(height).size();
 }
 
-std::vector<CNode*> getNodes()
-{
-    LOCK(cs_vNodes);
-    return {vNodes.begin(), vNodes.end()};
-}
-
 CKey getMasternodeKey()
 {
     CKey rv{};
@@ -145,7 +139,7 @@ void CDposController::runEventLoop()
         const int64_t now_sec = GetAdjustedTime();
         const int64_t now{GetTimeMillis()};
 
-        {
+        try {
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
                 if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
                     initialBlocksDownloadPassedT = now;
@@ -191,26 +185,32 @@ void CDposController::runEventLoop()
                             interestedVotings.push_back(chainActive[i]->GetBlockHash());
                     }
 
-                    LOCK(cs_vNodes);
-                    if (!vNodes.empty()) {
-                        // don't lock cs_main here
-                        const auto& fullSyncNode = vNodes[rand() % vNodes.size()];
-                        if (now - lastSyncT > syncPeriod) { // send full sync req only to one node, only once within syncPeriod
-                            for (auto&& v : interestedVotings) {
-                                fullSyncNode->PushMessage("getvblocks", v);
-                                fullSyncNode->PushMessage("getrvotes", v);
-                                fullSyncNode->PushMessage("gettxvotes", v, self->getTxsFilter());
+                    { // don't lock cs_main here
+                        auto nodes = CNodesShared::getSharedList(); // cs_vNodes inside constructor/desctructor
+                        if (!nodes.empty()) {
+                            auto& fullSyncNode = nodes[rand() % nodes.size()];
+                            if (now - lastSyncT >
+                                syncPeriod) { // send full sync req only to one node, only once within syncPeriod
+                                for (auto&& v : interestedVotings) {
+                                    fullSyncNode->PushMessage("getvblocks", v);
+                                    fullSyncNode->PushMessage("getrvotes", v);
+                                    fullSyncNode->PushMessage("gettxvotes", v, self->getTxsFilter());
+                                }
+                                lastSyncT = now;
                             }
-                            lastSyncT = now;
-                        }
 
-                        for (auto&& node : vNodes) { // send concrete requests to all the vNodes every second
-                            if (!reqsToSend.empty())
-                                node->PushMessage("getdata", reqsToSend);
+                            for (auto&& node : nodes) { // send concrete requests to all the nodes every second
+                                if (!reqsToSend.empty())
+                                    node->PushMessage("getdata", reqsToSend);
+                            }
                         }
                     }
                 }
             }
+        } catch (std::exception& e) {
+            LogPrintf("%s: %s \n", __func__, e.what());
+        } catch (...) {
+            LogPrintf("%s: unknown exception \n", __func__);
         }
 
         MilliSleep(1000);

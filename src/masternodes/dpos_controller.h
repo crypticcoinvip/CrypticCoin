@@ -10,10 +10,35 @@
 #include <map>
 #include <memory>
 #include <protocol.h>
+#include <net.h>
 
 class CKeyID;
 class CBlockIndex;
 class CValidationInterface;
+
+// Little helpers to PushMessage to nodes in a thread-safe manner
+class CNodesShared : public std::vector<CNode*> {
+public:
+    CNodesShared() = default;
+    CNodesShared(CNodesShared&&) = default;
+    CNodesShared(const CNodesShared&) = delete;
+
+    static CNodesShared getSharedList() {
+        LOCK(cs_vNodes);
+        CNodesShared vNodesCopy;
+        for (CNode* pnode : vNodes) {
+            vNodesCopy.emplace_back(pnode->AddRef());
+        }
+        return std::move(vNodesCopy);
+    }
+
+    ~CNodesShared() {
+        LOCK(cs_vNodes);
+        for (CNode* pnode : *this) {
+            pnode->Release();
+        }
+    }
+};
 
 namespace dpos
 {
