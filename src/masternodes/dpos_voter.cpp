@@ -117,8 +117,8 @@ void CDposVoter::updateTip(BlockHash tip)
     if (!verifyVotingState())
         assert(!"dPoS database is corrupted (voting state verification failed)! Please restart with -reindex to recover.");
 
-    // filter txs without votes, so txs.size <= maxNotVotedTxsToKeep
-    for (auto it = this->txs.begin(); it != this->txs.end() && this->txs.size() > maxNotVotedTxsToKeep;) {
+    // filter txs without votes, so txs.size <= maxNotVotedTxsToKeep / 2
+    for (auto it = this->txs.begin(); it != this->txs.end() && this->txs.size() > maxNotVotedTxsToKeep / 2;) {
         if (!txHasAnyVote(it->first, this->tip))
             it = this->pruneTx(it);
         else
