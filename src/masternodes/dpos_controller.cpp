@@ -515,7 +515,7 @@ std::vector<CTxVote_p2p> CDposController::listTxVotes() const
     return rv;
 }
 
-std::vector<CTransaction> CDposController::listCommittedTxs() const
+std::vector<CTransaction> CDposController::listCommittedTxs(uint32_t maxdeep) const
 {
     LOCK(cs_main);
 
@@ -523,7 +523,7 @@ std::vector<CTransaction> CDposController::listCommittedTxs() const
     std::vector<CTransaction> rv = this->voter->listCommittedTxs(this->voter->getTip()).txs;
 
     // committed txs for the last votings
-    for (int i = chainActive.Height() - 1; i > chainActive.Height() - CDposVoter::VOTING_MEMORY && i >= 0; i--) {
+    for (int i = chainActive.Height() - 1; i > chainActive.Height() - maxdeep && i >= 0; i--) {
         std::vector<CTransaction> committedList = this->voter->listCommittedTxs(chainActive[i]->GetBlockHash()).txs;
         for (const auto& tx : committedList) {
             rv.push_back(tx);
@@ -533,10 +533,10 @@ std::vector<CTransaction> CDposController::listCommittedTxs() const
     return rv;
 }
 
-bool CDposController::isCommittedTx(const TxId& txid) const
+bool CDposController::isCommittedTx(const TxId& txid, uint32_t maxdeep) const
 {
     LOCK(cs_main);
-    for (int i = chainActive.Height(); i > chainActive.Height() - CDposVoter::VOTING_MEMORY && i >= 0; i--) {
+    for (int i = chainActive.Height(); i > chainActive.Height() - maxdeep && i >= 0; i--) {
         if (this->voter->isCommittedTx(txid, chainActive[i]->GetBlockHash(), 1))
             return true;
     }

@@ -54,8 +54,8 @@ public:
     std::vector<CRoundVote_p2p> listRoundVotes() const;
     std::vector<CTxVote_p2p> listTxVotes() const;
 
-    std::vector<CTransaction> listCommittedTxs() const;
-    bool isCommittedTx(const TxId& txid) const;
+    std::vector<CTransaction> listCommittedTxs(uint32_t maxdeep = CDposVoter::VOTING_MEMORY) const;
+    bool isCommittedTx(const TxId& txid, uint32_t maxdeep = CDposVoter::VOTING_MEMORY) const;
     bool checkTxNotCommittable(const TxId& txid) const;
     bool excludeTxFromBlock_miner(const CTransaction& tx) const;
     bool isTxApprovedByMe(const TxId& txid) const;

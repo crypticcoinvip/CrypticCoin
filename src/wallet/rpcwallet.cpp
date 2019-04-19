@@ -2694,6 +2694,11 @@ UniValue i_listunspent(const UniValue& params, bool fHelp)
 
     UniValue rv{UniValue::VARR};
     for (const auto& tx : dpos::getController()->listCommittedTxs()) {
+        CTransaction dummy;
+        uint256 block;
+        if (GetTransaction(tx.GetHash(), dummy, block, true) && !block.IsNull()) {
+            continue; // only not included into a block txs
+        }
         for (std::size_t i{0}; i < tx.vout.size(); i++) {
             CTxDestination address{};
             UniValue entry{UniValue::VOBJ};
@@ -3405,6 +3410,11 @@ CAmount getInstantBalanceZaddr(std::string address, bool ignoreUnspendable)
 
     for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         LOCK2(cs_main, pwalletMain->cs_wallet);
+        CTransaction dummy;
+        uint256 block;
+        if (GetTransaction(tx.GetHash(), dummy, block, true) && !block.IsNull()) {
+            continue; // only not included into a block txs
+        }
         // Filter the transactions before checking for notes
         if (!CheckFinalTx(tx)) {
             continue;
@@ -4894,6 +4904,7 @@ static const CRPCCommand commands[] =
         {"wallet", "listsinceblock", &listsinceblock, false},
         {"wallet", "listtransactions", &listtransactions, false},
         {"wallet", "listunspent", &listunspent, false},
+        {"wallet", "i_listunspent", &i_listunspent, false},
         {"wallet", "lockunspent", &lockunspent, true},
         {"wallet", "move", &movecmd, false},
         {"wallet", "sendfrom", &sendfrom, false},
