@@ -105,6 +105,9 @@ CDposController& CDposController::getInstance()
             callbacks.validateBlock = std::bind(&Validator::validateBlock, validator, _1, _2);
             callbacks.allowArchiving = std::bind(&Validator::allowArchiving, validator, _1);
             callbacks.getPrevBlock = std::bind(&Validator::getPrevBlock, validator, _1);
+            callbacks.getTime = []() {
+                return GetTimeMillis();
+            };
             std::make_shared<CDposVoter>(callbacks).swap(dposControllerInstance_->voter);
         }
     }
@@ -136,7 +139,6 @@ void CDposController::runEventLoop()
         boost::this_thread::interruption_point();
 
         const BlockHash tip{getTipHash()};
-        const int64_t now_sec = GetAdjustedTime();
         const int64_t now{GetTimeMillis()};
 
         try {
@@ -160,11 +162,16 @@ void CDposController::runEventLoop()
                 for (auto it = self->vReqs.begin(); it != self->vReqs.end();) {
                     CTransaction tx;
                     if (mempool.lookup(it->hash, tx)) {
-                        self->handleVoterOutput(self->voter->applyTx(tx));
+                        CValidationState state;
+                        self->handleVoterOutput(self->voter->applyTx(tx), state);
                         it = self->vReqs.erase(it);
                     } else {
                         it++;
                     }
+                }
+
+                if ((now - self->voter->lastRoundVotedTime) > params.dpos.nDelayBetweenRoundVotes * 1000) {
+                    self->voter->resetRoundVotingTimer();
                 }
             }
 
@@ -181,7 +188,7 @@ void CDposController::runEventLoop()
                     {
                         LOCK(cs_main);
                         reqsToSend.insert(reqsToSend.end(), self->vReqs.begin(), self->vReqs.end());
-                        for (int i = chainActive.Height(); i > 0 && i > (chainActive.Height() - CDposVoter::VOTING_MEMORY); i--)
+                        for (int i = chainActive.Height(); i > 0 && i > (chainActive.Height() - (int) CDposVoter::GUARANTEES_MEMORY); i--)
                             interestedVotings.push_back(chainActive[i]->GetBlockHash());
                     }
 
@@ -340,15 +347,16 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
             this->voter->setVoting(false, CMasternode::ID{});
         }
 
+        CValidationState state;
         this->voter->updateTip(tip);
-        handleVoterOutput(this->voter->requestMissingTxs() + this->voter->doTxsVoting() + this->voter->doRoundVoting());
+        handleVoterOutput(this->voter->requestMissingTxs() + this->voter->doTxsVoting() + this->voter->doRoundVoting(), state);
 
         // periodically rm waste data from old blocks
         cleanUpDb();
     }
 }
 
-void CDposController::proceedViceBlock(const CBlock& viceBlock)
+void CDposController::proceedViceBlock(const CBlock& viceBlock, CValidationState& state)
 {
     bool success = false;
     LOCK(cs_main);
@@ -357,7 +365,7 @@ void CDposController::proceedViceBlock(const CBlock& viceBlock)
         if (!findViceBlock(viceBlock.GetHash())) {
             const CDposVoterOutput out{voter->applyViceBlock(viceBlock)};
 
-            if (handleVoterOutput(out)) {
+            if (handleVoterOutput(out, state)) {
                 success = true;
             }
         }
@@ -368,14 +376,14 @@ void CDposController::proceedViceBlock(const CBlock& viceBlock)
     }
 }
 
-void CDposController::proceedTransaction(const CTransaction& tx)
+void CDposController::proceedTransaction(const CTransaction& tx, CValidationState& state)
 {
     LOCK(cs_main);
     vReqs.erase(CInv{MSG_TX, tx.GetHash()});
-    handleVoterOutput(voter->applyTx(tx));
+    handleVoterOutput(voter->applyTx(tx), state);
 }
 
-void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
+void CDposController::proceedRoundVote(const CRoundVote_p2p& vote, CValidationState& state)
 {
     bool success = false;
     const uint256 voteHash{vote.GetHash()};
@@ -383,7 +391,7 @@ void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
     {
         if (!findRoundVote(voteHash)) {
             this->receivedRoundVotes.emplace(voteHash, vote); // emplace before to be able to find signature to submit block
-            if (acceptRoundVote(vote)) {
+            if (acceptRoundVote(vote, state)) {
                 success = true;
             } else {
                 this->receivedRoundVotes.erase(voteHash);
@@ -396,14 +404,14 @@ void CDposController::proceedRoundVote(const CRoundVote_p2p& vote)
     }
 }
 
-void CDposController::proceedTxVote(const CTxVote_p2p& vote)
+void CDposController::proceedTxVote(const CTxVote_p2p& vote, CValidationState& state)
 {
     bool success = false;
     const uint256 voteHash{vote.GetHash()};
     {
         LOCK(cs_main);
         if (!findTxVote(voteHash)) {
-            if (acceptTxVote(vote)) {
+            if (acceptTxVote(vote, state)) {
                 success = true;
             }
         }
@@ -518,25 +526,13 @@ std::vector<CTxVote_p2p> CDposController::listTxVotes() const
 std::vector<CTransaction> CDposController::listCommittedTxs(uint32_t maxdeep) const
 {
     LOCK(cs_main);
-
-    // committed txs for the tip
-    std::vector<CTransaction> rv = this->voter->listCommittedTxs(this->voter->getTip()).txs;
-
-    // committed txs for the last votings
-    for (int i = chainActive.Height() - 1; i > chainActive.Height() - maxdeep && i >= 0; i--) {
-        std::vector<CTransaction> committedList = this->voter->listCommittedTxs(chainActive[i]->GetBlockHash()).txs;
-        for (const auto& tx : committedList) {
-            rv.push_back(tx);
-        }
-    }
-
-    return rv;
+    return this->voter->listCommittedTxs(this->voter->getTip(), 0, maxdeep).txs;
 }
 
 bool CDposController::isCommittedTx(const TxId& txid, uint32_t maxdeep) const
 {
     LOCK(cs_main);
-    for (int i = chainActive.Height(); i > chainActive.Height() - maxdeep && i >= 0; i--) {
+    for (int i = chainActive.Height(); i > chainActive.Height() - (int) maxdeep && i >= 0; i--) {
         if (this->voter->isCommittedTx(txid, chainActive[i]->GetBlockHash(), 1))
             return true;
     }
@@ -595,17 +591,19 @@ CTxVotingDistribution CDposController::calcTxVotingStats(const TxId& txid) const
 bool CDposController::isTxApprovedByMe(const TxId& txid) const
 {
     LOCK(cs_main);
-    return this->voter->isTxApprovedByMe(txid, this->voter->getTip(), 1);
+    return this->voter->isTxApprovedByMe(txid, this->voter->getTip());
 }
 
-bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
+bool CDposController::handleVoterOutput(const CDposVoterOutput& out, CValidationState& state)
 {
     AssertLockHeld(cs_main);
     if (!out.vErrors.empty()) {
+        if (chainActive.Height() < 1111111)
+            return false;
         for (const auto& error : out.vErrors) {
-            LogPrint("dpos", "dpos: %s: %s\n", __func__, error);
+            LogPrintf("dpos: %s: %s\n", __func__, error);
         }
-        return false;
+        return state.DoS(IsInitialBlockDownload() ? 0 : 1, false, REJECT_INVALID, "dpos-msg-invalid");
     }
 
     if (!out.empty()) {
@@ -657,7 +655,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
         }
 
         if (out.blockToSubmit != boost::none) {
-            CValidationState state{};
+            CValidationState state_{};
             CBlockToSubmit blockToSubmit{out.blockToSubmit.get()};
             CBlock* pblock{&blockToSubmit.block};
             BlockHash blockHash = pblock->GetHash();
@@ -678,7 +676,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
                           __func__,
                           pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE,
                           this->voter->minQuorum);
-            } else if (!ProcessNewBlock(state, nullptr, const_cast<CBlock*>(pblock), true, nullptr)) {
+            } else if (!ProcessNewBlock(state_, nullptr, const_cast<CBlock*>(pblock), true, nullptr)) {
                 LogPrintf("dpos: %s: Can't ProcessNewBlock\n", __func__);
             }
         }
@@ -687,14 +685,14 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out)
     return true;
 }
 
-bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
+bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote, CValidationState& state)
 {
     AssertLockHeld(cs_main);
     bool rv{true};
     const auto mnId{authenticateMsg(vote)};
 
     if (mnId == boost::none) {
-        rv = false;
+        return state.DoS(IsInitialBlockDownload() ? 0 : 1, false, REJECT_INVALID, "dpos-rvote-auth");
     } else {
         CRoundVote roundVote{};
         roundVote.tip = vote.tip;
@@ -702,13 +700,13 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote)
         roundVote.nRound = vote.nRound;
         roundVote.choice = vote.choice;
 
-        rv = handleVoterOutput(voter->applyRoundVote(roundVote));
+        rv = handleVoterOutput(voter->applyRoundVote(roundVote), state);
     }
 
     return rv;
 }
 
-bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
+bool CDposController::acceptTxVote(const CTxVote_p2p& vote, CValidationState& state)
 {
     if (vote.choices.size() != 1) {
         return false; // currently, accept only votes with 1 tx to avoid issues with partially accepted votes
@@ -719,7 +717,7 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
     const auto mnId{authenticateMsg(vote)};
 
     if (mnId == boost::none) {
-        rv = false;
+        return state.DoS(IsInitialBlockDownload() ? 0 : 1, false, REJECT_INVALID, "dpos-txvote-auth");
     } else {
         CTxVote txVote{};
         txVote.tip = vote.tip;
@@ -730,7 +728,7 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote)
         for (const auto& choice : vote.choices) {
             txVote.choice = choice;
 
-            if (!handleVoterOutput(voter->applyTxVote(txVote))) {
+            if (!handleVoterOutput(voter->applyTxVote(txVote), state)) {
                 rv = false;
             }
         }

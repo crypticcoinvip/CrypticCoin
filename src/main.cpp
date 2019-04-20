@@ -221,7 +221,7 @@ namespace {
     void ProcessInventoryCommand(const T& data,
                                  CNode* pfrom,
                                  int msgType,
-                                 std::function<void(const T&)> relayFunc,
+                                 std::function<void(const T&, CValidationState&)> relayFunc,
                                  std::function<bool(const T&, CValidationState&)> validationFunc = [](const T&, CValidationState&){ return true; });
 } // anon namespace
 
@@ -1037,7 +1037,7 @@ bool ContextualCheckTransaction(
                                         dataToBeSigned.begin(), 32,
                                         tx.joinSplitPubKey.begin()
                                         ) != 0) {
-            return state.DoS(isInitBlockDownload() ? 0 : 100,
+            return state.DoS(isInitBlockDownload() ? 0 : 1,
                                 error("CheckTransaction(): invalid joinsplit signature"),
                                 REJECT_INVALID, "bad-txns-invalid-joinsplit-signature");
         }
@@ -1945,12 +1945,12 @@ void Misbehaving(NodeId pnode, int howmuch)
         return;
 
     state->nMisbehavior += howmuch;
-    int banscore = GetArg("-banscore", 100);
+    int banscore = GetArg("-banscore", 500);
     if (state->nMisbehavior >= banscore && state->nMisbehavior - howmuch < banscore)
     {
         LogPrintf("%s: %s (%d -> %d) BAN THRESHOLD EXCEEDED\n", __func__, state->name, state->nMisbehavior-howmuch, state->nMisbehavior);
         state->fShouldBan = true;
-    } else
+    } else if (state->nMisbehavior >= banscore / 5)
         LogPrintf("%s: %s (%d -> %d)\n", __func__, state->name, state->nMisbehavior-howmuch, state->nMisbehavior);
 }
 
@@ -5800,7 +5800,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         LOCK(cs_main);
 
         bool fMissingInputs = false;
-        CValidationState state;
+        CValidationState state; // mempool validation state
+        CValidationState state_dpos; // dpos validation state
 
         pfrom->setAskFor.erase(inv.hash);
         mapAlreadyAskedFor.erase(inv);
@@ -5808,8 +5809,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         const bool areadyHad = AlreadyHave(inv);
 
         // accept to dPoS controller
-        if (tx.fInstant)
-            dpos::getController()->proceedTransaction(tx);
+        if (tx.fInstant) {
+            dpos::getController()->proceedTransaction(tx, state_dpos);
+        }
 
         CMasternodesView mnview(*pmasternodesview);
         if (!areadyHad && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3)))
@@ -5913,8 +5915,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 }
             }
         }
+        // consider instant tx as faulty only if both dpos and mempool said so
         int nDoS = 0;
-        if (state.IsInvalid(nDoS))
+        int nDoS_dpos = 0;
+        if (state.IsInvalid(nDoS) && (!tx.fInstant || state_dpos.IsInvalid(nDoS_dpos)))
         {
             LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n", tx.GetHash().ToString(),
                 pfrom->id, pfrom->cleanSubVer,
@@ -5922,7 +5926,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
                                state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
             if (nDoS > 0)
-                Misbehaving(pfrom->GetId(), nDoS);
+                Misbehaving(pfrom->GetId(), nDoS + nDoS_dpos);
         }
     }
 
@@ -6306,41 +6310,26 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     } else if (strCommand == CInv{MSG_HEARTBEAT, uint256{}}.GetCommand()) {
         CHeartBeatMessage message{};
         vRecv >> message;
-        ProcessInventoryCommand<CHeartBeatMessage>(message, pfrom, MSG_HEARTBEAT, [](const CHeartBeatMessage& message) {
-            CHeartBeatTracker::getInstance().relayMessage(message);
+        ProcessInventoryCommand<CHeartBeatMessage>(message, pfrom, MSG_HEARTBEAT, [](const CHeartBeatMessage& message, CValidationState& state) {
+            CHeartBeatTracker::getInstance().relayMessage(message, state);
         });
     } else if (strCommand == CInv{MSG_ROUND_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         dpos::CRoundVote_p2p vote{};
         vRecv >> vote;
-        ProcessInventoryCommand<dpos::CRoundVote_p2p>(vote, pfrom, MSG_ROUND_VOTE, [](const dpos::CRoundVote_p2p& vote) {
-            dpos::getController()->proceedRoundVote(vote);
+        ProcessInventoryCommand<dpos::CRoundVote_p2p>(vote, pfrom, MSG_ROUND_VOTE, [](const dpos::CRoundVote_p2p& vote, CValidationState& state) {
+            dpos::getController()->proceedRoundVote(vote, state);
         });
     } else if (strCommand == CInv{MSG_TX_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         dpos::CTxVote_p2p vote{};
         vRecv >> vote;
-        ProcessInventoryCommand<dpos::CTxVote_p2p>(vote, pfrom, MSG_TX_VOTE, [](const dpos::CTxVote_p2p& vote) {
-            dpos::getController()->proceedTxVote(vote);
+        ProcessInventoryCommand<dpos::CTxVote_p2p>(vote, pfrom, MSG_TX_VOTE, [](const dpos::CTxVote_p2p& vote, CValidationState& state) {
+            dpos::getController()->proceedTxVote(vote, state);
         });
     } else if (strCommand == CInv{MSG_VICE_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         CBlock block{};
         vRecv >> block;
-        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_VICE_BLOCK, [](const CBlock& block) {
-            dpos::getController()->proceedViceBlock(block);
-        }, [](const CBlock& block, CValidationState& state) {
-            bool mutated{};
-            if (block.hashMerkleRoot != block.BuildMerkleTree(&mutated)) {
-                return state.DoS(100, error("CheckBlock(): merkle root mismatch"),
-                                 REJECT_INVALID, "bad-pro-mrklroot", true);
-            }
-            if (mutated) {
-                return state.DoS(100, error("CheckBlock(): duplicate transaction"),
-                                 REJECT_INVALID, "bad-pro-duplicate", true);
-            }
-            libzcash::ProofVerifier verifier{libzcash::ProofVerifier::Disabled()};
-            if (!CheckBlock(block, state, verifier, true, false)) {
-                return error("%s: CheckBlock FAILED", __func__);
-            }
-            return true;
+        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_VICE_BLOCK, [](const CBlock& block, CValidationState& state) {
+            dpos::getController()->proceedViceBlock(block, state);
         });
     }
 
@@ -7196,7 +7185,7 @@ template<typename T>
 void ProcessInventoryCommand(const T& data,
                              CNode* pfrom,
                              int msgType,
-                             std::function<void(const T&)> relayFunc,
+                             std::function<void(const T&, CValidationState&)> relayFunc,
                              std::function<bool(const T&, CValidationState&)> validationFunc)
 {
     const CInv inv{msgType, data.GetHash()};
@@ -7215,11 +7204,11 @@ void ProcessInventoryCommand(const T& data,
         assert(relayFunc != nullptr);
 
         if (!AlreadyHave(inv)) {
-            relayFunc(data);
+            relayFunc(data, state);
         } else if (pfrom->fWhitelisted) {
             if (!state.IsInvalid(nDoS) || nDoS == 0) {
                 LogPrint("ProcessInventoryCommand", "Force relaying inv %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
-                relayFunc(data);
+                relayFunc(data, state);
             } else {
                 LogPrint("ProcessInventoryCommand", "Not relaying invalid inv %s from whitelisted peer=%d (%s (code %d))\n",
                           inv.hash.ToString(),

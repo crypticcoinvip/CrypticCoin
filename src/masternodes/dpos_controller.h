@@ -15,6 +15,7 @@
 class CKeyID;
 class CBlockIndex;
 class CValidationInterface;
+class CValidationState;
 
 // Little helpers to PushMessage to nodes in a thread-safe manner
 class CNodesShared : public std::vector<CNode*> {
@@ -65,10 +66,10 @@ public:
     Round getCurrentVotingRound(int64_t time, int tipHeight) const;
     Round getCurrentVotingRound(int64_t time, const BlockHash& tipHash) const;
 
-    void proceedViceBlock(const CBlock& viceBlock);
-    void proceedTransaction(const CTransaction& tx);
-    void proceedRoundVote(const CRoundVote_p2p& vote);
-    void proceedTxVote(const CTxVote_p2p& vote);
+    void proceedViceBlock(const CBlock& viceBlock, CValidationState& state);
+    void proceedTransaction(const CTransaction& tx, CValidationState& state);
+    void proceedRoundVote(const CRoundVote_p2p& vote, CValidationState& state);
+    void proceedTxVote(const CTxVote_p2p& vote, CValidationState& state);
 
     bool findViceBlock(const BlockHash& hash, CBlock* block = nullptr) const;
     bool findRoundVote(const BlockHash& hash, CRoundVote_p2p* vote = nullptr) const;
@@ -79,8 +80,8 @@ public:
     std::vector<CRoundVote_p2p> listRoundVotes() const;
     std::vector<CTxVote_p2p> listTxVotes() const;
 
-    std::vector<CTransaction> listCommittedTxs(uint32_t maxdeep = CDposVoter::VOTING_MEMORY) const;
-    bool isCommittedTx(const TxId& txid, uint32_t maxdeep = CDposVoter::VOTING_MEMORY) const;
+    std::vector<CTransaction> listCommittedTxs(uint32_t maxdeep = CDposVoter::GUARANTEES_MEMORY) const;
+    bool isCommittedTx(const TxId& txid, uint32_t maxdeep = CDposVoter::GUARANTEES_MEMORY) const;
     bool checkTxNotCommittable(const TxId& txid) const;
     bool excludeTxFromBlock_miner(const CTransaction& tx) const;
     bool isTxApprovedByMe(const TxId& txid) const;
@@ -99,9 +100,9 @@ private:
     CDposController(CDposController&&) = delete;
     CDposController& operator =(const CDposController&) = delete;
 
-    bool handleVoterOutput(const CDposVoterOutput& out);
-    bool acceptRoundVote(const CRoundVote_p2p& vote);
-    bool acceptTxVote(const CTxVote_p2p& vote);
+    bool handleVoterOutput(const CDposVoterOutput& out, CValidationState& state);
+    bool acceptRoundVote(const CRoundVote_p2p& vote, CValidationState& state);
+    bool acceptTxVote(const CTxVote_p2p& vote, CValidationState& state);
 
     void cleanUpDb();
 

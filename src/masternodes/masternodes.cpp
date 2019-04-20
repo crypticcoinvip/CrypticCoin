@@ -816,7 +816,7 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
             return lhs.second.joinHeight < rhs.second.joinHeight;
         });
     };
-    const int TEAM_V2_HARDFORK_HEIGHT = 1000000;
+    const int TEAM_V2_HARDFORK_HEIGHT = 1111111;
     auto calcOldest = height < TEAM_V2_HARDFORK_HEIGHT ? calcOldestV1 : calcOldestV2;
 
     // erase oldest member

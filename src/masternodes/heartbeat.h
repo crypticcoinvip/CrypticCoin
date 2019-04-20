@@ -10,6 +10,7 @@
 
 class CKey;
 class CInv;
+class CValidationState;
 
 using time_ms = std::int64_t;
 
@@ -64,8 +65,8 @@ public:
     static CHeartBeatTracker& getInstance();
 
     CHeartBeatMessage postMessage(const CKey& signKey, time_ms timestamp = 0);
-    bool recieveMessage(const CHeartBeatMessage& message);
-    bool relayMessage(const CHeartBeatMessage& message);
+    bool recieveMessage(const CHeartBeatMessage& message, CValidationState& state);
+    bool relayMessage(const CHeartBeatMessage& message, CValidationState& state);
 
     bool findReceivedMessage(const uint256& hash, CHeartBeatMessage* message = nullptr) const;
     std::vector<CHeartBeatMessage> getReceivedMessages() const;

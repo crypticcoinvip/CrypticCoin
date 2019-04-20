@@ -50,6 +50,9 @@ TEST(dPoS, DummyEmptyBlock)
     {
         return BlockHash{};
     };
+    callbacks.getTime = []() {
+        return 0;
+    };
 
     // Init voters
     std::vector<CMasternode::ID> masternodeIds;
@@ -60,15 +63,15 @@ TEST(dPoS, DummyEmptyBlock)
     // Create dummy vice-block
     CBlock viceBlock;
     viceBlock.hashPrevBlock = tip;
-    viceBlock.nRound = 1;
+    viceBlock.nRound = 1u;
 
     dpos::CDposVoter::Output res;
-    for (uint64_t i = 0; i < 23; i++) {
+    for (uint64_t i = 0; i < 23u; i++) {
         res += voters[i].applyViceBlock(viceBlock);
 
-        ASSERT_EQ(voters[i].v.size(), 1);
-        ASSERT_EQ(voters[i].txs.size(), 0);
-        ASSERT_EQ(voters[i].pledgedInputs.size(), 0);
+        ASSERT_EQ(voters[i].v.size(), 1u);
+        ASSERT_EQ(voters[i].txs.size(), 0u);
+        ASSERT_EQ(voters[i].pledgedInputs.size(), 0u);
         ASSERT_TRUE(res.vTxVotes.empty());
         ASSERT_TRUE(!res.blockToSubmit);
         ASSERT_TRUE(res.vErrors.empty());
@@ -84,14 +87,14 @@ TEST(dPoS, DummyEmptyBlock)
         ASSERT_EQ(res.vRoundVotes[i], voteWant);
 
         const auto voter0out = voters[0].applyRoundVote(res.vRoundVotes[i]);
-        if (i == 23 - 1) {
+        if (i == 23u - 1u) {
             // final vote
             ASSERT_TRUE(voter0out.vTxVotes.empty());
             ASSERT_TRUE(voter0out.vRoundVotes.empty());
             ASSERT_TRUE(voter0out.vErrors.empty());
             ASSERT_TRUE(voter0out.blockToSubmit != boost::none);
             ASSERT_EQ(voter0out.blockToSubmit->block.GetHash(), viceBlock.GetHash());
-            ASSERT_EQ(voter0out.blockToSubmit->vApprovedBy.size(), 23);
+            ASSERT_EQ(voter0out.blockToSubmit->vApprovedBy.size(), 23u);
         }
         else {
             // not final
@@ -141,6 +144,9 @@ TEST(dPoS, DummyCommitTx)
     {
         return BlockHash{};
     };
+    callbacks.getTime = []() {
+        return 0;
+    };
 
     // Init voters
     std::vector<CMasternode::ID> masternodeIds;
@@ -162,13 +168,13 @@ TEST(dPoS, DummyCommitTx)
     for (uint64_t i = 0; i < 23; i++) {
         res += voters[i].applyTx(tx);
 
-        ASSERT_EQ(voters[i].v.size(), 1);
+        ASSERT_EQ(voters[i].v.size(), 1u);
         ASSERT_TRUE(res.vRoundVotes.empty());
         ASSERT_TRUE(!res.blockToSubmit);
         ASSERT_TRUE(res.vErrors.empty());
         ASSERT_EQ(voters[i].txs[tx.GetHash()].GetHash(), tx.GetHash());
-        ASSERT_EQ(voters[i].pledgedInputs.size(), 1);
-        ASSERT_EQ(voters[i].pledgedInputs.count(tx.vin[0].prevout), 1);
+        ASSERT_EQ(voters[i].pledgedInputs.size(), 1u);
+        ASSERT_EQ(voters[i].pledgedInputs.count(tx.vin[0].prevout), 1u);
 
         dpos::CTxVote voteWant;
         voteWant.voter = masternodeIds[i];
@@ -183,8 +189,8 @@ TEST(dPoS, DummyCommitTx)
         ASSERT_TRUE(voter0out.empty());
         if (i == 23 - 1) {
             // final vote
-            ASSERT_EQ(voters[0].listCommittedTxs(tip).txs.size(), 1);
-            ASSERT_EQ(voters[0].listCommittedTxs(tip).missing.size(), 0);
+            ASSERT_EQ(voters[0].listCommittedTxs(tip).txs.size(), 1u);
+            ASSERT_EQ(voters[0].listCommittedTxs(tip).missing.size(), 0u);
             ASSERT_EQ(voters[0].listCommittedTxs(tip).txs[0].GetHash(), tx.GetHash());
         }
 
@@ -223,6 +229,9 @@ TEST(dPoS, DummyRejectTx)
     {
         return BlockHash{};
     };
+    callbacks.getTime = []() {
+        return 0;
+    };
 
     // Init voters
     std::vector<CMasternode::ID> masternodeIds;
@@ -242,10 +251,10 @@ TEST(dPoS, DummyRejectTx)
     CTransaction tx{mtx};
 
     dpos::CDposVoter::Output res;
-    for (uint64_t i = 0; i < 1; i++) {
+    for (uint64_t i = 0; i < 1u; i++) {
         res += voters[i].applyTx(tx);
 
-        ASSERT_EQ(voters[i].v.size(), 0);
+        ASSERT_EQ(voters[i].v.size(), 0u);
         ASSERT_TRUE(res.vTxReqs.empty());
         ASSERT_TRUE(res.vViceBlockReqs.empty());
         ASSERT_TRUE(res.vRoundVotes.empty());

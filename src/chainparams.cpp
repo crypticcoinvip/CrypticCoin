@@ -126,7 +126,7 @@ public:
         consensus.dpos.nTeamSize = 32;
         consensus.dpos.nMinQuorum = 23;
         consensus.dpos.nDelayIBD = 30 * 60;
-        consensus.dpos.nPollingPeriod = 45;
+        consensus.dpos.nPollingPeriod = 20;
         consensus.dpos.nMaxNotVotedTxsToKeep = 2048;
         consensus.dpos.nMaxTxVotesFromVoter = 256;
         consensus.dpos.nMaxTimeBetweenBlocks_v0 = 24 * 60 * 60;
@@ -134,6 +134,7 @@ public:
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
+        consensus.dpos.nDelayBetweenRoundVotes = 60;
 
         /**
          * The message start string should be awesome! Ⓒ
@@ -258,11 +259,13 @@ public:
         consensus.dpos.nTeamSize = 6;
         consensus.dpos.nMinQuorum = 4;
         consensus.dpos.nDelayIBD = 12 * 60;
-        consensus.dpos.nPollingPeriod = 3 * 60;
+        consensus.dpos.nPollingPeriod = 20;
         consensus.dpos.nMaxNotVotedTxsToKeep = 12;
         consensus.dpos.nMaxTxVotesFromVoter = 8;
         consensus.dpos.nMaxTimeBetweenBlocks_v0 = 20 * 60;
         consensus.dpos.nMaxTimeBetweenBlocks_v1 = 20 * 60;
+        consensus.dpos.nDelayBetweenRoundVotes = 60;
+
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -386,6 +389,7 @@ public:
         consensus.dpos.nMaxTxVotesFromVoter = 8;
         consensus.dpos.nMaxTimeBetweenBlocks_v0 = 60;
         consensus.dpos.nMaxTimeBetweenBlocks_v1 = 60;
+        consensus.dpos.nDelayBetweenRoundVotes = 2;
 
         consensus.nDposMinPeriodOfIncome = (1 * 30 * 60);
         consensus.nDposMaxPeriodOfIncome = (24 * 60 * 60);

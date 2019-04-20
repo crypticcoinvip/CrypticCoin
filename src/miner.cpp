@@ -576,13 +576,13 @@ static bool ProcessBlockFound(CBlock* pblock)
 //        wallet.mapRequestCount[pblock->GetHash()] = 0;
 //    }
 #endif
+    CValidationState state;
     if (dpos::getController()->isEnabled(pblock->GetBlockTime(), pblock->hashPrevBlock)) {
         LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
-            dpos::getController()->proceedViceBlock(*pblock);
+            dpos::getController()->proceedViceBlock(*pblock, state);
     } else {
         LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
         // Process this block the same as if we had received it from another node
-        CValidationState state;
         if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
             return error("CrypticcoinMiner: ProcessNewBlock, block not accepted");
 

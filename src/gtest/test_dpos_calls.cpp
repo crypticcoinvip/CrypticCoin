@@ -74,7 +74,7 @@ TEST(dPoS_calls, TestTxCommitting) {
                 ASSERT_FALSE(voter.isCommittedTx(testTxCommitted_m.GetHash(), blocks[i].GetHash(), 1));
             } else { // committed
                 for (int j = 0; j < blocks.size(); j++) {
-                    if (i == j) //(j <= i && j > i - CDposVoter::VOTING_MEMORY)
+                    if (i == j) //(j <= i && j > i - CDposVoter::GUARANTEES_MEMORY)
                         ASSERT_TRUE(
                                 voter.checkTxNotCommittable(testTxUncommitable_m.GetHash(), blocks[j].GetHash()));
                     else

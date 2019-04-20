@@ -46,17 +46,19 @@ public:
 
         if (transperent) {
             tx1_m.vin.resize(1);
-            tx1_m.vin[0].prevout.n = rand();
+            tx1_m.vin[0].prevout.n = (uint32_t) rand();
             tx1_m.vin[0].prevout.hash = uint256S(std::to_string(rand()));
 
             tx2_m.vin.resize(2);
             tx2_m.vin[0] = tx1_m.vin[0];
         } else {
             tx1_m.vShieldedSpend.resize(1);
+            tx1_m.vShieldedSpend[0].zkproof = libzcash::GrothProof{}; // avoid profiler warnings
+            tx1_m.vShieldedSpend[0].spendAuthSig = SpendDescription::spend_auth_sig_t{}; // avoid profiler warnings
             tx1_m.vShieldedSpend[0].nullifier = uint256S(std::to_string(rand()));
 
             tx2_m.vShieldedSpend.resize(1);
-            tx2_m.vShieldedSpend[0].nullifier = tx1_m.vShieldedSpend[0].nullifier;
+            tx2_m.vShieldedSpend[0] = tx1_m.vShieldedSpend[0];
         }
 
         tx1 = {tx1_m};
@@ -188,6 +190,9 @@ public:
         {
             return BlockHash{};
         };
+        callbacks.getTime = []() {
+            return 0;
+        };
 
         return callbacks;
     }
@@ -256,7 +261,7 @@ TEST(dPoS_storm, OptimisticStorm)
     StormTestSuit suit{};
 
     // create dummy txs
-    for (int i = 0; i < 10; i++) {
+    for (uint32_t i = 0; i < 10u; i++) {
         CMutableTransaction mtx;
         mtx.fInstant = true;
         mtx.fOverwintered = true;
@@ -271,10 +276,10 @@ TEST(dPoS_storm, OptimisticStorm)
 
     // create voters
     BlockHash tip = uint256S("0xB101");
-    for (uint64_t i = 0; i < 32; i++) {
+    for (uint64_t i = 0; i < 32u; i++) {
         suit.voters.emplace_back(suit.getValidationCallbacks());
     }
-    for (uint64_t i = 0; i < 32; i++) {
+    for (uint64_t i = 0; i < 32u; i++) {
         suit.voters[i].minQuorum = 23;
         suit.voters[i].numOfVoters = 32;
         suit.voters[i].maxTxVotesFromVoter = 50;
@@ -287,8 +292,8 @@ TEST(dPoS_storm, OptimisticStorm)
     suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 10;
     ASSERT_LE(suit.run(), suit.maxTick);
 
-    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 10);
-    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 10u);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0u);
 }
 
 /// 2 pairs of conflicted txs, frequent disconnections, big ping, a lot of vice-blocks. 9 mns are down, so 23 mns is jsut enough
@@ -297,7 +302,7 @@ TEST(dPoS_storm, PessimisticStorm)
     StormTestSuit suit{};
 
     // create dummy txs
-    for (int i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < 4u; i++) {
         CMutableTransaction mtx;
         mtx.fInstant = true;
         mtx.fOverwintered = true;
@@ -333,8 +338,8 @@ TEST(dPoS_storm, PessimisticStorm)
     suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 2000;
     ASSERT_LE(suit.run(), suit.maxTick);
 
-    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 2);
-    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 2u);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0u);
 }
 
 /// Like PessimisticStorm, but 10 mns are down, so any quorum is impossible
@@ -343,7 +348,7 @@ TEST(dPoS_storm, ImporssibleStorm)
     StormTestSuit suit{};
 
     // create dummy txs
-    for (int i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < 4u; i++) {
         CMutableTransaction mtx;
         mtx.fInstant = true;
         mtx.fOverwintered = true;
@@ -379,17 +384,17 @@ TEST(dPoS_storm, ImporssibleStorm)
     suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 2000;
     ASSERT_EQ(suit.run(), suit.maxTick + 1);
 
-    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 0);
-    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).txs.size(), 0u);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0u);
 }
 
 /// 2 pairs of conflicted txs, a lot of not conflicted txs, small number of vice-blocks, rare disconnections, medium ping. 7 mns are down
 TEST(dPoS_storm, RealisticStorm)
 {
-    StormTestSuit suit{};
+   StormTestSuit suit{};
 
     // create dummy txs
-    for (int i = 0; i < 50; i++) {
+    for (uint32_t i = 0; i < 50u; i++) {
         CMutableTransaction mtx;
         mtx.fInstant = true;
         mtx.fOverwintered = true;
@@ -428,7 +433,7 @@ TEST(dPoS_storm, RealisticStorm)
     suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 50000;
     ASSERT_LE(suit.run(), suit.maxTick);
 
-    ASSERT_LE(suit.voters[0].listCommittedTxs(tip).txs.size(), 46);
-    ASSERT_GE(suit.voters[0].listCommittedTxs(tip).txs.size(), 42);
-    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0);
+    ASSERT_LE(suit.voters[0].listCommittedTxs(tip).txs.size(), 46u);
+    ASSERT_GE(suit.voters[0].listCommittedTxs(tip).txs.size(), 42u);
+    ASSERT_EQ(suit.voters[0].listCommittedTxs(tip).missing.size(), 0u);
 }

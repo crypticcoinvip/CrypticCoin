@@ -113,6 +113,7 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
 bool CDposController::Validator::validateBlock(const CBlock& block, bool fJustCheckPoW)
 {
     AssertLockHeld(cs_main);
+    ScopedNoLogging noLogging; // suppress logs
     CValidationState state;
 
     if (fJustCheckPoW) {
@@ -170,7 +171,8 @@ void CDposController::Validator::SyncTransaction(const CTransaction& tx, const C
     libsnark::UNUSED(pblock);
     LOCK(cs_main);
     if (mempool.exists(tx.GetHash()) && tx.fInstant) {
-        getController()->proceedTransaction(tx);
+        CValidationState state;
+        getController()->proceedTransaction(tx, state);
     }
 }
 
