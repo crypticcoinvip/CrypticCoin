@@ -89,10 +89,10 @@ public:
 
 private:
     static boost::optional<CMasternode::ID> findMyMasternodeId();
-    static boost::optional<CMasternode::ID> getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth);
+    static boost::optional<CMasternode::ID> getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth, CValidationState& state);
 
-    static boost::optional<CMasternode::ID> authenticateMsg(const CTxVote_p2p& vote);
-    static boost::optional<CMasternode::ID> authenticateMsg(const CRoundVote_p2p& vote);
+    static boost::optional<CMasternode::ID> authenticateMsg(const CTxVote_p2p& vote, CValidationState& state);
+    static boost::optional<CMasternode::ID> authenticateMsg(const CRoundVote_p2p& vote, CValidationState& state);
 
     CDposController() = default;
     ~CDposController() = default;

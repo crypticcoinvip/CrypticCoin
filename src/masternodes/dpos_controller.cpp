@@ -293,7 +293,8 @@ void CDposController::loadDB()
     success = pdposdb->LoadRoundVotes([this](const uint256& voteHash, const CRoundVote_p2p& vote) {
         if (vote.GetHash() != voteHash)
             throw std::runtime_error("dPoS database is corrupted (reading round votes)! Please restart with -reindex to recover.");
-        const auto mnId{authenticateMsg(vote)};
+        CValidationState state;
+        const auto mnId{authenticateMsg(vote, state)};
         if (mnId != boost::none) {
             CRoundVote roundVote{};
             roundVote.tip = vote.tip;
@@ -311,7 +312,8 @@ void CDposController::loadDB()
     success = pdposdb->LoadTxVotes([this](const uint256& voteHash, const CTxVote_p2p& vote) {
         if (vote.GetHash() != voteHash)
             throw std::runtime_error("dPoS database is corrupted (reading tx votes)! Please restart with -reindex to recover.");
-        const auto mnId{authenticateMsg(vote)};
+        CValidationState state;
+        const auto mnId{authenticateMsg(vote, state)};
         if (mnId != boost::none) {
             for (const auto& choice : vote.choices) {
                 CTxVote txVote{};
@@ -664,7 +666,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out, CValidation
                 if (votePair.second.nRound == pblock->nRound &&
                     votePair.second.choice.decision == CVoteChoice::Decision::YES &&
                     votePair.second.choice.subject == blockHash &&
-                    authenticateMsg(votePair.second) != boost::none)
+                    authenticateMsg(votePair.second, state_) != boost::none)
                 {
                     pblock->vSig.insert(pblock->vSig.end(),
                                         votePair.second.signature.begin(),
@@ -689,10 +691,10 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote, CValidationSta
 {
     AssertLockHeld(cs_main);
     bool rv{true};
-    const auto mnId{authenticateMsg(vote)};
+    const auto mnId{authenticateMsg(vote, state)};
 
     if (mnId == boost::none) {
-        return state.DoS(IsInitialBlockDownload() ? 0 : 1, false, REJECT_INVALID, "dpos-rvote-auth");
+        rv = false;
     } else {
         CRoundVote roundVote{};
         roundVote.tip = vote.tip;
@@ -714,10 +716,10 @@ bool CDposController::acceptTxVote(const CTxVote_p2p& vote, CValidationState& st
 
     AssertLockHeld(cs_main);
     bool rv{true};
-    const auto mnId{authenticateMsg(vote)};
+    const auto mnId{authenticateMsg(vote, state)};
 
     if (mnId == boost::none) {
-        return state.DoS(IsInitialBlockDownload() ? 0 : 1, false, REJECT_INVALID, "dpos-txvote-auth");
+        rv = false;
     } else {
         CTxVote txVote{};
         txVote.tip = vote.tip;
@@ -745,18 +747,20 @@ boost::optional<CMasternode::ID> CDposController::findMyMasternodeId()
         return boost::none;
     }
 
-    return getIdOfTeamMember(getTipHash(), mnIds->operatorAuthAddress);
+    CValidationState state;
+    return getIdOfTeamMember(getTipHash(), mnIds->operatorAuthAddress, state);
 }
 
-boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth)
+boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockHash& blockHash, const CKeyID& operatorAuth, CValidationState& state)
 {
     LOCK(cs_main);
     try {
         const int height{Validator::computeBlockHeight(blockHash, MAX_BLOCKS_TO_KEEP)};
         if (height == -1) {
+            // block is unknown - maybe because we didn't sync yet
+            state.DoS(IsInitialBlockDownload() ? 0 : 1, false, REJECT_INVALID, "dpos-msg-unknown-block");
             return boost::none;
         }
-
 
         const CTeam team = pmasternodesview->ReadDposTeam(height);
         for (auto&& member : team)
@@ -766,6 +770,9 @@ boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockH
         }
         if (team.empty()) {
             LogPrintf("dpos: Couldn't read dPoS team as it was already cleared \n");
+        } else {
+            // dPoS team was read, but operator wasn't found
+            state.DoS(10, false, REJECT_INVALID, "dpos-msg-auth");
         }
     } catch (...) {
         return boost::none;
@@ -774,24 +781,26 @@ boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockH
     return boost::none;
 }
 
-boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CTxVote_p2p& vote)
+boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CTxVote_p2p& vote, CValidationState& state)
 {
     CPubKey pubKey{};
     if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature))
     {
+        state.DoS(100, false, REJECT_INVALID, "dpos-txvote-sig-malformed");
         return boost::none;
     }
-    return getIdOfTeamMember(vote.tip, pubKey.GetID());
+    return getIdOfTeamMember(vote.tip, pubKey.GetID(), state);
 }
 
-boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CRoundVote_p2p& vote)
+boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CRoundVote_p2p& vote, CValidationState& state)
 {
     CPubKey pubKey{};
     if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature))
     {
+        state.DoS(100, false, REJECT_INVALID, "dpos-rvote-sig-malformed");
         return boost::none;
     }
-    return getIdOfTeamMember(vote.tip, pubKey.GetID());
+    return getIdOfTeamMember(vote.tip, pubKey.GetID(), state);
 }
 
 void CDposController::cleanUpDb()
