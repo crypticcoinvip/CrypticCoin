@@ -111,6 +111,7 @@ struct Params {
     int64_t MaxActualTimespan() const { return (AveragingWindowTimespan() * (100 + nPowMaxAdjustDown)) / 100; }
     uint256 nMinimumChainWork;
 
+    int nMasternodesV2ForkHeight = 1111111;
     int nMasternodesHeartbeatPeriod;
 
     struct dPoS {

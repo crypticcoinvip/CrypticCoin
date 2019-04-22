@@ -363,6 +363,17 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
                 continue;
 
+            // Restrict votes transactions until nMasternodesV2ForkHeight
+            if (nHeight < Params().GetConsensus().nMasternodesV2ForkHeight)
+            {
+                std::vector<unsigned char> dummy;
+                MasternodesTxType mntxType = GuessMasternodeTxType(tx, dummy);
+                if (mntxType == MasternodesTxType::DismissVote || mntxType == MasternodesTxType::DismissVoteRecall)
+                {
+                    continue;
+                }
+            }
+
             if (!CheckMasternodeTx(mnview, tx, chainparams.GetConsensus(), nHeight))
                 continue;
 

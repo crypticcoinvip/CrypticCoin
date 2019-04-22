@@ -6780,31 +6780,37 @@ bool CheckMasternodeTx(CMasternodesViewCache & mnview, CTransaction const & tx, 
     result = CheckInputsForCollateralSpent(mnview, tx, height, isCheck);
 
     // Check it AFTER collateral spent. note, that ==0 is possible, cause vouts are just a transparent outputs
-    if (tx.vout.size() == 0)
+    if (tx.vout.size() > 0)
     {
-        return result;
-    }
-    // Check if it is masternode tx with metadata
-    std::vector<unsigned char> metadata;
-    MasternodesTxType guess = GuessMasternodeTxType(tx, metadata);
-    switch (guess)
-    {
-        case MasternodesTxType::AnnounceMasternode:
-            return result && CheckAnnounceMasternodeTx(mnview, tx, height, metadata, isCheck);
-        case MasternodesTxType::ActivateMasternode:
-            return result && CheckActivateMasternodeTx(mnview, tx, height, metadata, isCheck);
-        case MasternodesTxType::SetOperatorReward:
-            return result && CheckSetOperatorRewardTx(mnview, tx, height, metadata, isCheck);
-        case MasternodesTxType::DismissVote:
-            return result && CheckDismissVoteTx(mnview, tx, height, metadata, isCheck);
-        case MasternodesTxType::DismissVoteRecall:
-            return result && CheckDismissVoteRecallTx(mnview, tx, height, metadata, isCheck);
-        case MasternodesTxType::FinalizeDismissVoting:
-            return result && CheckFinalizeDismissVotingTx(mnview, tx, height, metadata, isCheck);
-        default:
+        // Check if it is masternode tx with metadata
+        std::vector<unsigned char> metadata;
+        MasternodesTxType guess = GuessMasternodeTxType(tx, metadata);
+        switch (guess)
+        {
+            case MasternodesTxType::AnnounceMasternode:
+                result = result && CheckAnnounceMasternodeTx(mnview, tx, height, metadata, isCheck);
             break;
+            case MasternodesTxType::ActivateMasternode:
+                result = result && CheckActivateMasternodeTx(mnview, tx, height, metadata, isCheck);
+            break;
+            case MasternodesTxType::SetOperatorReward:
+                result = result && CheckSetOperatorRewardTx(mnview, tx, height, metadata, isCheck);
+            break;
+            case MasternodesTxType::DismissVote:
+                result = result && CheckDismissVoteTx(mnview, tx, height, metadata, isCheck);
+            break;
+            case MasternodesTxType::DismissVoteRecall:
+                result = result && CheckDismissVoteRecallTx(mnview, tx, height, metadata, isCheck);
+            break;
+            case MasternodesTxType::FinalizeDismissVoting:
+                result = result && CheckFinalizeDismissVotingTx(mnview, tx, height, metadata, isCheck);
+            break;
+            default:
+                break;
+        }
     }
-    return result;
+    // We are always accept blocks (but skip failed txs) and fails only if it only check (but not real block processing)
+    return isCheck ? result : true;
 }
 
 extern UniValue mn_activate(UniValue const & params, bool fHelp);
@@ -7009,9 +7015,10 @@ bool CheckInputsForCollateralSpent(CMasternodesViewCache & mnview, CTransaction 
         {
             // i - unused
             bool result = mnview.OnCollateralSpent(prevout.hash, tx.GetHash(), i, height);
-            if (result && !isCheck)
+
+            if (!isCheck)
             {
-                LogPrintf("MN: Spent collateral by tx %s for %s at block %d\n", tx.GetHash().GetHex(), prevout.hash.GetHex(), height);
+                LogPrintf("MN %s: Spent collateral by tx %s for %s at block %d\n", result ? "APPROVED" : "SKIPPED", tx.GetHash().GetHex(), prevout.hash.GetHex(), height);
             }
             total = total && result;
         }
@@ -7043,9 +7050,9 @@ bool CheckAnnounceMasternodeTx(CMasternodesViewCache & mnview, CTransaction cons
     }
     node.minActivationHeight = height + std::max(GetMnActivationDelay(), static_cast<int>(mnview.GetActiveMasternodes().size()));
     bool result = mnview.OnMasternodeAnnounce(tx.GetHash(), node);
-    if (result && !isCheck)
+    if (!isCheck)
     {
-        LogPrintf("MN: Announce by tx %s at block %d\n", tx.GetHash().GetHex(), height);
+        LogPrintf("MN %s: Announce by tx %s at block %d\n", result ? "APPLYED" : "SKIPPED", tx.GetHash().GetHex(), height);
     }
     return result;
 }
@@ -7064,9 +7071,9 @@ bool CheckActivateMasternodeTx(CMasternodesViewCache & mnview, CTransaction cons
     // Make it simple, until metadata consists only of masternode id (serialization mismatch?)
     uint256 nodeId(metadata);
     bool result = mnview.OnMasternodeActivate(tx.GetHash(), nodeId, auth, height);
-    if (result && !isCheck)
+    if (!isCheck)
     {
-        LogPrintf("MN: Activate by tx %s for %s at block %d\n", tx.GetHash().GetHex(), nodeId.GetHex(), height);
+        LogPrintf("MN %s: Activate by tx %s for %s at block %d\n", result ? "APPLYED" : "SKIPPED", tx.GetHash().GetHex(), nodeId.GetHex(), height);
     }
     return result;
 }
@@ -7090,10 +7097,10 @@ bool CheckSetOperatorRewardTx(CMasternodesViewCache & mnview, CTransaction const
         return false;
     }
     bool result = mnview.OnSetOperatorReward(tx.GetHash(), auth, newOperatorAuthAddress, newOperatorRewardAddress, newOperatorRewardRatio, height);
-    if (result && !isCheck)
+    if (!isCheck)
     {
         uint256 const nodeId = (*mnview.ExistMasternode(CMasternodesView::AuthIndex::ByOperator, newOperatorAuthAddress))->second;
-        LogPrintf("MN: Set new operator by tx %s for %s at block %d\n", tx.GetHash().GetHex(), nodeId.GetHex(), height);
+        LogPrintf("MN %s: Set new operator by tx %s for %s at block %d\n", result ? "APPLYED" : "SKIPPED", tx.GetHash().GetHex(), nodeId.GetHex(), height);
     }
     return result;
 }
@@ -7105,10 +7112,10 @@ bool CheckDismissVoteTx(CMasternodesViewCache & mnview, CTransaction const & tx,
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     CDismissVote vote(tx, metadata); // note that 'from' is empty!
     bool result = mnview.OnDismissVote(tx.GetHash(), vote, auth, height);
-    if (result && !isCheck)
+    if (!isCheck)
     {
         uint256 const nodeId = (*mnview.ExistMasternode(CMasternodesView::AuthIndex::ByOperator, auth))->second;
-        LogPrintf("MN: Dismiss vote by tx %s from %s against %s at block %d\n", tx.GetHash().GetHex(), nodeId.GetHex(), vote.against.GetHex(), height);
+        LogPrintf("MN %s: Dismiss vote by tx %s from %s against %s at block %d\n", result ? "APPLYED" : "SKIPPED", tx.GetHash().GetHex(), nodeId.GetHex(), vote.against.GetHex(), height);
     }
     return result;
 }
@@ -7120,10 +7127,10 @@ bool CheckDismissVoteRecallTx(CMasternodesViewCache & mnview, CTransaction const
     CKeyID auth = GetPubkeyFromScriptSig(tx.vin[0].scriptSig).GetID();
     uint256 against(metadata);
     bool result = mnview.OnDismissVoteRecall(tx.GetHash(), against, auth, height);
-    if (result && !isCheck)
+    if (!isCheck)
     {
         uint256 const nodeId = (*mnview.ExistMasternode(CMasternodesView::AuthIndex::ByOperator, auth))->second;
-        LogPrintf("MN: Recall dismiss vote by tx %s from %s against %s at block %d\n", tx.GetHash().GetHex(), nodeId.GetHex(), against.GetHex(), height);
+        LogPrintf("MN %s: Recall dismiss vote by tx %s from %s against %s at block %d\n", result ? "APPLYED" : "SKIPPED", tx.GetHash().GetHex(), nodeId.GetHex(), against.GetHex(), height);
     }
     return result;
 }
@@ -7132,9 +7139,9 @@ bool CheckFinalizeDismissVotingTx(CMasternodesViewCache & mnview, CTransaction c
 {
     uint256 against(metadata);
     bool result = mnview.OnFinalizeDismissVoting(tx.GetHash(), against, height);
-    if (result && !isCheck)
+    if (!isCheck)
     {
-        LogPrintf("MN: Finalize dismiss voting by tx %s against %s at block %d\n", tx.GetHash().GetHex(), against.GetHex(), height);
+        LogPrintf("MN %s: Finalize dismiss voting by tx %s against %s at block %d\n", result ? "APPLYED" : "SKIPPED", tx.GetHash().GetHex(), against.GetHex(), height);
     }
     return result;
 }

@@ -198,21 +198,6 @@ bool operator!=(const CDismissVote & a, const CDismissVote & b)
     return !(a == b);
 }
 
-
-//CMasternodesView::CMasternodesView(CMasternodesView const & other)
-//    : db(other.db->Clone())
-//    , allNodes(other.allNodes)
-//    , activeNodes(other.activeNodes)
-//    , nodesByOwner(other.nodesByOwner)
-//    , nodesByOperator(other.nodesByOperator)
-//    , votes(other.votes)
-//    , votesFrom(other.votesFrom)
-//    , votesAgainst(other.votesAgainst)
-//    , txsUndo(other.txsUndo)
-//    , operatorUndo(other.operatorUndo)
-//{
-//}
-
 /*
  * Searching MN index 'nodesByOwner' or 'nodesByOperator' for given 'auth' key
  */
@@ -615,7 +600,6 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 nodesByOwner.erase(node.ownerAuthAddress);
                 nodesByOperator.erase(node.operatorAuthAddress);
                 allNodes.erase(id);
-
 //                db->EraseMasternode(id);
             }
             break;
@@ -627,7 +611,6 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 node.activationHeight = -1;
 
                 activeNodes.erase(id);
-
 //                db->WriteMasternode(id, node);
             }
             break;
@@ -646,7 +629,6 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
 
                 operatorUndo.erase(txid);
 //                db->EraseOperatorUndo(txid);
-
 //                db->WriteMasternode(id, node);
             }
             break;
@@ -661,7 +643,6 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
                 votesFrom.erase(*ExistActiveVoteIndex(VoteIndex::From, vote.from, vote.against));
                 votesAgainst.erase(*ExistActiveVoteIndex(VoteIndex::Against, vote.from, vote.against));
                 votes.erase(id);    // last!
-
 //                db->EraseVote(id);
             }
             break;
@@ -677,7 +658,6 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
 
                 vote.disabledByTx = uint256();
                 vote.deadSinceHeight = -1;
-
 //                db->EraseDeadIndex(height, id);
 //                db->WriteVote(id, vote);
             }
@@ -767,8 +747,7 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
             return lhs.second.joinHeight < rhs.second.joinHeight;
         });
     };
-    const int TEAM_V2_HARDFORK_HEIGHT = 1000000;
-    auto calcOldest = height < TEAM_V2_HARDFORK_HEIGHT ? calcOldestV1 : calcOldestV2;
+    auto calcOldest = height < Params().GetConsensus().nMasternodesV2ForkHeight ? calcOldestV1 : calcOldestV2;
 
     // erase oldest member
     if (team.size() == dPosTeamSize)
@@ -965,74 +944,7 @@ void CMasternodesView::PruneOlder(int height)
         }
         else ++it;
     }
-
-
 }
-
-//bool CMasternodesView::PruneMasternodesOlder(int height)
-//{
-//    if (height < 0)
-//    {
-//        return true;
-//    }
-//    return db->PruneMasternodesOlder(height, [this] (int height, uint256 const & txid, char type)
-//    {
-//        if (type == static_cast<char>(MasternodesTxType::AnnounceMasternode))
-//        {
-//            /// @todo @mn assert everything!
-//            CMasternode const & node = allNodes.at(txid);
-//            assert(!node.IsActive());
-
-//            nodesByOwner.erase(node.ownerAuthAddress);
-//            nodesByOperator.erase(node.operatorAuthAddress);
-//            allNodes.erase(txid);
-
-//            db->EraseMasternode(txid);
-//        }
-//        else
-//        {
-//            CDismissVote const & vote = votes.at(txid);
-//            assert(!vote.IsActive());
-//            // We dont check vote indexes here, cause it is 'active votes' indexes
-//            db->EraseVote(txid);
-//        }
-//        db->EraseDeadIndex(height, txid);
-//    });
-//}
-
-//bool CMasternodesView::PruneUndoesOlder(int height)
-//{
-//    if (height < 0)
-//    {
-//        return true;
-//    }
-//    return db->PruneUndoesOlder(height, [this] (int height, uint256 const & txid, uint256 const & affectedItem, char undoType)
-//    {
-//        // Nothing to check or assert here, cause this is only undo info, independed from view state
-//        if (undoType == static_cast<char>(MasternodesTxType::SetOperatorReward))
-//        {
-//            operatorUndo.erase(txid);
-//            db->EraseOperatorUndo(txid);
-//        }
-//        // Remember, that txsUndo is multimap, so erase carefully!!!
-//        auto const & range = txsUndo.equal_range(std::make_pair(height, txid));
-//        auto const & it = std::find_if(range.first, range.second, [ &affectedItem ] (CTxUndo::value_type const & value) { return value.second.first == affectedItem; });
-//        if (it != range.second)
-//        {
-//            txsUndo.erase(it);
-//        }
-//        db->EraseUndo(height, txid, affectedItem);
-//    });
-//}
-
-//bool CMasternodesView::PruneTeamsOlder(int height)
-//{
-//    if (height < 0)
-//    {
-//        return true;
-//    }
-//    return db->PruneTeamsOlder(height);
-//}
 
 boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmI(AuthIndex where) const
 {
