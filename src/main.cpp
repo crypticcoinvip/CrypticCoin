@@ -4047,14 +4047,11 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
         TryMasternodeAutoDismissVote(*pmasternodesview, height);
         TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, height);
 
-        // Prune old MN data
+        // Prune old MN data. Real trimming of DB will happen on Flash()
         if (height % 100 == 0)
         {
             int pruneHeight = height - std::max(300u, MAX_REORG_LENGTH);
-//            if (pmasternodesview->PruneMasternodesOlder(pruneHeight) && pmasternodesview->PruneUndoesOlder(pruneHeight) && pmasternodesview->PruneTeamsOlder(pruneHeight) == false)
-//            {
-//                return AbortNode("Failed to prune masternodes' data!");
-//            }
+            pmasternodesview->PruneOlder(pruneHeight);
         }
     }
     return true;

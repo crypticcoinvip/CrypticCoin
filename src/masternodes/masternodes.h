@@ -220,7 +220,7 @@ public:
     // 'multi' used only in to ways: for collateral spent and voting finalization (to save deactivated votes)
     typedef std::multimap<std::pair<int, uint256>, std::pair<uint256, MasternodesTxType> > CTxUndo;
     typedef std::map<uint256, COperatorUndoRec> COperatorUndo;
-//    typedef std::map<int, CTeam> CTeams;
+    typedef std::map<int, CTeam> CTeams;
 
     enum class AuthIndex { ByOwner, ByOperator };
     enum class VoteIndex { From, Against };
@@ -238,6 +238,7 @@ protected:
 
     CTxUndo txsUndo;
     COperatorUndo operatorUndo;
+    CTeams teams;
 
     CMasternodesView() {}
 
@@ -261,6 +262,8 @@ protected:
 
         txsUndo = other->txsUndo;
         operatorUndo = other->operatorUndo;
+
+        teams = other->teams;
     }
 
 public:
@@ -321,8 +324,8 @@ public:
     ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against) const;
 
     //! Initial load of all data
-    virtual void Load() { Clear(); }
-    virtual bool Flush() {}
+    virtual bool Load() { assert(false); }
+    virtual bool Flush() { assert(false); }
 
     //! Process event of spending collateral. It is assumed that the node exists
     bool OnCollateralSpent(uint256 const & nodeId, uint256 const & txid, uint32_t input, int height);
@@ -341,7 +344,7 @@ public:
     virtual CTeam ReadDposTeam(int height) const;
 
 protected:
-    virtual bool WriteDposTeam(int height, CTeam const & team);
+    virtual void WriteDposTeam(int height, CTeam const & team);
 
 public:
     //! Calculate rewards to masternodes' team to include it into coinbase
@@ -388,21 +391,7 @@ public:
         base->Init(this);
         return true;
     }
-    CTeam ReadDposTeam(int height) const override
-    {
-        // it will always read real team data
-        return base->ReadDposTeam(height);
-    }
-
-protected:
-    bool WriteDposTeam(int height, CTeam const & team) override
-    {
-        // it will always write real team data
-        return base->WriteDposTeam(height, team);
-    }
 };
-
-
 
 
 //! Checks if given tx is probably one of 'MasternodeTx', returns tx type and serialized metadata in 'data'

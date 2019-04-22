@@ -20,10 +20,9 @@ public:
     {
         return teams.at(blockHeight);
     }
-    bool WriteDposTeam(int blockHeight, CTeam const & team) override
+    void WriteDposTeam(int blockHeight, CTeam const & team) override
     {
         teams[blockHeight] = team;
-        return true;
     }
 private:
     std::map<int, CTeam> teams;

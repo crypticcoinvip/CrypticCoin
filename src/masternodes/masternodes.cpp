@@ -795,25 +795,30 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
         team.insert(std::make_pair(mayJoin[i], TeamData{height, allNodes.at(mayJoin[i]).operatorAuthAddress}));
     }
 
-    if (!WriteDposTeam(height+1, team))
-    {
-        throw std::runtime_error("Masternodes database is corrupted (writing dPoS team)! Please restart with -reindex to recover.");
-    }
+    WriteDposTeam(height+1, team);
     return team;
 }
 
-CTeam CMasternodesView::ReadDposTeam(int) const
+CTeam CMasternodesView::ReadDposTeam(int height) const
 {
-    // we should never got here!
-    assert(false);
+    if (height < Params().GetConsensus().vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight)
+        return {};
+
+    auto const it = teams.find(height);
+    if (it != teams.end())
+        return it->second;
+
+    // Nothing to complain here, cause teams not exists before dPoS activation!
+//    LogPrintf("MN ERROR: Fail to get team at height %d! May be already pruned!\n", height);
     return {};
 }
 
-bool CMasternodesView::WriteDposTeam(int, const CTeam &)
+void CMasternodesView::WriteDposTeam(int height, const CTeam & team)
 {
-    // we should never got here!
-    assert(false);
-    return false;
+    if (height < Params().GetConsensus().vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight)
+        return;
+
+    teams[height] = team;
 }
 
 /*
@@ -944,6 +949,15 @@ void CMasternodesView::PruneOlder(int height)
         }
         else ++it;
     }
+    // erase old teams info
+    for (auto && it = teams.begin(); it != teams.end(); )
+    {
+        if(it->first < height)
+        {
+            it = teams.erase(it);
+        }
+        else ++it;
+    }
 }
 
 boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmI(AuthIndex where) const
@@ -1011,6 +1025,7 @@ void CMasternodesView::Clear()
     votesAgainst.clear();
 
     txsUndo.clear();
+    teams.clear();
 }
 
 /*

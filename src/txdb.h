@@ -142,25 +142,17 @@ protected:
     void WriteOperatorUndo(uint256 const & txid, COperatorUndoRec const & value);
     void EraseOperatorUndo(uint256 const & txid);
 
-    bool ReadTeam(int blockHeight, CTeam & team) const;
-    bool ReWriteTeam(int blockHeight, CTeam const & team);
+    void WriteTeam(int blockHeight, CTeam const & team);
 
 public:
-    bool PruneMasternodesOlder(int height, std::function<void(int, uint256 const &, char)> onErase);
-    bool PruneUndoesOlder(int height, std::function<void(int, uint256 const &, uint256 const &, char)> onErase);
-    bool PruneTeamsOlder(int height);
-
-    void Load() override;
+    bool Load() override;
     bool Flush() override;
-
-    CTeam ReadDposTeam(int height) const override;
-protected:
-    bool WriteDposTeam(int height, CTeam const & team) override;
 
 private:
     bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode) const;
     bool LoadVotes(std::function<void(uint256 const &, CDismissVote const &)> onVote) const;
     bool LoadUndo(std::function<void(int, uint256 const &, uint256 const &, char)> onUndo) const;
+    bool LoadTeams(CTeams & teams) const;
 };
 
 
