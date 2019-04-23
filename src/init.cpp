@@ -399,7 +399,7 @@ std::string HelpMessage(HelpMessageMode mode)
 
     strUsage += HelpMessageGroup(_("Connection options:"));
     strUsage += HelpMessageOpt("-addnode=<ip>", _("Add a node to connect to and attempt to keep the connection open"));
-    strUsage += HelpMessageOpt("-banscore=<n>", strprintf(_("Threshold for disconnecting misbehaving peers (default: %u)"), 100));
+    strUsage += HelpMessageOpt("-banscore=<n>", strprintf(_("Threshold for disconnecting misbehaving peers (default: %u)"), 500));
     strUsage += HelpMessageOpt("-bantime=<n>", strprintf(_("Number of seconds to keep misbehaving peers from reconnecting (default: %u)"), 86400));
     strUsage += HelpMessageOpt("-bind=<addr>", _("Bind to given address and always listen on it. Use [host]:port notation for IPv6"));
     strUsage += HelpMessageOpt("-connect=<ip>", _("Connect only to the specified node(s)"));
@@ -1619,7 +1619,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
                 pcoinsTip = new CCoinsViewCache(pcoinscatcher);
-                pmasternodesview = new CMasternodesView(nMinDbCache << 20, false, fReindex);
+                pmasternodesview = new CMasternodesViewDB(nMinDbCache << 20, false, fReindex);
                 pdposdb = new CDposDB(nMinDbCache << 20, false, fReindex);
 
                 pmasternodesview->Load();

@@ -9,7 +9,8 @@
 
 #include "coins.h"
 #include "dbwrapper.h"
-#include "masternodes/mntypes.h"
+//#include "masternodes/mntypes.h"
+#include "masternodes/masternodes.h"
 
 #include <map>
 #include <string>
@@ -107,27 +108,27 @@ public:
 };
 
 /** Access to the masternodes database (masternodes/) */
-class CMasternodesDB
+class CMasternodesViewDB : public CMasternodesView
 {
 private:
     boost::shared_ptr<CDBWrapper> db;
     boost::scoped_ptr<CDBBatch> batch;
-    const bool readOnly;
 
 public:
-    CMasternodesDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
-    CMasternodesDB(CMasternodesDB const & other);
+    CMasternodesViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    ~CMasternodesViewDB() override {}
+
+protected:
+    // for test purposes only
+    CMasternodesViewDB();
 
 private:
-    CMasternodesDB & operator=(CMasternodesDB const &) = delete;
+    CMasternodesViewDB(CMasternodesViewDB const & other) = delete;
+    CMasternodesViewDB & operator=(CMasternodesViewDB const &) = delete;
 
     template <typename K, typename V>
     void BatchWrite(const K& key, const V& value)
     {
-        if (readOnly)
-        {
-            return;
-        }
         if (!batch)
         {
             batch.reset(new CDBBatch(*db));
@@ -137,10 +138,6 @@ private:
     template <typename K>
     void BatchErase(const K& key)
     {
-        if (readOnly)
-        {
-            return;
-        }
         if (!batch)
         {
             batch.reset(new CDBBatch(*db));
@@ -148,10 +145,12 @@ private:
         batch->Erase<K>(key);
     }
 
-public:
-    bool IsReadOnly() const;
+protected:
     void CommitBatch();
     void DropBatch();
+
+    bool ReadHeight(int & h);
+    void WriteHeight(int h);
 
     void WriteMasternode(uint256 const & txid, CMasternode const & node);
     void EraseMasternode(uint256 const & txid);
@@ -169,18 +168,17 @@ public:
     void WriteOperatorUndo(uint256 const & txid, COperatorUndoRec const & value);
     void EraseOperatorUndo(uint256 const & txid);
 
-    bool ReadTeam(int blockHeight, CTeam & team) const;
-    bool WriteTeam(int blockHeight, CTeam const & team);
-    bool EraseTeam(int blockHeight);
+    void WriteTeam(int blockHeight, CTeam const & team);
 
+public:
+    bool Load() override;
+    bool Flush() override;
+
+private:
     bool LoadMasternodes(std::function<void(uint256 &, CMasternode &)> onNode) const;
     bool LoadVotes(std::function<void(uint256 const &, CDismissVote const &)> onVote) const;
     bool LoadUndo(std::function<void(int, uint256 const &, uint256 const &, char)> onUndo) const;
-
-    bool PruneMasternodesOlder(int height, std::function<void(int, uint256 const &, char)> onErase);
-    bool PruneUndoesOlder(int height, std::function<void(int, uint256 const &, uint256 const &, char)> onErase);
-    bool PruneTeamsOlder(int height);
-
+    bool LoadTeams(CTeams & teams) const;
 };
 
 

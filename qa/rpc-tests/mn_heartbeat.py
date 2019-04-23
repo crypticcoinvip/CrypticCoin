@@ -104,7 +104,7 @@ class MasternodesHeartbeatTest(BitcoinTestFramework):
             if n == 0 or n == 3:
                 owner = self.nodes[n].getnewaddress()
                 collateral = self.nodes[n].getnewaddress()
-                idnode = self.nodes[n].createraw_mn_announce([], {
+                idnode = self.nodes[n].mn_announce([], {
                     "name": "node%d" % n,
                     "ownerAuthAddress": owner,
                     "operatorAuthAddress": self.operators[n],
@@ -124,7 +124,7 @@ class MasternodesHeartbeatTest(BitcoinTestFramework):
         for node in self.nodes:
             for idnode in idnodes:
                 if idnode:
-                    assert_equal(node.dumpmns([idnode])[0]['status'], "announced")
+                    assert_equal(node.mn_list([idnode], True)[0]['status'], "announced")
 
         # Generate blocks for activation height
         for node in self.nodes:
@@ -133,19 +133,17 @@ class MasternodesHeartbeatTest(BitcoinTestFramework):
         for node in self.nodes:
             assert_equal(node.getblockcount(), self.predpos_block_count + 48 - 1)
 
+        # Autoactivation should happen
+        for n in range(3):
+            self.nodes[0].generate(1)
+            self.sync_all()
 
-        # Activate nodes
-        self.nodes[0].createraw_mn_activate([])
-        self.nodes[3].createraw_mn_activate([])
-        self.sync_all()
-        self.nodes[0].generate(1)
-        self.sync_all()
         for node in self.nodes:
             for idnode in idnodes:
                 if idnode:
-                    assert_equal(node.dumpmns([idnode])[0]['status'], "active")
+                    assert_equal(node.mn_list([idnode], True)[0]['status'], "activated")
         for node in self.nodes:
-            assert_equal(node.getblockcount(), self.predpos_block_count + 48)
+            assert_equal(node.getblockcount(), self.predpos_block_count + 50)
 
 
     def run_test(self):
@@ -161,16 +159,16 @@ class MasternodesHeartbeatTest(BitcoinTestFramework):
 
         self.create_masternodes()
 
-        for node in self.nodes:
-            assert_equal(len(node.mn_listheartbeats()), 0)
-        time.sleep(10)
+        print "Exchanging heartbeats for 1 minute ..."
+        time.sleep(60)
+
         for node in self.nodes:
             assert_equal(len(node.mn_listheartbeats()), 2)
 
         for node in self.nodes:
-            assert_equal(len(node.heartbeat_filter_masternodes("recently")), 2)
-            assert_equal(len(node.heartbeat_filter_masternodes("stale")), 0)
-            assert_equal(len(node.heartbeat_filter_masternodes("outdated")), 0)
+            assert_equal(len(node.mn_filterheartbeats("recently")), 2)
+            assert_equal(len(node.mn_filterheartbeats("stale")), 0)
+            assert_equal(len(node.mn_filterheartbeats("outdated")), 0)
 
         print "Done"
 

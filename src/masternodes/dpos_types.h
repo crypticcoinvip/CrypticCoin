@@ -16,7 +16,7 @@ using Round = uint32_t;
 }
 
 using TxId = uint256;
-using TxIdSorted = arith_uint256;
+//using TxIdSorted = arith_uint256;
 using BlockHash = uint256;
 
 #endif //MASTERNODES_DPOS_TYPES_H

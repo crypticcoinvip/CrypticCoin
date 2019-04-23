@@ -8,6 +8,7 @@
 #include "dpos_types.h"
 #include "masternodes.h"
 #include "../primitives/block.h"
+#include <type_traits>
 
 namespace dpos
 {
@@ -41,21 +42,13 @@ bool operator!=(const CRoundVote& l, const CRoundVote& r);
 
 struct CTxVotingDistribution
 {
-    struct Distribution {
-        size_t pro = 0; //< yes
-        size_t contra = 0; //< no
-        size_t abstinendi = 0; //< pass
-        size_t totus() const; //< total
-    };
-
-    Distribution effective; // including PASS virtual votes, created via votes exhaustion rule
-    Distribution real;
+    size_t pro = 0; //< yes
+    size_t totus() const; //< total
 };
 
 struct CRoundVotingDistribution
 {
     std::map<BlockHash, size_t> pro; //< yes
-    size_t abstinendi = 0; //< pass
     size_t totus() const; //< total
 };
 
@@ -77,6 +70,7 @@ struct CDposVoterOutput
     std::vector<CTxVote> vTxVotes;
     std::vector<CRoundVote> vRoundVotes;
     std::vector<TxId> vTxReqs;
+    std::vector<BlockHash> vViceBlockReqs;
     boost::optional<CBlockToSubmit> blockToSubmit;
     std::vector<std::string> vErrors;
 
@@ -94,13 +88,21 @@ struct CDposVoterOutput
 class CDposVoter
 {
 public:
+    using PreValidateTxF = std::function<bool(const CTransaction&, uint32_t txExpiringSoonThreshold)>;
     using ValidateTxF = std::function<bool(const CTransaction&)>;
-    using ValidateTxsF = std::function<bool(const std::map<TxIdSorted, CTransaction>&)>;
-    /// block to validate, dPoS committed txs list, fJustCheckPoW
-    using ValidateBlockF = std::function<bool(const CBlock&, const std::map<TxIdSorted, CTransaction>&, bool)>;
+    /// block to validate, fJustCheckPoW
+    using ValidateBlockF = std::function<bool(const CBlock&, bool)>;
     /// @return true if saving inventories from this block is allowed
     using AllowArchivingF = std::function<bool(const BlockHash&)>;
+    using GetPrevBlockF = std::function<BlockHash(const BlockHash&)>;
+    using GetTimeF = std::function<int64_t()>;
     using Output = CDposVoterOutput;
+
+    // Instant transaction gaurantees are honored for {GUARANTEES_MEMORY} blocks
+    // If dPoS won't get disabled for {GUARANTEES_MEMORY - 1} blocks in a row, then instant transactions are safe
+    static constexpr uint32_t GUARANTEES_MEMORY = 4;
+    // Special marker of ZK nullifiers
+    static constexpr uint32_t Z_OUTPUT_INDEX = std::numeric_limits<uint32_t>::max() - 0xbeef;
 
     /**
     * State of the voting at a specific block hash
@@ -108,14 +110,15 @@ public:
     struct VotingState
     {
         std::map<CMasternode::ID, std::vector<CTxVote> > mnTxVotes;
-        std::map<Round, std::map<TxId, std::map<CMasternode::ID, CTxVote> > > txVotes;
+        std::map<TxId, std::map<CMasternode::ID, CTxVote> > txVotes;
         std::map<Round, std::map<CMasternode::ID, CRoundVote> > roundVotes;
 
         std::map<BlockHash, CBlock> viceBlocks;
 
         bool isNull() const
         {
-            return txVotes.empty() &&
+            return mnTxVotes.empty() &&
+                   txVotes.empty() &&
                    roundVotes.empty() &&
                    viceBlocks.empty();
         }
@@ -127,33 +130,43 @@ public:
     struct Callbacks
     {
         ValidateTxF validateTx;
-        ValidateTxsF validateTxs;
+        PreValidateTxF preValidateTx;
         ValidateBlockF validateBlock;
         AllowArchivingF allowArchiving;
+        GetPrevBlockF getPrevBlock;
+        GetTimeF getTime;
     };
 
     mutable std::map<BlockHash, VotingState> v;
     mutable std::map<TxId, CTransaction> txs;
+    mutable std::multimap<COutPoint, TxId> pledgedInputs; // used inputs -> tx. Only for voted txs
+
+    std::map<TxId, CTransaction>::iterator pruneTx(std::map<TxId, CTransaction>::iterator tx_it);
 
     size_t minQuorum;
     size_t numOfVoters;
 
-    size_t offlineVoters; // don't wait for votes from those nodes
     size_t maxNotVotedTxsToKeep;
     size_t maxTxVotesFromVoter;
 
+    // Primitive timer. When voter creates round vote, it sets this value. Then it should reseted by a controller.
+    // Why not a proper timer? Simpler to do unit testing this way.
+    int64_t lastRoundVotedTime = 0;
+    void resetRoundVotingTimer() {
+        lastRoundVotedTime = 0;
+    };
+
+    /// @param world - blockchain callbacks
     explicit CDposVoter(Callbacks world);
 
     /**
-    *
-    * @param tip - current best block
-    * @param world - blockchain callbacks
     * @param amIvoter is true if voting is enabled and I'm an active operator, member of the team
     * @param me is ID of current masternode
     */
     void setVoting(bool amIvoter,
                    CMasternode::ID me);
 
+    /// @param tip - current best block
     void updateTip(BlockHash tip);
 
     Output applyViceBlock(const CBlock& viceBlock);
@@ -169,60 +182,102 @@ public:
      */
     Output tryToSubmitBlock(BlockHash viceBlockId, Round nRound);
     Output doTxsVoting();
-    /**
-     * Force to vote PASS during this round, if round wasn't voted before.
-     * Called when round didnt come to a consensus/stalemate for a long time.
-     */
-    Output onRoundTooLong();
 
     const BlockHash & getTip() const;
     bool checkAmIVoter() const;
-    Round getCurrentRound() const;
 
-    std::map<TxIdSorted, CTransaction> listCommittedTxs() const;
-    /**
-     * @return transaction which had YES vote from me, from any round
-     */
 
-    struct ApprovedByMeTxsList
+    struct ApprovedViceBlocks
     {
-        std::map<TxIdSorted, CTransaction> txs;
+        std::multimap<COutPoint, TxId> vblockAssignedInputs;
+        std::set<BlockHash> missing;
+    };
+    struct ApprovedTxs
+    {
+        std::map<COutPoint, TxId> assignedInputs;
+        size_t votedTxsSerializeSize;
         std::set<TxId> missing;
     };
-    ApprovedByMeTxsList listApprovedByMe_txs() const;
+    struct CommittedTxs
+    {
+        std::vector<CTransaction> txs;
+        std::set<TxId> missing;
+    };
+    struct MyPledge
+    {
+        ApprovedViceBlocks vblocks;
+        ApprovedTxs approvedTxs;
+        CommittedTxs committedTxs;
+    };
 
-    bool isCommittedTx(const TxId& txid) const;
-    bool isTxApprovedByMe(const TxId& txid) const;
+    /// @param votingsDeep @param votingsSkip [start - votingsSkip, start - votingsDeep]
+    CommittedTxs listCommittedTxs(BlockHash start, uint32_t votingsSkip = 0, uint32_t votingsDeep = 1);
 
-    CTxVotingDistribution calcTxVotingStats(TxId txid, Round nRound) const;
-    CRoundVotingDistribution calcRoundVotingStats(Round nRound) const;
+    bool isCommittedTx(const TxId& txid, BlockHash vot, Round nRound) const;
+    bool isTxApprovedByMe(const TxId& txid, BlockHash vot) const;
 
+    CTxVotingDistribution calcTxVotingStats(TxId txid, BlockHash vot, Round nRound) const;
+    CRoundVotingDistribution calcRoundVotingStats(BlockHash vot, Round nRound) const;
+
+    /// perform sanity check
     bool verifyVotingState() const;
+
+    /// called for miner to choose a round for a vice-block
+    Round getLowestNotOccupiedRound() const;
+
+    // for the wallet
+    /**
+     * Check that tx cannot be committed, due to already known committed (and conflicting) tx
+     */
+    bool checkTxNotCommittable(TxId txid, BlockHash vot) const;
+
+    static std::vector<COutPoint> getInputsOf(const CTransaction& tx);
+    static std::set<COutPoint> getInputsOf_set(const CTransaction& tx);
 
 protected:
     Output misbehavingErr(const std::string& msg) const;
     Output voteForTx(const CTransaction& tx);
+    boost::optional<CRoundVote> voteForViceBlock(const CBlock& viceBlock, MyPledge& pledge) const;
 
     /**
-     * @return transaction which had YES/NO vote from me, from any round. And transaction which had PASS vote from me in this round.
+     * @return true if transaction had any vote from me during the round.
      */
-    bool wasVotedByMe_tx(TxId txid, Round nRound) const;
-    bool wasVotedByMe_round(Round nRound) const;
+    bool wasVotedByMe_tx(TxId txid, BlockHash vot, Round nRound) const;
+    bool wasVotedByMe_round(BlockHash vot, Round nRound) const;
 
-    bool atLeastOneViceBlockIsValid(Round nRound) const;
-    bool txHasAnyVote(TxId txid) const;
-    bool wasTxLost(TxId txid) const;
-    bool checkRoundStalemate(const CRoundVotingDistribution& stats) const;
-    /**
-     * Check that tx cannot be committed, due to already known votes
-     */
-    bool checkTxNotCommittable(const CTxVotingDistribution& stats) const;
+    bool txHasAnyVote(TxId txid, BlockHash vot) const;
+    bool wasTxLost(TxId txid, BlockHash vot) const;
 
-    /**
-     * @param nRound specifies a round to calc voting stats (including abstinendi). If 0, then drop abstinendi part
-     * @return false if all my txs are either committed or not committable, or if one of my txs is missing
-     */
-    void filterFinishedTxs(std::map<TxIdSorted, CTransaction>& txs_f, Round nRound) const;
+    struct PledgeBuilderRanges
+    {
+        // if deep is 5, and skip is 2, then 2 voting to skip, 3 to iterate
+        uint32_t vblocksDeep = GUARANTEES_MEMORY;
+        uint32_t approvedTxsDeep = GUARANTEES_MEMORY;
+        uint32_t committedTxsSkip = 0;
+        uint32_t committedTxsDeep = GUARANTEES_MEMORY;
+    };
+    MyPledge buildMyPledge(PledgeBuilderRanges ranges);
+    void buildApprovedTxsPledge(ApprovedTxs& res, BlockHash vot) const;
+
+    struct PledgeRequiredItems
+    {
+        bool fVblocks = true;
+        bool fApprovedTxs = true;
+        bool fCommittedTxs = true;
+    };
+    /// @return true if all the required items are not missing
+    bool ensurePledgeItemsNotMissing(PledgeRequiredItems r, const std::string& methodName, MyPledge& pledge, Output& out) const;
+
+    template <typename F>
+    void forEachVoting(BlockHash start, uint32_t skip, uint32_t deep, F&& f) {
+        uint32_t i = 0;
+        for (BlockHash vot = start; !vot.IsNull() && i < deep; i++, vot = world.getPrevBlock(vot)) {
+            if (i < skip)
+                continue;
+            f(vot);
+        }
+    }
+
 protected:
     CMasternode::ID me;
     BlockHash tip;

@@ -80,18 +80,6 @@ void EnsureWalletIsUnlocked()
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 }
 
-/// copy-pasted from dpos_voter.cpp. @todo refactor, move into dpos controller
-static bool checkInstTxNotCommittable(const dpos::CTxVotingDistribution& stats, size_t minQuorum, size_t numOfVoters)
-{
-    assert(numOfVoters > 0);
-    assert(minQuorum <= numOfVoters);
-    const size_t totus = stats.effective.totus();
-    const size_t notKnown = totus <= numOfVoters ? numOfVoters - totus : 0;
-
-    // not committed, and not possible to commit
-    return (stats.effective.pro + notKnown) < minQuorum;
-}
-
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 {
     int confirms = wtx.GetDepthInMainChain();
@@ -102,16 +90,14 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
         stats = dpos::getController()->calcTxVotingStats(wtx.GetHash());
 
     std::string dposStatus = "";
-    if (confirms > 0 || stats.effective.pro >= dpos_params.nMinQuorum)
+    if (confirms > 0 || stats.pro >= dpos_params.nMinQuorum)
         dposStatus = "committed";
     if (confirms <= 0) {
-        if (checkInstTxNotCommittable(stats, dpos_params.nMinQuorum, dpos_params.nTeamSize))
-            dposStatus = "deffered";
-        if (stats.effective.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
+        if (dpos::getController()->checkTxNotCommittable(wtx.GetHash()))
             dposStatus = "rejected";
-        if (stats.effective.totus() == 0)
+        else if (stats.totus() == 0)
             dposStatus = "not_voted";
-        if (dposStatus.empty())
+        else if (dposStatus.empty())
             dposStatus = "voting";
     }
     if (confirms < 0 && dposStatus == "not_voted") {
@@ -123,9 +109,7 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
     if (wtx.fInstant)
         entry.push_back(Pair("dpos_status", dposStatus));
     if (wtx.fInstant && confirms <= 0) {
-        entry.push_back(Pair("dpos_yes_votes", static_cast<int>(stats.effective.pro)));
-        entry.push_back(Pair("dpos_no_votes", static_cast<int>(stats.effective.contra)));
-        entry.push_back(Pair("dpos_pass_votes", static_cast<int>(stats.effective.abstinendi)));
+        entry.push_back(Pair("dpos_yes_votes", static_cast<int>(stats.pro)));
     }
     if (wtx.IsCoinBase())
         entry.push_back(Pair("generated", true));
@@ -2464,16 +2448,14 @@ UniValue listunspent(const UniValue& params, bool fHelp)
             stats = dpos::getController()->calcTxVotingStats(out.tx->GetHash());
 
         std::string dposStatus = "";
-        if (out.nDepth > 0 || stats.effective.pro >= dpos_params.nMinQuorum)
+        if (out.nDepth > 0 || stats.pro >= dpos_params.nMinQuorum)
             dposStatus = "committed";
         if (out.nDepth <= 0) {
-            if (checkInstTxNotCommittable(stats, dpos_params.nMinQuorum, dpos_params.nTeamSize))
-                dposStatus = "deffered";
-            if (stats.effective.contra >= (dpos_params.nTeamSize - dpos_params.nMinQuorum + 1))
+            if (dpos::getController()->checkTxNotCommittable(out.tx->GetHash()))
                 dposStatus = "rejected";
-            if (stats.effective.totus() == 0)
+            else if (stats.totus() == 0)
                 dposStatus = "not_voted";
-            if (dposStatus.empty())
+            else if (dposStatus.empty())
                 dposStatus = "voting";
         }
         if (out.nDepth < 0 && dposStatus == "not_voted") {
@@ -2486,9 +2468,7 @@ UniValue listunspent(const UniValue& params, bool fHelp)
         if (out.tx->fInstant)
             entry.push_back(Pair("dpos_status", dposStatus));
         if (out.nDepth <= 0 && out.tx->fInstant) {
-            entry.push_back(Pair("dpos_yes_votes", static_cast<int>(stats.effective.pro)));
-            entry.push_back(Pair("dpos_no_votes", static_cast<int>(stats.effective.contra)));
-            entry.push_back(Pair("dpos_pass_votes", static_cast<int>(stats.effective.abstinendi)));
+            entry.push_back(Pair("dpos_yes_votes", static_cast<int>(stats.pro)));
         }
         entry.push_back(Pair("vout", out.i));
         entry.push_back(Pair("generated", out.tx->IsCoinBase()));
@@ -2714,6 +2694,11 @@ UniValue i_listunspent(const UniValue& params, bool fHelp)
 
     UniValue rv{UniValue::VARR};
     for (const auto& tx : dpos::getController()->listCommittedTxs()) {
+        CTransaction dummy;
+        uint256 block;
+        if (GetTransaction(tx.GetHash(), dummy, block, true) && !block.IsNull()) {
+            continue; // only not included into a block txs
+        }
         for (std::size_t i{0}; i < tx.vout.size(); i++) {
             CTxDestination address{};
             UniValue entry{UniValue::VOBJ};
@@ -3425,6 +3410,11 @@ CAmount getInstantBalanceZaddr(std::string address, bool ignoreUnspendable)
 
     for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         LOCK2(cs_main, pwalletMain->cs_wallet);
+        CTransaction dummy;
+        uint256 block;
+        if (GetTransaction(tx.GetHash(), dummy, block, true) && !block.IsNull()) {
+            continue; // only not included into a block txs
+        }
         // Filter the transactions before checking for notes
         if (!CheckFinalTx(tx)) {
             continue;
@@ -3889,9 +3879,8 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
             "      \"memo\":memo        (string, optional) If the address is a zaddr, raw data represented in hexadecimal string format\n"
             "    }, ... ]\n"
             "3. minconf               (numeric, optional, default=1) Only use funds confirmed at least this many times.\n"
-            "4. fee                   (numeric, optional, default="
+            "4. fee                   (numeric, optional, default=" + strprintf("%s", FormatMoney(ASYNC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee amount to attach to this transaction.\n"
             "5. instantly             (boolean, optional, default=false) Create instant transaction\n"
-            + strprintf("%s", FormatMoney(ASYNC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee amount to attach to this transaction.\n"
             "\nResult:\n"
             "\"operationid\"          (string) An operationid to pass to z_getoperationstatus to get the result of the operation.\n"
             "\nExamples:\n"
@@ -3950,6 +3939,10 @@ UniValue z_sendmany(const UniValue& params, bool fHelp)
 
     bool containsSproutOutput = false;
     bool containsSaplingOutput = false;
+
+    if (fInstant && (fromSprout || containsSproutOutput)) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Instant transaction cannot be used with Sprout addresses, only Sapling/P2PKH.");
+    }
 
     for (const UniValue& o : outputs.getValues()) {
         if (!o.isObject())
@@ -4260,18 +4253,21 @@ UniValue z_shieldcoinbase(const UniValue& params, bool fHelp)
     if (fInstant)
         max_tx_size = MAX_INST_TX_SIZE_AFTER_SAPLING;
 
-    // If Sapling is not active, do not allow sending to a Sapling address.
-    if (!NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
-        auto res = DecodePaymentAddress(destaddress);
-        if (IsValidPaymentAddress(res)) {
-            bool toSapling = boost::get<libzcash::SaplingPaymentAddress>(&res) != nullptr;
-            if (toSapling) {
-                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, Sapling has not activated");
-            }
-        } else {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, unknown address format: ") + destaddress);
+    auto res = DecodePaymentAddress(destaddress);
+    if (IsValidPaymentAddress(res)) {
+        bool toSapling = boost::get<libzcash::SaplingPaymentAddress>(&res) != nullptr;
+        bool toSprout = boost::get<libzcash::SproutPaymentAddress>(&res) != nullptr;
+        // If Sapling is not active, do not allow sending to a Sapling address.
+        if (toSapling && !NetworkUpgradeActive(nextBlockHeight, Params().GetConsensus(), Consensus::UPGRADE_SAPLING)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, Sapling has not activated");
         }
-    }
+        // If instant, do not allow sending to a Sprout address.
+        if (toSprout && fInstant) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Instant transaction cannot be used with Sprout addresses, only Sapling/P2PKH.");
+        }
+    } else
+        throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, unknown address format: ") + destaddress);
+
 
     // Prepare to get coinbase utxos
     std::vector<ShieldCoinbaseUTXO> inputs;
@@ -4907,6 +4903,7 @@ static const CRPCCommand commands[] =
         {"wallet", "listsinceblock", &listsinceblock, false},
         {"wallet", "listtransactions", &listtransactions, false},
         {"wallet", "listunspent", &listunspent, false},
+        {"wallet", "i_listunspent", &i_listunspent, false},
         {"wallet", "lockunspent", &lockunspent, true},
         {"wallet", "move", &movecmd, false},
         {"wallet", "sendfrom", &sendfrom, false},

@@ -109,5 +109,5 @@ fi
 
 HOST="$HOST" BUILD="$BUILD" NO_PROTON="$PROTON_ARG" "$MAKE" "$@" -C ./depends/ V=1
 ./autogen.sh
-CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" "$PROTON_ARG" $CONFIGURE_FLAGS
+CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" "$PROTON_ARG" $CONFIGURE_FLAGS CXXFLAGS="${CXXFLAGS}"
 "$MAKE" "$@" V=1

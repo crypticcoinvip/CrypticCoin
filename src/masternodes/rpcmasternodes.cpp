@@ -261,13 +261,13 @@ UniValue mn_estimateannouncementfee(UniValue const & params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
         throw std::runtime_error(
-            "mn_estimateannouncmentfee\n"
+            "mn_estimateannouncementfee\n"
             "\nEstimates the approximate masternode announcement fee\n"
             "\nResult:\n"
             "n :    (numeric) estimated fee\n"
             "\n"
             "\nExample:\n"
-            + HelpExampleCli("mn_estimateannouncmentfee", ""));
+            + HelpExampleCli("mn_estimateannouncementfee", ""));
 
     LOCK(cs_main);
     return ValueFromAmount(EstimateAnnouncementFee());
@@ -1308,7 +1308,7 @@ static const CRPCCommand commands[] =
     { "masternodes",    "mn_listdismissvotes",        &mn_listdismissvotes,         true  },
 
     /* Not shown in help */
-    { "hidden",         "mn_resign",                  &mn_resign,                   true  },
+    { "masternodes",         "mn_resign",             &mn_resign,                   true  },
 };
 
 void RegisterMasternodesRPCCommands(CRPCTable &tableRPC)
