@@ -600,7 +600,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out, CValidation
 {
     AssertLockHeld(cs_main);
     if (!out.vErrors.empty()) {
-        if (chainActive.Height() < 1111111)
+        if (chainActive.Height() < Params().GetConsensus().nMasternodesV2ForkHeight)
             return false;
         for (const auto& error : out.vErrors) {
             LogPrintf("dpos: %s: %s\n", __func__, error);
