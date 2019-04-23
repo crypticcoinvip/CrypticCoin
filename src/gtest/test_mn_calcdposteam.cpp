@@ -16,7 +16,7 @@ public:
     FakeMasternodesViewDB() : CMasternodesViewDB() {}
     ~FakeMasternodesViewDB() override {}
 
-    CTeam ReadDposTeam(int blockHeight) const override
+    CTeam const & ReadDposTeam(int blockHeight) const override
     {
         return teams.at(blockHeight);
     }
@@ -109,6 +109,7 @@ TEST(mn, CalcNextDposTeam_FullV2)
     FakeMasternodesViewDB view;
 
     SelectParams(CBaseChainParams::REGTEST); // teamsize == 4
+    int forkHeight = Params().GetConsensus().nMasternodesV2ForkHeight;
 
     CMasternodes mns;
     mns.emplace(uint256S("a"), CMasternode());
@@ -131,29 +132,29 @@ TEST(mn, CalcNextDposTeam_FullV2)
         team0.emplace(uint256S("b"), TeamData {2, CKeyID()});
         team0.emplace(uint256S("c"), TeamData {3, CKeyID()});
         team0.emplace(uint256S("d"), TeamData {4, CKeyID()});
-        view.WriteDposTeam(1000000, team0);
+        view.WriteDposTeam(forkHeight, team0);
     }
-    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), 1000000);
-    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), 1000001);
-    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), 1000002);
+    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), forkHeight);
+    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), forkHeight+1);
+    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), forkHeight+2);
 
     ASSERT_EQ(newteam.size(), 4);
     // after 3 steps the 4th is still here:
     ASSERT_TRUE(newteam[uint256S("d")].joinHeight == 4);
-    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), 1000003);
+    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), forkHeight+3);
     // and now all were renewed
     for (auto it = newteam.begin(); it != newteam.end(); ++it)
     {
-        ASSERT_TRUE(it->second.joinHeight >= 1000000);
+        ASSERT_TRUE(it->second.joinHeight >= forkHeight);
     }
 
     // ensure now, that team updates every round
     for (int h = 1; h <= 50; ++h)
     {
-        newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), 1000003+h);
+        newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), forkHeight+3+h);
         for (auto it = newteam.begin(); it != newteam.end(); ++it)
         {
-            ASSERT_TRUE(it->second.joinHeight >= 1000003 + h - newteam.size() + 1);
+            ASSERT_TRUE(it->second.joinHeight >= forkHeight + 3 + h - newteam.size() + 1);
         }
     }
 }
@@ -163,6 +164,7 @@ TEST(mn, CalcNextDposTeam_ResignedV2)
     FakeMasternodesViewDB view;
 
     SelectParams(CBaseChainParams::REGTEST); // teamsize == 4
+    int forkHeight = Params().GetConsensus().nMasternodesV2ForkHeight;
 
     CMasternodes mns;
     mns.emplace(uint256S("a"), CMasternode());
@@ -183,12 +185,12 @@ TEST(mn, CalcNextDposTeam_ResignedV2)
         team0.emplace(uint256S("b"), TeamData {2, CKeyID()});
         team0.emplace(uint256S("c"), TeamData {3, CKeyID()});
         team0.emplace(uint256S("d"), TeamData {4, CKeyID()});
-        view.WriteDposTeam(1000000, team0);
+        view.WriteDposTeam(forkHeight, team0);
     }
-    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), 1000000);
+    newteam = view.CalcNextDposTeam(amns, mns, uint256S("1"), forkHeight);
 
     ASSERT_EQ(newteam.size(), 2);
-    ASSERT_TRUE(newteam[uint256S("e")].joinHeight == 1000000);
-    ASSERT_TRUE(newteam[uint256S("f")].joinHeight == 1000000);
+    ASSERT_TRUE(newteam[uint256S("e")].joinHeight == forkHeight);
+    ASSERT_TRUE(newteam[uint256S("f")].joinHeight == forkHeight);
 }
 

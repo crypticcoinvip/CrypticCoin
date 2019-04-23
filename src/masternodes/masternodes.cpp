@@ -691,7 +691,7 @@ bool CMasternodesView::OnUndo(int height, uint256 const & txid)
 
 bool CMasternodesView::IsTeamMember(int height, CKeyID const & operatorAuth) const
 {
-    CTeam team = ReadDposTeam(height);
+    CTeam const & team = ReadDposTeam(height);
     for (auto const & member : team)
     {
         if (member.second.operatorAuth == operatorAuth)
@@ -799,10 +799,11 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
     return team;
 }
 
-CTeam CMasternodesView::ReadDposTeam(int height) const
+CTeam const & CMasternodesView::ReadDposTeam(int height) const
 {
+    static CTeam const Empty{};
     if (height < Params().GetConsensus().vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight)
-        return {};
+        return Empty;
 
     auto const it = teams.find(height);
     if (it != teams.end())
@@ -810,7 +811,7 @@ CTeam CMasternodesView::ReadDposTeam(int height) const
 
     // Nothing to complain here, cause teams not exists before dPoS activation!
 //    LogPrintf("MN ERROR: Fail to get team at height %d! May be already pruned!\n", height);
-    return {};
+    return Empty;
 }
 
 void CMasternodesView::WriteDposTeam(int height, const CTeam & team)
@@ -830,7 +831,7 @@ std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAm
 {
     try {
         std::vector<CTxOut> result;
-        CTeam const team = ReadDposTeam(height - 1);
+        CTeam const & team = ReadDposTeam(height - 1);
         bool const fDposActive = team.size() == Params().GetConsensus().dpos.nTeamSize;
         if (!fDposActive)
         {
@@ -950,14 +951,7 @@ void CMasternodesView::PruneOlder(int height)
         else ++it;
     }
     // erase old teams info
-    for (auto && it = teams.begin(); it != teams.end(); )
-    {
-        if(it->first < height)
-        {
-            it = teams.erase(it);
-        }
-        else ++it;
-    }
+    teams.erase(teams.begin(), teams.lower_bound(height));
 }
 
 boost::optional<CMasternodesView::CMasternodeIDs> CMasternodesView::AmI(AuthIndex where) const

@@ -263,7 +263,8 @@ protected:
         txsUndo = other->txsUndo;
         operatorUndo = other->operatorUndo;
 
-        teams = other->teams;
+        // on-demand
+//        teams = other->teams;
     }
 
 public:
@@ -341,7 +342,7 @@ public:
 
     bool IsTeamMember(int height, CKeyID const & operatorAuth) const;
     CTeam CalcNextDposTeam(CActiveMasternodes const & activeNodes, CMasternodes const & allNodes, uint256 const & blockHash, int height);
-    virtual CTeam ReadDposTeam(int height) const;
+    virtual CTeam const & ReadDposTeam(int height) const;
 
 protected:
     virtual void WriteDposTeam(int height, CTeam const & team);
@@ -382,6 +383,8 @@ public:
         , base(other)
     {
         Init(other);
+
+        // teams are empty!
     }
 
     ~CMasternodesViewCache() override {}
@@ -389,8 +392,23 @@ public:
     bool Flush() override
     {
         base->Init(this);
+
+        // flush cached teams
+        for (CTeams::const_iterator it = teams.begin(); it != teams.end(); ++it)
+        {
+            base->WriteDposTeam(it->first, it->second);
+        }
+        teams.clear();
         return true;
     }
+
+    virtual CTeam const & ReadDposTeam(int height) const
+    {
+        auto const it = teams.find(height);
+        // return cached (new) or original value
+        return it != teams.end() ? it->second : base->ReadDposTeam(height);
+    }
+
 };
 
 

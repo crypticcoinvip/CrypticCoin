@@ -2867,7 +2867,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     GetMainSignals().UpdatedTransaction(hashPrevBestCoinBase);
     hashPrevBestCoinBase = block.vtx[0].GetHash();
 
-    pmasternodesview->CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), pindex->nHeight-1); // 'height-1'== current tip
+    mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), pindex->nHeight-1); // 'height-1'== current tip
     mnview.SetHeight(pindex->nHeight);
 
     int64_t nTime4 = GetTimeMicros(); nTimeCallbacks += nTime4 - nTime3;
@@ -4038,18 +4038,21 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
         return error("%s: ActivateBestChain failed", __func__);
 
     int height = chainActive.Height();
-    if (!IsInitialBlockDownload() &&
-        (Params().NetworkIDString() != "regtest" || !GetBoolArg("-nomnautomation", false)) &&
-        NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
+    if (NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
     {
-        LOCK(cs_main);
-        TryMasternodeAutoActivation(*pmasternodesview, height);
-        TryMasternodeAutoDismissVote(*pmasternodesview, height);
-        TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, height);
+        // MN automation
+        if (!IsInitialBlockDownload() && (Params().NetworkIDString() != "regtest" || !GetBoolArg("-nomnautomation", false)))
+        {
+            LOCK(cs_main);
+            TryMasternodeAutoActivation(*pmasternodesview, height);
+            TryMasternodeAutoDismissVote(*pmasternodesview, height);
+            TryMasternodeAutoFinalizeDismissVoting(*pmasternodesview, height);
+        }
 
         // Prune old MN data. Real trimming of DB will happen on Flash()
         if (height % 100 == 0)
         {
+            LOCK(cs_main);
             int pruneHeight = height - std::max(300u, MAX_REORG_LENGTH);
             pmasternodesview->PruneOlder(pruneHeight);
         }
@@ -6857,8 +6860,12 @@ void TryMasternodeAutoActivation(CMasternodesView & mnview, int height)
     }
 }
 
-void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int)
+void TryMasternodeAutoDismissVote(CMasternodesView & mnview, int height)
 {
+    // Deny votes generation so as not to spam the miner (they are still forbidden there)
+    if (height < Params().GetConsensus().nMasternodesV2ForkHeight)
+        return;
+
     auto const ids = mnview.AmIActiveOperator();
     if (!ids)
     {
