@@ -5,6 +5,7 @@
 #include "masternodes.h"
 
 #include "arith_uint256.h"
+#include "consensus/upgrades.h"
 #include "chainparams.h"
 #include "key_io.h"
 #include "primitives/block.h"
@@ -802,7 +803,7 @@ CTeam CMasternodesView::CalcNextDposTeam(CActiveMasternodes const & activeNodes,
 CTeam const & CMasternodesView::ReadDposTeam(int height) const
 {
     static CTeam const Empty{};
-    if (height < Params().GetConsensus().vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight)
+    if (height < 0 || !NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
         return Empty;
 
     auto const it = teams.find(height);
@@ -816,7 +817,8 @@ CTeam const & CMasternodesView::ReadDposTeam(int height) const
 
 void CMasternodesView::WriteDposTeam(int height, const CTeam & team)
 {
-    if (height < Params().GetConsensus().vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight)
+    assert(height >= 0);
+    if (!NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
         return;
 
     teams[height] = team;

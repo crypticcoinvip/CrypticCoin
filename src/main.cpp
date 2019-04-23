@@ -2738,12 +2738,14 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     // verify that the view's current state corresponds to the previous block
     uint256 hashPrevBlock = pindex->pprev == NULL ? uint256() : pindex->pprev->GetBlockHash();
     assert(hashPrevBlock == view.GetBestBlock());
-    // verify that the mn's view current state corresponds to the previous block (only if >> sapling, cause at first run it is empty (0))
-    if (NetworkUpgradeActive(pindex->nHeight-1, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
+
+    // verify that the mn's view current state corresponds to the previous block (only if >> sapling)
+
+    if (isSapling)
     {
         if (mnview.GetHeight() == 0)
             return AbortNode(state, "Masternodes database height = 0! Please restart with -reindex to upgrade masternodes database.");
-        else if (pindex->nHeight-1 != mnview.GetHeight())
+        if (mnview.GetHeight() != pindex->nHeight-1)
             return AbortNode(state, "Masternodes database is corrupted (height mismatch)! DB prev block = " +std::to_string(mnview.GetHeight())+ ", current block = " +std::to_string(pindex->nHeight)+ ". Please restart with -reindex to recover.");
     }
 
@@ -3131,7 +3133,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     GetMainSignals().UpdatedTransaction(hashPrevBestCoinBase);
     hashPrevBestCoinBase = block.vtx[0].GetHash();
 
-    mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), pindex->nHeight-1); // 'height-1'== current tip
+    if (isSapling)
+    {
+        mnview.CalcNextDposTeam(mnview.GetActiveMasternodes(), mnview.GetMasternodes(), block.GetHash(), pindex->nHeight-1); // 'height-1'== current tip
+    }
     mnview.SetHeight(pindex->nHeight);
 
     int64_t nTime4 = GetTimeMicros(); nTimeCallbacks += nTime4 - nTime3;
