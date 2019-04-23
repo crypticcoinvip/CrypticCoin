@@ -223,9 +223,9 @@ T multi_exp_inner(typename std::vector<T>::const_iterator vec_start,
             // opt_result = opt_result + (a.r * g[a.idx]);
             opt_result = opt_result + opt_window_wnaf_exp(g[a.idx], a.r, abits);
 #ifdef DEBUG
-            printf("Skipping the following pair (%zu bit number vs %zu bit):\n", abits, bbits);
-            a.r.print();
-            b.r.print();
+//            printf("Skipping the following pair (%zu bit number vs %zu bit):\n", abits, bbits);
+//            a.r.print();
+//            b.r.print();
 #endif
             a.r.clear();
         }
@@ -392,10 +392,10 @@ size_t get_exp_window_size(const size_t num_scalars)
     for (int64_t i = T::fixed_base_exp_window_table.size()-1; i >= 0; --i)
     {
 #ifdef DEBUG
-        if (!inhibit_profiling_info)
-        {
-            printf("%ld %zu %zu\n", i, num_scalars, T::fixed_base_exp_window_table[i]);
-        }
+//        if (!inhibit_profiling_info)
+//        {
+//            printf("%ld %zu %zu\n", i, num_scalars, T::fixed_base_exp_window_table[i]);
+//        }
 #endif
         if (T::fixed_base_exp_window_table[i] != 0 && num_scalars >= T::fixed_base_exp_window_table[i])
         {
@@ -424,10 +424,10 @@ window_table<T> get_window_table(const size_t scalar_size,
     const size_t outerc = (scalar_size+window-1)/window;
     const size_t last_in_window = UINT64_C(1)<<(scalar_size - (outerc-1)*window);
 #ifdef DEBUG
-    if (!inhibit_profiling_info)
-    {
-        print_indent(); printf("* scalar_size=%zu; window=%zu; in_window=%zu; outerc=%zu\n", scalar_size, window, in_window, outerc);
-    }
+//    if (!inhibit_profiling_info)
+//    {
+//        print_indent(); printf("* scalar_size=%zu; window=%zu; in_window=%zu; outerc=%zu\n", scalar_size, window, in_window, outerc);
+//    }
 #endif
 
     window_table<T> powers_of_g(outerc, std::vector<T>(in_window, T::zero()));

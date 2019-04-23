@@ -146,6 +146,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     CAmount nFees_inst = 0;
     bool fDposEnabled = false;
 
+
     const std::vector<CTransaction> committedList = dpos::getController()->listCommittedTxs();
     {
         LOCK2(cs_main, mempool.cs);
@@ -154,7 +155,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         uint32_t consensusBranchId = CurrentEpochBranchId(nHeight, chainparams.GetConsensus());
         const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
         CCoinsViewCache view(pcoinsTip);
-        CMasternodesView mnview(*pmasternodesview);
+
+        CMasternodesViewCache mnview(pmasternodesview);
 
         pblock->nTime = GetAdjustedTime();
         pblock->nRound = dpos::getController()->getCurrentVotingRound(pblock->GetBlockTime(), nHeight);
@@ -184,6 +186,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         {
             const CTransaction& tx = mi->GetTx();
             if (tx.fInstant)
+                continue;
+            if (dpos::getController()->excludeTxFromBlock_miner(tx))
                 continue;
 
             int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
@@ -260,7 +264,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         }
 
         // Collect transactions into block
-        uint64_t nBlockSize = 1000;
+        uint64_t nBlockSize = 10000;
         uint64_t nBlockTx = 0;
         int nBlockSigOps = 100;
         bool fSortedByFee = (nBlockPrioritySize <= 0);
@@ -275,7 +279,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
                 { // check
                     if (!view.HaveInputs(tx)) {
-                        LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
+                        //LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
                         continue;
                     }
 
@@ -283,7 +287,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                     PrecomputedTransactionData txdata(tx);
                     const unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
                     if (!ContextualCheckInputs(tx, state, view, true, flags, true, txdata, Params().GetConsensus(), consensusBranchId)) {
-                        LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
+                        //LogPrintf("CANNOT INSERT COMMITTED dPoS instant tx! Masternodes betrayal is possible. \n");
                         continue;
                     }
                 }
@@ -361,6 +365,17 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             nTxSigOps += GetP2SHSigOpCount(tx, view);
             if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
                 continue;
+
+            // Restrict votes transactions until nMasternodesV2ForkHeight
+            if (nHeight < Params().GetConsensus().nMasternodesV2ForkHeight)
+            {
+                std::vector<unsigned char> dummy;
+                MasternodesTxType mntxType = GuessMasternodeTxType(tx, dummy);
+                if (mntxType == MasternodesTxType::DismissVote || mntxType == MasternodesTxType::DismissVoteRecall)
+                {
+                    continue;
+                }
+            }
 
             if (!CheckMasternodeTx(mnview, tx, chainparams.GetConsensus(), nHeight))
                 continue;
@@ -573,13 +588,13 @@ static bool ProcessBlockFound(CBlock* pblock)
 //        wallet.mapRequestCount[pblock->GetHash()] = 0;
 //    }
 #endif
+    CValidationState state;
     if (dpos::getController()->isEnabled(pblock->GetBlockTime(), pblock->hashPrevBlock)) {
         LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
-            dpos::getController()->proceedViceBlock(*pblock);
+            dpos::getController()->proceedViceBlock(*pblock, state);
     } else {
         LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
         // Process this block the same as if we had received it from another node
-        CValidationState state;
         if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
             return error("CrypticcoinMiner: ProcessNewBlock, block not accepted");
 

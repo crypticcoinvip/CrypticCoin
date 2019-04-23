@@ -2778,7 +2778,7 @@ CAmount CWallet::GetBalance() const
         {
             const CWalletTx* pcoin = &(*it).second;
             // don't include instant txs. They should be included in GetInstantBalance() only
-            if (pcoin->IsTrusted() && !pDposController->isCommittedTx(pcoin->GetHash()))
+            if (pcoin->IsTrusted() && !pDposController->isCommittedTx(pcoin->GetHash(), 1))
                 nTotal += pcoin->GetAvailableCredit();
         }
     }
@@ -2837,6 +2837,11 @@ CAmount CWallet::GetInstantBalance() const
 
     const auto instantTxs = dpos::getController()->listCommittedTxs();
     for (const auto& tx : instantTxs) {
+        CTransaction dummy;
+        uint256 block;
+        if (GetTransaction(tx.GetHash(), dummy, block, true) && !block.IsNull()) {
+            continue; // only not included into a block txs
+        }
         for (unsigned int i = 0; i < tx.vout.size(); i++) {
             const CTxOut &txout = tx.vout[i];
             rv += GetCredit(txout, ISMINE_SPENDABLE);
@@ -4423,8 +4428,8 @@ bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree, bool fRejectAbsurdFee)
 {
     CValidationState state;
     // May be we don't need to check here against MN tx at all
-    CMasternodesView mnview(*pmasternodesview);
-    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3), fRejectAbsurdFee);
+    CMasternodesViewCache mnview(pmasternodesview);
+    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3, true), fRejectAbsurdFee);
 }
 
 /**

@@ -9,6 +9,8 @@
 #include "../wallet/wallet.h"
 #include "../snark/libsnark/common/utils.hpp"
 #include <boost/thread.hpp>
+#include <main.h>
+#include <consensus/validation.h>
 
 namespace
 {
@@ -143,21 +145,24 @@ CHeartBeatMessage CHeartBeatTracker::postMessage(const CKey& signKey, time_ms ti
 
     CHeartBeatMessage rv{timestamp};
 
+    CValidationState state;
     if (!rv.SignWithKey(signKey)) {
         LogPrintf("%s: Can't sign heartbeat message", __func__);
-    } else if (recieveMessage(rv)) {
+    } else if (recieveMessage(rv, state)) {
         BroadcastInventory(CInv{MSG_HEARTBEAT, rv.GetHash()});
     }
 
     return rv;
 }
 
-bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
+bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message, CValidationState& state)
 {
     bool rv{false};
     CPubKey pubKey{};
     const time_ms now{GetTimeMillis()};
     const uint256 hash{message.GetHash()};
+
+    bool authenticated = false;
 
     if (message.GetPubKey(pubKey)) {
         AssertLockHeld(cs_main);
@@ -167,6 +172,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
             message.GetTimestamp() < now + maxHeartbeatInFuture)
         {
             LOCK(cs);
+            authenticated = true;
 
             const auto it{keyMessageMap.find(masternodeKey)};
 
@@ -185,14 +191,19 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message)
             }
         }
     }
+    if (!authenticated) {
+        return state.DoS(IsInitialBlockDownload() ? 0 : 1,
+                         error("CHeartBeatTracker(): received not authenticated heartbeat"),
+                         REJECT_INVALID, "heartbeat-auth");
+    }
 
     return rv;
 }
 
-bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
+bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message, CValidationState& state)
 {
     AssertLockHeld(cs_main);
-    if (recieveMessage(message)) {
+    if (recieveMessage(message, state)) {
         // Expire old relay messages
         LOCK(cs_mapRelay);
         while (!vRelayExpiration.empty() &&
@@ -215,6 +226,7 @@ bool CHeartBeatTracker::relayMessage(const CHeartBeatMessage& message)
         BroadcastInventory(inv);
         return true;
     }
+
     return false;
 }
 
@@ -274,7 +286,7 @@ time_ms CHeartBeatTracker::getMaxPeriod() const
     {
         return getMinPeriod() * 6;
     }
-    return std::max(getMinPeriod() * 20, 3 * 24 * 60 * 60 * sec); // 20 minimum periods or 3 days, whichever is greater
+    return std::max(getMinPeriod() * 20, 12 * 60 * 60 * sec); // 20 minimum periods or 12h, whichever is greater
 }
 
 CMasternodes CHeartBeatTracker::filterMasternodes(AgeFilter ageFilter) const

@@ -31,7 +31,7 @@ gadget_from_r1cs<FieldT>::gadget_from_r1cs(protoboard<FieldT> &pb,
     for (auto va : vars)
     {
 #ifdef DEBUG
-        printf("gadget_from_r1cs: translating a block of variables with length %zu\n", va.size());
+//        printf("gadget_from_r1cs: translating a block of variables with length %zu\n", va.size());
 #endif
         for (auto v : va)
         {
@@ -57,8 +57,8 @@ gadget_from_r1cs<FieldT>::gadget_from_r1cs(protoboard<FieldT> &pb,
     }
 
 #ifdef DEBUG
-    printf("gadget_from_r1cs: sum of all block lengths: %zu\n", cs_var_idx-1);
-    printf("gadget_from_r1cs: cs.num_variables(): %zu\n", cs.num_variables());
+//    printf("gadget_from_r1cs: sum of all block lengths: %zu\n", cs_var_idx-1);
+//    printf("gadget_from_r1cs: cs.num_variables(): %zu\n", cs.num_variables());
 #endif
 
     assert(cs_var_idx - 1 == cs.num_variables());

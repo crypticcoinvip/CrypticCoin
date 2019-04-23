@@ -11,7 +11,7 @@
 #include "pubkey.h"
 #include "script/script.h"
 #include "serialize.h"
-#include "txdb.h"
+//#include "txdb.h"
 #include "uint256.h"
 
 #include <map>
@@ -205,7 +205,7 @@ struct COperatorUndoRec
     }
 };
 
-class CMasternodesDB;
+class CMasternodesViewCache;
 
 class CMasternodesView
 {
@@ -220,13 +220,13 @@ public:
     // 'multi' used only in to ways: for collateral spent and voting finalization (to save deactivated votes)
     typedef std::multimap<std::pair<int, uint256>, std::pair<uint256, MasternodesTxType> > CTxUndo;
     typedef std::map<uint256, COperatorUndoRec> COperatorUndo;
+    typedef std::map<int, CTeam> CTeams;
 
     enum class AuthIndex { ByOwner, ByOperator };
     enum class VoteIndex { From, Against };
 
-private:
-    boost::scoped_ptr<CMasternodesDB> db;
-
+protected:
+    int lastHeight;
     CMasternodes allNodes;
     CActiveMasternodes activeNodes;
     CMasternodesByAuth nodesByOwner;
@@ -238,19 +238,48 @@ private:
 
     CTxUndo txsUndo;
     COperatorUndo operatorUndo;
+    CTeams teams;
 
-protected:
-    CMasternodesView(CMasternodesDB * db) : db(db)  {}
+    CMasternodesView() {}
 
 public:
-    CMasternodesView(size_t nCacheSize, bool fMemory = false, bool fWipe = false) : db(new CMasternodesDB(nCacheSize, fMemory, fWipe)) {}
-    CMasternodesView(CMasternodesView const & other);
+    CMasternodesView(CMasternodesView const & other) = delete;
 
+protected:
+    void Clear();
+
+    void Init(CMasternodesView * other)
+    {
+        lastHeight = other->lastHeight;
+        allNodes = other->allNodes;
+        activeNodes = other->activeNodes;
+        nodesByOwner = other->nodesByOwner;
+        nodesByOperator = other->nodesByOperator;
+
+        votes = other->votes;
+        votesFrom = other->votesFrom;
+        votesAgainst = other->votesAgainst;
+
+        txsUndo = other->txsUndo;
+        operatorUndo = other->operatorUndo;
+
+        // on-demand
+//        teams = other->teams;
+    }
+
+public:
     CMasternodesView & operator=(CMasternodesView const & other) = delete;
 
-    ~CMasternodesView() {}
+    virtual ~CMasternodesView() {}
 
-    bool IsReadOnlyDB() const { return db->IsReadOnly(); }
+    void SetHeight(int h)
+    {
+        lastHeight = h;
+    }
+    int GetHeight()
+    {
+        return lastHeight;
+    }
 
     CMasternodes const & GetMasternodes() const
     {
@@ -296,7 +325,8 @@ public:
     ExistActiveVoteIndex(VoteIndex where, uint256 const & from, uint256 const & against) const;
 
     //! Initial load of all data
-    void Load();
+    virtual bool Load() { assert(false); }
+    virtual bool Flush() { assert(false); }
 
     //! Process event of spending collateral. It is assumed that the node exists
     bool OnCollateralSpent(uint256 const & nodeId, uint256 const & txid, uint32_t input, int height);
@@ -306,27 +336,25 @@ public:
     bool OnDismissVote(uint256 const & txid, CDismissVote const & vote, CKeyID const & operatorId, int height);
     bool OnDismissVoteRecall(uint256 const & txid, uint256 const & against, CKeyID const & operatorId, int height);
     bool OnFinalizeDismissVoting(uint256 const & txid, uint256 const & nodeId, int height);
-    bool OnSetOperatorReward(uint256 const & txid, CKeyID const & ownerId, CKeyID
-                             const & newOperatorId, CScript const & newOperatorRewardAddress, CAmount newOperatorRewardRatio, int height);
+    bool OnSetOperatorReward(uint256 const & txid, CKeyID const & ownerId, CKeyID const & newOperatorId, CScript const & newOperatorRewardAddress, CAmount newOperatorRewardRatio, int height);
 
     bool OnUndo(int height, uint256 const & txid);
 
     bool IsTeamMember(int height, CKeyID const & operatorAuth) const;
     CTeam CalcNextDposTeam(CActiveMasternodes const & activeNodes, CMasternodes const & allNodes, uint256 const & blockHash, int height);
-    CTeam ReadDposTeam(int height) const;
+    virtual CTeam const & ReadDposTeam(int height) const;
 
+protected:
+    virtual void WriteDposTeam(int height, CTeam const & team);
+
+public:
     //! Calculate rewards to masternodes' team to include it into coinbase
     //! @return reward outputs, sum of reward outputs
     std::pair<std::vector<CTxOut>, CAmount> CalcDposTeamReward(CAmount totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const;
 
     uint32_t GetMinDismissingQuorum();
 
-    void CommitBatch();
-    void DropBatch();
-
-    bool PruneMasternodesOlder(int height);
-    bool PruneUndoesOlder(int height);
-    bool PruneTeamsOlder(int height);
+    void PruneOlder(int height);
 
 private:
     boost::optional<CMasternodeIDs> AmI(AuthIndex where) const;
@@ -337,10 +365,52 @@ public:
     boost::optional<CMasternodeIDs> AmIActiveOwner() const;
 
 private:
-    void Clear();
     void DeactivateVote(uint256 const & voteId, uint256 const & txid, int height);
     void DeactivateVotesFor(uint256 const & nodeId, uint256 const & txid, int height);
+
+    friend class CMasternodesViewCache;
 };
+
+class CMasternodesViewCache : public CMasternodesView
+{
+private:
+    CMasternodesView * base;
+    CMasternodesViewCache() {}
+
+public:
+    CMasternodesViewCache(CMasternodesView * other)
+        : CMasternodesView()
+        , base(other)
+    {
+        Init(other);
+
+        // teams are empty!
+    }
+
+    ~CMasternodesViewCache() override {}
+
+    bool Flush() override
+    {
+        base->Init(this);
+
+        // flush cached teams
+        for (CTeams::const_iterator it = teams.begin(); it != teams.end(); ++it)
+        {
+            base->WriteDposTeam(it->first, it->second);
+        }
+        teams.clear();
+        return true;
+    }
+
+    virtual CTeam const & ReadDposTeam(int height) const
+    {
+        auto const it = teams.find(height);
+        // return cached (new) or original value
+        return it != teams.end() ? it->second : base->ReadDposTeam(height);
+    }
+
+};
+
 
 //! Checks if given tx is probably one of 'MasternodeTx', returns tx type and serialized metadata in 'data'
 MasternodesTxType GuessMasternodeTxType(CTransaction const & tx, std::vector<unsigned char> & metadata);

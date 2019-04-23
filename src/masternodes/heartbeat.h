@@ -10,6 +10,7 @@
 
 class CKey;
 class CInv;
+class CValidationState;
 
 using time_ms = std::int64_t;
 
@@ -53,7 +54,7 @@ class CHeartBeatTracker
 {
     using MessageList = std::list<CHeartBeatMessage>;
     static constexpr time_ms sec{1000ll};
-    static constexpr time_ms maxHeartbeatInFuture{2 * 60 * 60 * sec};
+    static constexpr time_ms maxHeartbeatInFuture{1 * 30 * 60 * sec};
 
 
 public:
@@ -64,8 +65,8 @@ public:
     static CHeartBeatTracker& getInstance();
 
     CHeartBeatMessage postMessage(const CKey& signKey, time_ms timestamp = 0);
-    bool recieveMessage(const CHeartBeatMessage& message);
-    bool relayMessage(const CHeartBeatMessage& message);
+    bool recieveMessage(const CHeartBeatMessage& message, CValidationState& state);
+    bool relayMessage(const CHeartBeatMessage& message, CValidationState& state);
 
     bool findReceivedMessage(const uint256& hash, CHeartBeatMessage* message = nullptr) const;
     std::vector<CHeartBeatMessage> getReceivedMessages() const;

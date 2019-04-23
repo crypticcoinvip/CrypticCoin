@@ -111,6 +111,7 @@ struct Params {
     int64_t MaxActualTimespan() const { return (AveragingWindowTimespan() * (100 + nPowMaxAdjustDown)) / 100; }
     uint256 nMinimumChainWork;
 
+    static int const nMasternodesV2ForkHeight = 146410;
     int nMasternodesHeartbeatPeriod;
 
     struct dPoS {
@@ -118,13 +119,21 @@ struct Params {
         size_t nMinQuorum;
         int64_t nDelayIBD;
         int64_t nPollingPeriod;
-        int64_t nRoundTooLong;
+
+        int64_t nDelayBetweenRoundVotes;
 
         size_t nMaxNotVotedTxsToKeep;
         size_t nMaxTxVotesFromVoter;
 
-        int64_t nMaxTimeBetweenBlocks;
-        int64_t nVotersWaitingTimeout;
+        int64_t nMaxTimeBetweenBlocks_v0;
+        int64_t nMaxTimeBetweenBlocks_v1;
+
+        int64_t nMaxTimeBetweenBlocks(int nHeight) const {
+            if (nHeight >= nMasternodesV2ForkHeight) {
+                return nMaxTimeBetweenBlocks_v1;
+            }
+            return nMaxTimeBetweenBlocks_v0;
+        }
     };
     dPoS dpos;
     /** dPOS announcement fee */
