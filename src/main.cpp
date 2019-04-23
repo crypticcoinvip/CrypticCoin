@@ -2599,8 +2599,13 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     uint256 hashPrevBlock = pindex->pprev == NULL ? uint256() : pindex->pprev->GetBlockHash();
     assert(hashPrevBlock == view.GetBestBlock());
     // verify that the mn's view current state corresponds to the previous block (only if >> sapling, cause at first run it is empty (0))
-    if (NetworkUpgradeActive(pindex->nHeight + 1, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
-        assert(pindex->nHeight-1 == mnview.GetHeight());
+    if (NetworkUpgradeActive(pindex->nHeight-1, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
+    {
+        if (mnview.GetHeight() == 0)
+            return AbortNode(state, "Masternodes database height = 0! Please restart with -reindex to upgrade masternodes database.");
+        else if (pindex->nHeight-1 != mnview.GetHeight())
+            return AbortNode(state, "Masternodes database is corrupted (height mismatch)! DB prev block = " +std::to_string(mnview.GetHeight())+ ", current block = " +std::to_string(pindex->nHeight)+ ". Please restart with -reindex to recover.");
+    }
 
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
