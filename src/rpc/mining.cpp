@@ -281,12 +281,12 @@ UniValue generate(const UniValue& params, bool fHelp)
             }
         }
 endloop:
+        CValidationState state;
         if (dpos::getController()->isEnabled(pblock->GetBlockTime(), nHeight)) {
             LogPrintf("dPoS is active, submit block %s as vice-block \n", pblock->GetHash().GetHex());
-            dpos::getController()->proceedViceBlock(*pblock);
+            dpos::getController()->proceedViceBlock(*pblock, state);
         } else {
             LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
-            CValidationState state;
             if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
                 throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
         }
@@ -845,15 +845,15 @@ UniValue submitblock(const UniValue& params, bool fHelp)
         }
     }
 
+    CValidationState state;
     if (dpos::getController()->isEnabled(block.GetBlockTime(), block.hashPrevBlock)) {
         LogPrintf("%s: dPoS is active, submit block %s as vice-block \n", __func__, block.GetHash().GetHex());
-        dpos::getController()->proceedViceBlock(block);
+        dpos::getController()->proceedViceBlock(block, state);
         return NullUniValue;
     }
 
     LogPrintf("%s: dPoS isn't active, submit block %s directly \n", __func__, block.GetHash().GetHex());
     // Process this block the same as if we had received it from another node
-    CValidationState state;
     submitblock_StateCatcher sc(block.GetHash());
     RegisterValidationInterface(&sc);
     bool fAccepted = ProcessNewBlock(state, NULL, &block, true, NULL);

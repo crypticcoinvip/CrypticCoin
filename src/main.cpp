@@ -221,7 +221,7 @@ namespace {
     void ProcessInventoryCommand(const T& data,
                                  CNode* pfrom,
                                  int msgType,
-                                 std::function<void(const T&)> relayFunc,
+                                 std::function<void(const T&, CValidationState&)> relayFunc,
                                  std::function<bool(const T&, CValidationState&)> validationFunc = [](const T&, CValidationState&){ return true; });
 } // anon namespace
 
@@ -1037,7 +1037,7 @@ bool ContextualCheckTransaction(
                                         dataToBeSigned.begin(), 32,
                                         tx.joinSplitPubKey.begin()
                                         ) != 0) {
-            return state.DoS(isInitBlockDownload() ? 0 : 100,
+            return state.DoS(isInitBlockDownload() ? 0 : 1,
                                 error("CheckTransaction(): invalid joinsplit signature"),
                                 REJECT_INVALID, "bad-txns-invalid-joinsplit-signature");
         }
@@ -1945,12 +1945,12 @@ void Misbehaving(NodeId pnode, int howmuch)
         return;
 
     state->nMisbehavior += howmuch;
-    int banscore = GetArg("-banscore", 100);
+    int banscore = GetArg("-banscore", 500);
     if (state->nMisbehavior >= banscore && state->nMisbehavior - howmuch < banscore)
     {
         LogPrintf("%s: %s (%d -> %d) BAN THRESHOLD EXCEEDED\n", __func__, state->name, state->nMisbehavior-howmuch, state->nMisbehavior);
         state->fShouldBan = true;
-    } else
+    } else if (state->nMisbehavior >= banscore / 5)
         LogPrintf("%s: %s (%d -> %d)\n", __func__, state->name, state->nMisbehavior-howmuch, state->nMisbehavior);
 }
 
@@ -2485,13 +2485,13 @@ void PartitionCheck(bool (*initialDownloadCheck)(), CCriticalSection& cs, const 
     }
 }
 
-static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIndex* pindex, size_t minQuorum, size_t teamSize, CMasternodesView const * mnview) {
+static bool _checkDposSigs(const CBlock& block, int nHeight, size_t minQuorum, size_t teamSize, const CMasternodesView * mnview) {
     const size_t ecdsaSigSize = CPubKey::COMPACT_SIGNATURE_SIZE;
-    if ((sigs.size() % ecdsaSigSize) != 0) {
+    if ((block.vSig.size() % ecdsaSigSize) != 0) {
         LogPrintf("CheckDposSigs(): malformed signatures \n");
         return false;
     }
-    const size_t sigsSize = sigs.size() / ecdsaSigSize;
+    const size_t sigsSize = block.vSig.size() / ecdsaSigSize;
     if (sigsSize < minQuorum) {
         LogPrintf("CheckDposSigs(): not enough signatures \n");
         return false;
@@ -2500,17 +2500,16 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
         LogPrintf("CheckDposSigs(): TOO MUCH SIGNATURES! DOUBLESIGN IS POSSIBLE! \n");
         return false;
     }
-    
-    if (pindex->nRound == 0) {
+
+    if (block.nRound == 0) {
         LogPrintf("CheckDposSigs(): malformed round number. It's not dPoS block. \n");
         return false;
     }
 
-    assert(pindex->pprev != nullptr);
     dpos::CRoundVote_p2p roundVote;
-    roundVote.tip = pindex->pprev->GetBlockHash();
-    roundVote.nRound = pindex->nRound;
-    roundVote.choice.subject = pindex->GetBlockHash();
+    roundVote.tip = block.hashPrevBlock;
+    roundVote.nRound = block.nRound;
+    roundVote.choice.subject = block.GetHash();
     roundVote.choice.decision = dpos::CVoteChoice::Decision::YES;
 
     const uint256 hashToSign = roundVote.GetSignatureHash();
@@ -2519,7 +2518,7 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
     for (size_t i = 0; i < sigsSize; i++) {
         std::vector<unsigned char> sig;
         sig.reserve(ecdsaSigSize);
-        sig.insert(sig.begin(), sigs.begin() + i * ecdsaSigSize, sigs.begin() + (i + 1) * ecdsaSigSize);
+        sig.insert(sig.begin(), block.vSig.begin() + i * ecdsaSigSize, block.vSig.begin() + (i + 1) * ecdsaSigSize);
 
         CPubKey pubKey{};
         if (!pubKey.RecoverCompact(hashToSign, sig)) {
@@ -2527,7 +2526,7 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
             return false;
         }
         CKeyID operatorAuth = pubKey.GetID();
-        if (!mnview->IsTeamMember(pindex->nHeight - 1, operatorAuth)) {
+        if (!mnview->IsTeamMember(nHeight - 1, operatorAuth)) {
             LogPrintf("CheckDposSigs(): signed not by a team member \n");
             return false;
         }
@@ -2539,6 +2538,21 @@ static bool CheckDposSigs(const std::vector<unsigned char>& sigs, const CBlockIn
         knownSigs.insert(operatorAuth);
     }
 
+    return true;
+}
+
+bool CheckDposSigs(const CBlock& block, int nHeight, CValidationState& state, CMasternodesView * mnview)
+{
+    // dont mark block as invalid because vSig isn't hashed in block. An attacker may send wrong signatures to convince us that block is invalid
+    if (block.nRound == 0 && !block.vSig.empty()) {
+        LogPrintf("Block %s has no dPoS marker, but dPoS sigs (%d bytes) aren't empty \n", block.GetHash().GetHex(), block.vSig.size());
+        return state.Error("bad-blk-dpos-sigs");
+    }
+    auto dpos = Params().GetConsensus().dpos;
+    if (block.nRound != 0 && !_checkDposSigs(block, nHeight, dpos.nMinQuorum, dpos.nTeamSize, mnview)) {
+        LogPrintf("Block %s has dPoS marker, but dPoS sigs are incorrect \n", block.GetHash().GetHex());
+        return state.Error("bad-blk-dpos-sigs");
+    }
     return true;
 }
 
@@ -2554,10 +2568,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     AssertLockHeld(cs_main);
 
     // Disable dPoS if mns are offline
-    const bool fBigGapBetweenBlocks = pindex->pprev != nullptr && (pindex->GetBlockTime() > (pindex->pprev->GetBlockTime() + chainparams.GetConsensus().dpos.nMaxTimeBetweenBlocks));
+    const bool fBigGapBetweenBlocks = pindex->pprev != nullptr && (pindex->GetBlockTime() > (pindex->pprev->GetBlockTime() + chainparams.GetConsensus().dpos.nMaxTimeBetweenBlocks(pindex->nHeight)));
     const size_t nCurrentTeamSize = mnview.ReadDposTeam(pindex->nHeight - 1).size();
     const bool fDposActive = !fBigGapBetweenBlocks && (nCurrentTeamSize == chainparams.GetConsensus().dpos.nTeamSize);
     const bool isSapling = NetworkUpgradeActive(pindex->nHeight, chainparams.GetConsensus(), Consensus::UPGRADE_SAPLING);
+
+    LogPrintf("ConnectBlock: team size = %d, dPoS=%d \n", nCurrentTeamSize, fDposActive);
 
     bool fExpensiveChecks = true;
     if (fCheckpointsEnabled) {
@@ -2611,14 +2627,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     if (dvr.fCheckDposSigs)
     {
-        // dont mark block as invalid because vSig isn't hashed in block. An attacker may send wrong signatures to convince us that block is invalid
-        if (!fDposActive && block.nRound != 0)
-            return state.Error("bad-blk-round");
-        if (!fDposActive && !block.vSig.empty())
-            return state.Error("bad-blk-dpos-sigs");
-        auto dpos = chainparams.GetConsensus().dpos;
-        if (fDposActive && !CheckDposSigs(block.vSig, pindex, dpos.nMinQuorum, dpos.nTeamSize, &mnview))
-            return state.Error("bad-blk-dpos-sigs");
+        if (fDposActive != (block.nRound != 0))
+            return state.DoS(100, error(strprintf("ConnectBlock(): block dPoS=%d, want=%d", block.nRound != 0, fDposActive).c_str()),
+                             REJECT_INVALID, "bad-blk-dpos");
+        if (!CheckDposSigs(block, pindex->nHeight, state, &mnview))
+            return false;
     }
 
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
@@ -3714,7 +3727,7 @@ bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool f
                          REJECT_INVALID, "high-hash");
 
     // Check timestamp
-    if (block.GetBlockTime() > GetAdjustedTime() + 2 * 60 * 60)
+    if (block.GetBlockTime() > GetAdjustedTime() + 1 * 30 * 60)
         return state.Invalid(error("CheckBlockHeader(): block timestamp too far in the future"),
                              REJECT_INVALID, "time-too-new");
 
@@ -4017,6 +4030,12 @@ bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, bool
 
     {
         LOCK(cs_main);
+
+        if (chainActive.Tip() != nullptr && pblock->hashPrevBlock == chainActive.Tip()->GetBlockHash()) {
+            if (!CheckDposSigs(*pblock, chainActive.Height() + 1, state, pmasternodesview))
+                return false; // check dPoS sigs before block is written on disk
+        }
+
         bool fRequested = MarkBlockAsReceived(pblock->GetHash());
         fRequested |= fForceProcessing;
         if (!checked) {
@@ -5577,7 +5596,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             if (fReachable)
                 vAddrOk.push_back(addr);
         }
-        addrman.Add(vAddrOk, pfrom->addr, 2 * 60 * 60);
+        addrman.Add(vAddrOk, pfrom->addr, 1 * 30 * 60);
         if (vAddr.size() < 1000)
             pfrom->fGetAddr = false;
         if (pfrom->fOneShot)
@@ -5770,7 +5789,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         LOCK(cs_main);
 
         bool fMissingInputs = false;
-        CValidationState state;
+        CValidationState state; // mempool validation state
+        CValidationState state_dpos; // dpos validation state
 
         pfrom->setAskFor.erase(inv.hash);
         mapAlreadyAskedFor.erase(inv);
@@ -5778,8 +5798,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         const bool areadyHad = AlreadyHave(inv);
 
         // accept to dPoS controller
-        if (tx.fInstant)
-            dpos::getController()->proceedTransaction(tx);
+        if (tx.fInstant) {
+            dpos::getController()->proceedTransaction(tx, state_dpos);
+        }
 
         CMasternodesViewCache mnview(pmasternodesview);
         if (!areadyHad && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, boost::bind(CheckMasternodeTx, boost::ref(mnview), _1, _2, _3, true)))
@@ -5883,8 +5904,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 }
             }
         }
+        // consider instant tx as faulty only if both dpos and mempool said so
         int nDoS = 0;
-        if (state.IsInvalid(nDoS))
+        int nDoS_dpos = 0;
+        if (state.IsInvalid(nDoS) && (!tx.fInstant || state_dpos.IsInvalid(nDoS_dpos)))
         {
             LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n", tx.GetHash().ToString(),
                 pfrom->id, pfrom->cleanSubVer,
@@ -5892,7 +5915,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
                                state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
             if (nDoS > 0)
-                Misbehaving(pfrom->GetId(), nDoS);
+                Misbehaving(pfrom->GetId(), nDoS + nDoS_dpos);
         }
     }
 
@@ -6276,41 +6299,26 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     } else if (strCommand == CInv{MSG_HEARTBEAT, uint256{}}.GetCommand()) {
         CHeartBeatMessage message{};
         vRecv >> message;
-        ProcessInventoryCommand<CHeartBeatMessage>(message, pfrom, MSG_HEARTBEAT, [](const CHeartBeatMessage& message) {
-            CHeartBeatTracker::getInstance().relayMessage(message);
+        ProcessInventoryCommand<CHeartBeatMessage>(message, pfrom, MSG_HEARTBEAT, [](const CHeartBeatMessage& message, CValidationState& state) {
+            CHeartBeatTracker::getInstance().relayMessage(message, state);
         });
     } else if (strCommand == CInv{MSG_ROUND_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         dpos::CRoundVote_p2p vote{};
         vRecv >> vote;
-        ProcessInventoryCommand<dpos::CRoundVote_p2p>(vote, pfrom, MSG_ROUND_VOTE, [](const dpos::CRoundVote_p2p& vote) {
-            dpos::getController()->proceedRoundVote(vote);
+        ProcessInventoryCommand<dpos::CRoundVote_p2p>(vote, pfrom, MSG_ROUND_VOTE, [](const dpos::CRoundVote_p2p& vote, CValidationState& state) {
+            dpos::getController()->proceedRoundVote(vote, state);
         });
     } else if (strCommand == CInv{MSG_TX_VOTE, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         dpos::CTxVote_p2p vote{};
         vRecv >> vote;
-        ProcessInventoryCommand<dpos::CTxVote_p2p>(vote, pfrom, MSG_TX_VOTE, [](const dpos::CTxVote_p2p& vote) {
-            dpos::getController()->proceedTxVote(vote);
+        ProcessInventoryCommand<dpos::CTxVote_p2p>(vote, pfrom, MSG_TX_VOTE, [](const dpos::CTxVote_p2p& vote, CValidationState& state) {
+            dpos::getController()->proceedTxVote(vote, state);
         });
     } else if (strCommand == CInv{MSG_VICE_BLOCK, uint256{}}.GetCommand() && !fImporting && !fReindex) {
         CBlock block{};
         vRecv >> block;
-        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_VICE_BLOCK, [](const CBlock& block) {
-            dpos::getController()->proceedViceBlock(block);
-        }, [](const CBlock& block, CValidationState& state) {
-            bool mutated{};
-            if (block.hashMerkleRoot != block.BuildMerkleTree(&mutated)) {
-                return state.DoS(100, error("CheckBlock(): merkle root mismatch"),
-                                 REJECT_INVALID, "bad-pro-mrklroot", true);
-            }
-            if (mutated) {
-                return state.DoS(100, error("CheckBlock(): duplicate transaction"),
-                                 REJECT_INVALID, "bad-pro-duplicate", true);
-            }
-            libzcash::ProofVerifier verifier{libzcash::ProofVerifier::Disabled()};
-            if (!CheckBlock(block, state, verifier, true, false)) {
-                return error("%s: CheckBlock FAILED", __func__);
-            }
-            return true;
+        ProcessInventoryCommand<CBlock>(block, pfrom, MSG_VICE_BLOCK, [](const CBlock& block, CValidationState& state) {
+            dpos::getController()->proceedViceBlock(block, state);
         });
     }
 
@@ -7156,7 +7164,7 @@ template<typename T>
 void ProcessInventoryCommand(const T& data,
                              CNode* pfrom,
                              int msgType,
-                             std::function<void(const T&)> relayFunc,
+                             std::function<void(const T&, CValidationState&)> relayFunc,
                              std::function<bool(const T&, CValidationState&)> validationFunc)
 {
     const CInv inv{msgType, data.GetHash()};
@@ -7175,11 +7183,11 @@ void ProcessInventoryCommand(const T& data,
         assert(relayFunc != nullptr);
 
         if (!AlreadyHave(inv)) {
-            relayFunc(data);
+            relayFunc(data, state);
         } else if (pfrom->fWhitelisted) {
             if (!state.IsInvalid(nDoS) || nDoS == 0) {
                 LogPrint("ProcessInventoryCommand", "Force relaying inv %s from whitelisted peer=%d\n", inv.hash.ToString(), pfrom->id);
-                relayFunc(data);
+                relayFunc(data, state);
             } else {
                 LogPrint("ProcessInventoryCommand", "Not relaying invalid inv %s from whitelisted peer=%d (%s (code %d))\n",
                           inv.hash.ToString(),

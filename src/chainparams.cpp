@@ -126,15 +126,15 @@ public:
         consensus.dpos.nTeamSize = 32;
         consensus.dpos.nMinQuorum = 23;
         consensus.dpos.nDelayIBD = 30 * 60;
-        consensus.dpos.nPollingPeriod = 60;
-        consensus.dpos.nRoundTooLong = 5 * 60;
+        consensus.dpos.nPollingPeriod = 20;
         consensus.dpos.nMaxNotVotedTxsToKeep = 2048;
-        consensus.dpos.nMaxTxVotesFromVoter = 1024;
-        consensus.dpos.nMaxTimeBetweenBlocks = 24 * 60 * 60;
-        consensus.dpos.nVotersWaitingTimeout = 6 * 60 * 60;
+        consensus.dpos.nMaxTxVotesFromVoter = 256;
+        consensus.dpos.nMaxTimeBetweenBlocks_v0 = 24 * 60 * 60;
+        consensus.dpos.nMaxTimeBetweenBlocks_v1 = 2 * 60 * 60;
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
+        consensus.dpos.nDelayBetweenRoundVotes = 60;
 
         /**
          * The message start string should be awesome! Ⓒ
@@ -201,12 +201,13 @@ public:
             (2590, uint256S("0x000517e541aa6743b39fead56b3254bef4f8119b5cdb249c24e0146f188365eb"))
             (10000, uint256S("0x0000264991d920934cf2d70303c99e203fc00e8a271658a3e6bac68ca922124c"))
             (25000, uint256S("0x0000000977377c91961efa4da9c23688de3172493ba31513b1e1e0aeff122822"))
-            (44585, uint256S("0x00000007ddd54c42f44d7b236811793743647e677042a6b332a6c4fb0c6198c5")),
-            1541482774,     // * UNIX timestamp of last checkpoint block
-            115266,  // * total number of transactions between genesis and last checkpoint
-                   //   (the tx=... number in the SetBestChain debug.log lines)
-            1.0    // * estimated number of transactions per day after checkpoint
-                   //   total number of tx / (checkpoint block height / (24 * 24))
+            (44585, uint256S("0x00000007ddd54c42f44d7b236811793743647e677042a6b332a6c4fb0c6198c5"))
+            (136000, uint256S("0x000006ce418b33fe036ebf8f11ae1a8122b758f3d30e7f4ff8033977f3055938")),
+            1555553484,     // * UNIX timestamp of last checkpoint block
+            339883,  // * total number of transactions between genesis and last checkpoint
+                     //   (the tx=... number in the SetBestChain debug.log lines)
+            1439.0   // * estimated number of transactions per day after checkpoint
+                     //   total number of tx / (checkpoint block height / (24 * 24))
         };
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
@@ -258,12 +259,13 @@ public:
         consensus.dpos.nTeamSize = 6;
         consensus.dpos.nMinQuorum = 4;
         consensus.dpos.nDelayIBD = 12 * 60;
-        consensus.dpos.nPollingPeriod = 3 * 60;
-        consensus.dpos.nRoundTooLong = 2 * 60;
-        consensus.dpos.nMaxNotVotedTxsToKeep = 1024;
-        consensus.dpos.nMaxTxVotesFromVoter = 64;
-        consensus.dpos.nMaxTimeBetweenBlocks = 20 * 60;
-        consensus.dpos.nVotersWaitingTimeout = 10 * 60;
+        consensus.dpos.nPollingPeriod = 20;
+        consensus.dpos.nMaxNotVotedTxsToKeep = 12;
+        consensus.dpos.nMaxTxVotesFromVoter = 8;
+        consensus.dpos.nMaxTimeBetweenBlocks_v0 = 20 * 60;
+        consensus.dpos.nMaxTimeBetweenBlocks_v1 = 20 * 60;
+        consensus.dpos.nDelayBetweenRoundVotes = 60;
+
         consensus.nDposMinPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposMaxPeriodOfIncome = (31 * 24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
@@ -383,13 +385,13 @@ public:
         consensus.dpos.nMinQuorum = 3;
         consensus.dpos.nDelayIBD = 1;
         consensus.dpos.nPollingPeriod = 2;
-        consensus.dpos.nRoundTooLong = 10 * 60;
         consensus.dpos.nMaxNotVotedTxsToKeep = 12;
         consensus.dpos.nMaxTxVotesFromVoter = 8;
-        consensus.dpos.nMaxTimeBetweenBlocks = 60;
-        consensus.dpos.nVotersWaitingTimeout = 30;
+        consensus.dpos.nMaxTimeBetweenBlocks_v0 = 60;
+        consensus.dpos.nMaxTimeBetweenBlocks_v1 = 60;
+        consensus.dpos.nDelayBetweenRoundVotes = 2;
 
-        consensus.nDposMinPeriodOfIncome = (1 * 60 * 60);
+        consensus.nDposMinPeriodOfIncome = (1 * 30 * 60);
         consensus.nDposMaxPeriodOfIncome = (24 * 60 * 60);
         consensus.nDposGrowingPeriod = (2 * 365 * 24 * 60 * 60);
 

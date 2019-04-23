@@ -535,8 +535,8 @@ UniValue dpos_gettxvotes(const UniValue& params, bool fHelp)
             interestedTxs.push_back(uint256S(txid.get_str()));
         }
     }
-    LOCK(cs_vNodes);
-    for(const auto& node : vNodes) {
+    auto nodes = CNodesShared::getSharedList();
+    for(auto&& node : nodes) {
         node->PushMessage("gettxvotes", interestedTxs);
     }
     return NullUniValue;
@@ -552,8 +552,8 @@ UniValue dpos_getroundvotes(const UniValue& params, bool fHelp)
                     + HelpExampleCli("dpos_getroundvotes", "")
                     + HelpExampleRpc("dpos_getroundvotes", ""));
     }
-    LOCK(cs_vNodes);
-    for(const auto& node : vNodes) {
+    auto nodes = CNodesShared::getSharedList();
+    for(auto&& node : nodes) {
         node->PushMessage("gettxvotes");
     }
     return NullUniValue;
