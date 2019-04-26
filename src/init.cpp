@@ -844,6 +844,43 @@ static void preprocessMapArgs() {
     }
 }
 
+bool CheckLogsForAutoReindex()
+{
+    int const TAIL = 4000; // it's about 40 lines or more
+
+    if (GetBoolArg("-autoreindex", true))
+    {
+        boost::filesystem::path pathDebug = GetDataDir() / "debug.log";
+
+        ifstream logFile;
+        logFile.open(pathDebug.c_str(), std::ios::in | std::ios::ate);
+
+        int64_t const logSize = logFile.tellg();
+        int64_t const pos = logSize < TAIL ? 0 : logSize - TAIL;
+
+        logFile.seekg(pos, logFile.beg);
+
+        std::string str;
+        std::vector<std::string> tails;
+        while (logFile.good())
+        {
+            std::getline(logFile, str);
+            tails.push_back(str);
+        }
+        logFile.close();
+        for (auto it = tails.rbegin(); it != tails.rend(); ++it)
+        {
+            if (it->find("-reindex") != std::string::npos || it->find("Aborted block database rebuild") != std::string::npos)
+                return true;
+
+            // In the case of overlapping previous start: ("Crypticcoin version XXXX" should be the first message in the current session)
+            if (it->find("Crypticcoin version") != std::string::npos)
+                return false;
+        }
+    }
+    return false;
+}
+
 /** Initialize bitcoin.
  *  @pre Parameters should be parsed and config file should be read.
  */
@@ -932,6 +969,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             return InitError(_("Saving the Sprout R1CS requires -experimentalfeatures."));
         }
     }
+
+    // Early check for autoreindex before the very first write to debug.log
+    bool fAutoReindexFromLogs = CheckLogsForAutoReindex();
 
     // Set this early so that parameter interactions go to console
     fPrintToConsole = GetBoolArg("-printtoconsole", false);
@@ -1530,7 +1570,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // ********************************************************* Step 7: load block chain
 
-    fReindex = GetBoolArg("-reindex", false);
+    fReindex = GetBoolArg("-reindex", fAutoReindexFromLogs);
 
     // Upgrading to 0.8; hard-link the old blknnnn.dat files into /blocks/
     boost::filesystem::path blocksDir = GetDataDir() / "blocks";
