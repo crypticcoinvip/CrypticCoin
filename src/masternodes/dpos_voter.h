@@ -163,8 +163,7 @@ public:
     * @param amIvoter is true if voting is enabled and I'm an active operator, member of the team
     * @param me is ID of current masternode
     */
-    void setVoting(bool amIvoter,
-                   CMasternode::ID me);
+    void setVoting(bool amIvoter, CMasternode::ID me);
 
     /// @param tip - current best block
     void updateTip(BlockHash tip);
@@ -174,7 +173,7 @@ public:
     Output applyTxVote(const CTxVote& vote);
     Output applyRoundVote(const CRoundVote& vote);
 
-    Output requestMissingTxs();
+    Output requestMissingTxs() const;
 
     Output doRoundVoting();
     /**
@@ -195,7 +194,7 @@ public:
     struct ApprovedTxs
     {
         std::map<COutPoint, TxId> assignedInputs;
-        size_t votedTxsSerializeSize;
+        size_t txsSerializeSize;
         std::set<TxId> missing;
     };
     struct CommittedTxs
@@ -211,7 +210,7 @@ public:
     };
 
     /// @param votingsDeep @param votingsSkip [start - votingsSkip, start - votingsDeep]
-    CommittedTxs listCommittedTxs(BlockHash start, uint32_t votingsSkip = 0, uint32_t votingsDeep = 1);
+    CommittedTxs listCommittedTxs(BlockHash start, uint32_t votingsSkip = 0, uint32_t votingsDeep = 1) const;
 
     bool isCommittedTx(const TxId& txid, BlockHash vot, Round nRound) const;
     bool isTxApprovedByMe(const TxId& txid, BlockHash vot) const;
@@ -245,8 +244,8 @@ protected:
     bool wasVotedByMe_tx(TxId txid, BlockHash vot, Round nRound) const;
     bool wasVotedByMe_round(BlockHash vot, Round nRound) const;
 
-    bool txHasAnyVote(TxId txid, BlockHash vot) const;
-    bool wasTxLost(TxId txid, BlockHash vot) const;
+    bool txHasAnyVote(TxId txid) const;
+    bool wasTxLost(TxId txid) const;
 
     struct PledgeBuilderRanges
     {
@@ -256,7 +255,7 @@ protected:
         uint32_t committedTxsSkip = 0;
         uint32_t committedTxsDeep = GUARANTEES_MEMORY;
     };
-    MyPledge buildMyPledge(PledgeBuilderRanges ranges);
+    MyPledge buildMyPledge(PledgeBuilderRanges ranges) const;
     void buildApprovedTxsPledge(ApprovedTxs& res, BlockHash vot) const;
 
     struct PledgeRequiredItems
@@ -269,7 +268,7 @@ protected:
     bool ensurePledgeItemsNotMissing(PledgeRequiredItems r, const std::string& methodName, MyPledge& pledge, Output& out) const;
 
     template <typename F>
-    void forEachVoting(BlockHash start, uint32_t skip, uint32_t deep, F&& f) {
+    void forEachVoting(BlockHash start, uint32_t skip, uint32_t deep, F&& f) const {
         uint32_t i = 0;
         for (BlockHash vot = start; !vot.IsNull() && i < deep; i++, vot = world.getPrevBlock(vot)) {
             if (i < skip)

@@ -8,6 +8,8 @@
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/range/numeric.hpp>
 
+extern void StartShutdown();
+
 namespace dpos
 {
 bool operator==(const CDposVote& l, const CDposVote& r)
@@ -89,7 +91,7 @@ bool CDposVoterOutput::empty() const
 
 size_t CRoundVotingDistribution::totus() const
 {
-    return boost::accumulate(pro | boost::adaptors::map_values, 0);
+    return boost::accumulate(pro | boost::adaptors::map_values, 0u);
 }
 
 size_t CTxVotingDistribution::totus() const
@@ -118,12 +120,14 @@ void CDposVoter::updateTip(BlockHash tip)
 
     LogPrintf("dpos: %s: Change current tip from %s to %s\n", __func__, this->tip.GetHex(), tip.GetHex());
 
-    if (!verifyVotingState())
-        assert(!"dPoS database is corrupted (voting state verification failed)! Please restart with -reindex to recover.");
+    if (amIvoter && !verifyVotingState()) {
+        LogPrintf("dPoS database is corrupted (voting state verification failed)! Please restart with -reindex to recover.\n");
+        StartShutdown();
+    }
 
     // filter txs without votes, so txs.size <= maxNotVotedTxsToKeep / 2
     for (auto it = this->txs.begin(); it != this->txs.end() && this->txs.size() > maxNotVotedTxsToKeep / 2;) {
-        if (!txHasAnyVote(it->first, this->tip))
+        if (!txHasAnyVote(it->first))
             it = this->pruneTx(it);
         else
             it++;
@@ -209,7 +213,7 @@ CDposVoter::Output CDposVoter::applyTx(const CTransaction& tx)
         return {};
     }
 
-    const bool wasLost = wasTxLost(txid, tip);
+    const bool wasLost = wasTxLost(txid);
 
     // don't pre-validate tx if it already has votes
     if (!wasLost && !world.preValidateTx(tx, GUARANTEES_MEMORY * 2)) {
@@ -352,17 +356,17 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
     return out;
 }
 
-CDposVoter::Output CDposVoter::requestMissingTxs()
+CDposVoter::Output CDposVoter::requestMissingTxs() const
 {
     Output out{};
     uint32_t i = 0;
-    for (BlockHash vot = tip; !vot.IsNull() && i < GUARANTEES_MEMORY; i++, vot = world.getPrevBlock(vot)) {
+    forEachVoting(tip, 0, GUARANTEES_MEMORY, [&](BlockHash vot) {
         for (const auto& txVoting_p : v[vot].txVotes) {
             if (!txVoting_p.second.empty() && txs.count(txVoting_p.first) == 0) {
                 out.vTxReqs.push_back(txVoting_p.first);
             }
         }
-    }
+    });
 
     if (!out.vTxReqs.empty())
         LogPrintf("dpos: %s: %d \n", __func__, out.vTxReqs.size());
@@ -386,7 +390,7 @@ bool CDposVoter::ensurePledgeItemsNotMissing(PledgeRequiredItems r, const std::s
     // It means that I can't check that a tx doesn't interfere with already approved by me, or with a vice-block approved by me, or with a committed tx.
     // Without this condition, it's possible to do doublesign by accident.
     if (r.fApprovedTxs && !pledge.approvedTxs.missing.empty()) {
-        LogPrintf("dpos: Can't do %s because %d of approved-by-me txs (one of them is %s). "
+        LogPrintf("dpos: Can't do %s because %d of approved-by-me txs (one of them is %s) are missing. "
                   "Txs are requested. \n",
                   methodName,
                   pledge.approvedTxs.missing.size(),
@@ -394,7 +398,7 @@ bool CDposVoter::ensurePledgeItemsNotMissing(PledgeRequiredItems r, const std::s
         fOk = false;
     }
     if (r.fCommittedTxs && !pledge.committedTxs.missing.empty()) {
-        LogPrintf("dpos: Can't do %s because %d of committed txs (one of them is %s). "
+        LogPrintf("dpos: Can't do %s because %d of committed txs (one of them is %s) are missing. "
                   "Txs are requested. \n",
                   methodName,
                   pledge.committedTxs.missing.size(),
@@ -402,7 +406,7 @@ bool CDposVoter::ensurePledgeItemsNotMissing(PledgeRequiredItems r, const std::s
         fOk = false;
     }
     if (r.fVblocks && !pledge.vblocks.missing.empty()) {
-        LogPrintf("dpos: Can't do %s because %d of approved-by-me vice-blocks (one of them is %s). "
+        LogPrintf("dpos: Can't do %s because %d of approved-by-me vice-blocks (one of them is %s) are missing. "
                   "Vice-blocks are requested. \n",
                   methodName,
                   pledge.vblocks.missing.size(),
@@ -581,9 +585,9 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
 
     // check that this tx:
     // 1. doesn't exceed instant txs section size limit. IMPORTANT: we don't check MAX_INST_SECTION_SIGOPS because all the inputs are guaranteed to be P2PKH
-    const size_t txsSize = ::GetSerializeSize(tx, SER_NETWORK, tx.nVersion) +
-        ::GetSerializeSize(pledge.committedTxs.txs, SER_NETWORK, tx.nVersion) +
-        pledge.approvedTxs.votedTxsSerializeSize; // yes, some txs are counted twice
+    const size_t txsSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION) +
+        ::GetSerializeSize(pledge.committedTxs.txs, SER_NETWORK, PROTOCOL_VERSION) +
+        pledge.approvedTxs.txsSerializeSize; // yes, some txs are counted twice in committedTxs/approvedTxs
 
     if (txsSize > MAX_INST_SECTION_SIZE / GUARANTEES_MEMORY) {
         LogPrintf("dpos: %s: skipping tx %s, because the size of instant txs is above limit \n", __func__, tx.GetHash().GetHex());
@@ -704,7 +708,7 @@ Round CDposVoter::getLowestNotOccupiedRound() const
     return maxToCheck; // shouldn't be reachable
 }
 
-CDposVoter::CommittedTxs CDposVoter::listCommittedTxs(BlockHash start, uint32_t votingsSkip, uint32_t votingsDeep)
+CDposVoter::CommittedTxs CDposVoter::listCommittedTxs(BlockHash start, uint32_t votingsSkip, uint32_t votingsDeep) const
 {
     CommittedTxs res{};
     forEachVoting(start, votingsSkip, votingsDeep, [&](BlockHash vot) {
@@ -761,7 +765,7 @@ bool CDposVoter::wasVotedByMe_round(BlockHash vot, Round nRound) const
     return v.count(vot) > 0 && v[vot].roundVotes.count(nRound) > 0 && v[vot].roundVotes[nRound].count(me) > 0;
 }
 
-CDposVoter::MyPledge CDposVoter::buildMyPledge(PledgeBuilderRanges ranges)
+CDposVoter::MyPledge CDposVoter::buildMyPledge(PledgeBuilderRanges ranges) const
 {
     MyPledge res{};
     // fill approvedTxs for last approvedTxsDeep votings
@@ -819,7 +823,7 @@ void CDposVoter::buildApprovedTxsPledge(CDposVoter::ApprovedTxs& res, BlockHash 
                 for (const auto& in : inputs) {
                     res.assignedInputs.emplace(in, tx.GetHash());
                 }
-                res.votedTxsSerializeSize += ::GetSerializeSize(tx, SER_NETWORK, tx.nVersion);
+                res.txsSerializeSize += ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
             }
         }
     }
@@ -863,27 +867,24 @@ CRoundVotingDistribution CDposVoter::calcRoundVotingStats(BlockHash vot, Round n
     return stats;
 }
 
-bool CDposVoter::txHasAnyVote(TxId txid, BlockHash vot) const
+bool CDposVoter::txHasAnyVote(TxId txid) const
 {
     bool voteFound = false;
 
     uint32_t i = 0;
-    for (BlockHash vot = tip; !vot.IsNull() && i < GUARANTEES_MEMORY; i++, vot = world.getPrevBlock(vot)) {
-        if (v.count(vot) == 0)
-            continue;
-        if (v[vot].txVotes.count(txid) > 0) {
+    forEachVoting(tip, 0, GUARANTEES_MEMORY, [&](BlockHash vot) {
+        if (v.count(vot) != 0 && v[vot].txVotes.count(txid) > 0) {
             voteFound = true;
-            break;
         }
-    }
+    });
     return voteFound;
 }
 
-bool CDposVoter::wasTxLost(TxId txid, BlockHash vot) const
+bool CDposVoter::wasTxLost(TxId txid) const
 {
     if (txs.count(txid) > 0) // known
         return false;
-    return txHasAnyVote(txid, vot);
+    return txHasAnyVote(txid);
 }
 
 bool CDposVoter::checkTxNotCommittable(TxId txid, BlockHash vot) const
@@ -895,8 +896,7 @@ bool CDposVoter::checkTxNotCommittable(TxId txid, BlockHash vot) const
         return false; // assume worse if tx is missing
 
     const CTransaction& tx = txs[txid];
-    const std::vector<COutPoint> inputs = getInputsOf(tx);
-    for (const auto& in : inputs) {
+    for (const auto& in : getInputsOf(tx)) {
         // iterate over all the voted txs which use tha same inputs
         const auto& collisions_p = this->pledgedInputs.equal_range(in);
         for (auto colliTx_it = collisions_p.first; colliTx_it != collisions_p.second; colliTx_it++) {
