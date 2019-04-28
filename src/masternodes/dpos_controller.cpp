@@ -286,6 +286,8 @@ void CDposController::loadDB()
         if (block.GetHash() != blockHash)
             throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
         this->voter->v[block.hashPrevBlock].viceBlocks.emplace(block.GetHash(), block);
+        // don't vote for blocks which were seen when voter was inactive
+        this->voter->v[block.hashPrevBlock].viceBlocksToSkip.emplace(block.GetHash());
     });
     if (!success)
         throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
@@ -304,6 +306,8 @@ void CDposController::loadDB()
 
             this->receivedRoundVotes.emplace(vote.GetHash(), vote);
             this->voter->v[vote.tip].roundVotes[roundVote.nRound].emplace(roundVote.voter, roundVote);
+            // don't vote for blocks which were seen when voter was inactive
+            this->voter->v[vote.tip].viceBlocksToSkip.emplace(vote.choice.subject);
         }
     });
     if (!success)

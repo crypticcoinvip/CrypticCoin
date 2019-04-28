@@ -114,6 +114,7 @@ public:
         std::map<Round, std::map<CMasternode::ID, CRoundVote> > roundVotes;
 
         std::map<BlockHash, CBlock> viceBlocks;
+        std::set<BlockHash> viceBlocksToSkip; // vice blocks which were seen when voter was inactive
 
         bool isNull() const
         {
@@ -237,6 +238,9 @@ protected:
     Output misbehavingErr(const std::string& msg) const;
     Output voteForTx(const CTransaction& tx);
     boost::optional<CRoundVote> voteForViceBlock(const CBlock& viceBlock, MyPledge& pledge) const;
+
+    /// mark all the known vice-blocks as "don't vote for it"
+    void markViceBlocksSkipped();
 
     /**
      * @return true if transaction had any vote from me during the round.

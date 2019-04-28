@@ -158,6 +158,11 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
 
     v[viceBlock.hashPrevBlock].viceBlocks.emplace(viceBlock.GetHash(), viceBlock);
 
+    // don't vote for blocks which were seen when voter was inactive
+    if (!amIvoter || lastRoundVotedTime != 0) {
+        v[viceBlock.hashPrevBlock].viceBlocksToSkip.emplace(viceBlock.GetHash());
+    }
+
     LogPrintf("dpos: %s: Received vice-block %s \n", __func__, viceBlock.GetHash().GetHex());
     return doRoundVoting();
 }
@@ -346,6 +351,11 @@ CDposVoter::Output CDposVoter::applyRoundVote(const CRoundVote& vote)
 
     roundVoting.emplace(vote.voter, vote);
 
+    // don't vote for blocks which were seen when voter was inactive
+    if (!amIvoter || lastRoundVotedTime != 0) {
+        v[vote.tip].viceBlocksToSkip.emplace(vote.choice.subject);
+    }
+
     Output out{};
 
     // check voting result after emplaced
@@ -516,6 +526,10 @@ CDposVoter::Output CDposVoter::doRoundVoting()
 
     // fill sortedViceBlocks
     for (const auto& viceBlock_p : v[tip].viceBlocks) {
+        if (v[tip].viceBlocksToSkip.count(viceBlock_p.first) > 0) {
+            LogPrint("dpos", "dpos: %s: skipping vice block %s at round %d, because it was seen when I was inactive \n", __func__, viceBlock_p.first.GetHex(), viceBlock_p.second.nRound);
+            continue;
+        }
         auto stats = calcRoundVotingStats(tip, viceBlock_p.second.nRound);
         sortedViceBlocks.emplace_back(viceBlock_p.second.nRound, stats.pro[viceBlock_p.first], UintToArith256(viceBlock_p.first));
     }
@@ -540,7 +554,11 @@ CDposVoter::Output CDposVoter::doRoundVoting()
     }
 
     if (vote) {
+        // disable round (vice-blocks) voting until timer is 0 again
         lastRoundVotedTime = world.getTime();
+        // don't vote for blocks which were seen when voter was inactive
+        markViceBlocksSkipped();
+
         out.vRoundVotes.push_back(*vote);
         out += applyRoundVote(*vote);
     } else if (!sortedViceBlocks.empty()) {
@@ -548,6 +566,17 @@ CDposVoter::Output CDposVoter::doRoundVoting()
     }
 
     return out;
+}
+
+void CDposVoter::markViceBlocksSkipped() {
+    for (const auto& viceBlock_p : v[tip].viceBlocks) {
+        v[tip].viceBlocksToSkip.emplace(viceBlock_p.first);
+    }
+    for (const auto& roundVoting_p : v[tip].roundVotes) {
+        for (const auto& vote_p : roundVoting_p.second) {
+            v[tip].viceBlocksToSkip.emplace(vote_p.second.choice.subject);
+        }
+    }
 }
 
 CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
@@ -930,6 +959,19 @@ bool CDposVoter::verifyVotingState() const
                 return false; // no duplicates possible
             }
         }
+    }
+    // check viceBlocksToSkip
+    for (const auto& viceBlock : v[tip].viceBlocksToSkip) {
+        if (v[tip].viceBlocks.count(viceBlock) > 0)
+            continue; // found
+        for (const auto& roundVoting_p : v[tip].roundVotes) {
+            for (const auto& vote_p : roundVoting_p.second) {
+                if (vote_p.second.choice.subject == viceBlock) {
+                    continue; // found
+                }
+            }
+        }
+        return false; // not found
     }
 
     return txVotes == mnTxVotes;
