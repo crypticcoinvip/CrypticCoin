@@ -3828,19 +3828,31 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
         return state.Invalid(error("%s: block's timestamp is too early", __func__),
                              REJECT_INVALID, "time-too-old");
 
-    if (fCheckpointsEnabled)
-    {
-        // Don't accept any forks from the main chain prior to last checkpoint
-        CBlockIndex* pcheckpoint = Checkpoints::GetLastCheckpoint(chainParams.Checkpoints());
-        if (pcheckpoint && nHeight < pcheckpoint->nHeight)
-            return state.DoS(100, error("%s: forked chain older than last checkpoint (height %d)", __func__, nHeight));
-    }
+//    if (fCheckpointsEnabled)
+//    {
+//        // Don't accept any forks from the main chain prior to last checkpoint
+//        CBlockIndex* pcheckpoint = Checkpoints::GetLastCheckpoint(chainParams.Checkpoints());
+//        if (pcheckpoint && nHeight < pcheckpoint->nHeight)
+//            return state.DoS(100, error("%s: forked chain older than last checkpoint (height %d)", __func__, nHeight));
+//    }
 
     // Reject block.nVersion < 4 blocks
     if (block.nVersion < 4)
         return state.Invalid(error("%s : rejected nVersion<4 block", __func__),
                              REJECT_OBSOLETE, "bad-version");
 
+    auto const it = chainParams.Checkpoints().mapCheckpoints.find(nHeight);
+    if (it != chainParams.Checkpoints().mapCheckpoints.end())
+    {
+        if (it->second == hash)
+        {
+            LogPrintf("%s: checkpoint PASSED: (height %d, hash %s)\n", __func__, nHeight, hash.ToString());
+        }
+        else
+        {
+            return state.Invalid(error("%s: rejected block %s, checkpoint mismatch (height %d, hash %s)", __func__, hash.ToString(), nHeight, it->second.ToString()), REJECT_INVALID, "checkpoint-mismatch");
+        }
+    }
     return true;
 }
 
