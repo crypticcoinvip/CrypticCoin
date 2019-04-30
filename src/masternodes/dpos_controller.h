@@ -82,7 +82,7 @@ public:
 
     std::vector<CTransaction> listCommittedTxs(uint32_t maxdeep = CDposVoter::GUARANTEES_MEMORY) const;
     bool isCommittedTx(const TxId& txid, uint32_t maxdeep = CDposVoter::GUARANTEES_MEMORY) const;
-    bool checkTxNotCommittable(const TxId& txid) const;
+    bool isNotCommittableTx(const TxId& txid) const;
     bool excludeTxFromBlock_miner(const CTransaction& tx) const;
     bool isTxApprovedByMe(const TxId& txid) const;
     CTxVotingDistribution calcTxVotingStats(const TxId& txid) const;

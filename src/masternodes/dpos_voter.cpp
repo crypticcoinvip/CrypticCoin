@@ -125,8 +125,8 @@ void CDposVoter::updateTip(BlockHash tip)
         StartShutdown();
     }
 
-    // filter txs without votes, so txs.size <= maxNotVotedTxsToKeep / 2
-    for (auto it = this->txs.begin(); it != this->txs.end() && this->txs.size() > maxNotVotedTxsToKeep / 2;) {
+    // filter txs without votes, so txs.size <= maxNotVotedTxsToKeep / 10
+    for (auto it = this->txs.begin(); it != this->txs.end() && this->txs.size() > maxNotVotedTxsToKeep / 10;) {
         if (!txHasAnyVote(it->first))
             it = this->pruneTx(it);
         else
@@ -175,6 +175,13 @@ void CDposVoter::insertTxVote(const CTxVote& vote) {
     const TxId txid = vote.choice.subject;
     v[vote.tip].txVotes[txid].emplace(vote.voter, vote);
     v[vote.tip].mnTxVotes[vote.voter].push_back(vote);
+
+    if (txs.count(txid) > 0) {
+        // update the index input -> txid
+        for (const auto& in : getInputsOf(txs[txid])) {
+            pledgedInputs.emplace(in, txid);
+        }
+    }
 }
 
 void CDposVoter::insertViceBlock(const CBlock& viceBlock) {
@@ -325,11 +332,6 @@ CDposVoter::Output CDposVoter::applyTxVote(const CTxVote& vote)
         // request the missing tx
         out.vTxReqs.push_back(txid);
         LogPrintf("dpos: %s: request the missing tx %s \n", __func__, txid.GetHex());
-    } else {
-        // update the index input -> txid
-        for (const auto& in : getInputsOf(txs[txid])) {
-            pledgedInputs.emplace(in, txid);
-        }
     }
 
     return out;
@@ -415,7 +417,7 @@ bool CDposVoter::ensurePledgeItemsNotMissing(PledgeRequiredItems r, const std::s
               std::back_inserter(out.vViceBlockReqs)); // request missing vice-blocks
 
     bool fOk = true;
-    // forbid voting if one of aitems is missing.
+    // forbid voting if one of items is missing.
     // It means that I can't check that a tx doesn't interfere with already approved by me, or with a vice-block approved by me, or with a committed tx.
     // Without this condition, it's possible to do doublesign by accident.
     if (r.fApprovedTxs && !pledge.approvedTxs.missing.empty()) {
@@ -446,6 +448,94 @@ bool CDposVoter::ensurePledgeItemsNotMissing(PledgeRequiredItems r, const std::s
     return fOk;
 }
 
+CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
+{
+    if (!amIvoter) {
+        return {};
+    }
+
+    if (v[tip].mnTxVotes[me].size() >= maxTxVotesFromVoter / 2) {
+        LogPrintf("dpos: %s: I'm exhausted, too much votes from me (it's ok, just number of txs is above limit) \n", __func__);
+        return {};
+    }
+
+    TxId txid = tx.GetHash();
+    const Round nRound = 1;
+
+    if (wasVotedByMe_tx(txid, tip, nRound)) {
+        LogPrint("dpos", "dpos: %s: Tx %s was already voted by me \n", __func__, txid.GetHex());
+        return {};
+    }
+
+    Output out{};
+
+    // build the pledge items
+    PledgeBuilderRanges ranges;
+    ranges.vblocksDeep = 1; // no much sense in check vblocks from prev votings, as they didn't become a block
+    auto pledge = buildMyPledge(ranges);
+
+    // check the pledge
+    PledgeRequiredItems r;
+    r.fCommittedTxs = false; // committedTxs check isn't necessary, so it's fine if they are missing
+    if (!ensurePledgeItemsNotMissing(r, "tx voting", pledge, out)) {
+        return out;
+    }
+
+    // check that this tx:
+    // 1. doesn't exceed instant txs section size limit. IMPORTANT: we don't check MAX_INST_SECTION_SIGOPS because all the inputs are guaranteed to be P2PKH
+    const size_t txsSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION) +
+        ::GetSerializeSize(pledge.committedTxs.txs, SER_NETWORK, PROTOCOL_VERSION) +
+        pledge.approvedTxs.txsSerializeSize; // yes, some txs are counted twice in committedTxs/approvedTxs
+
+    if (txsSize > MAX_INST_SECTION_SIZE / GUARANTEES_MEMORY) {
+        LogPrintf("dpos: %s: skipping tx %s, because the size of instant txs is above limit \n", __func__, tx.GetHash().GetHex());
+        return out;
+    }
+    // 2. may be included into a block
+    if (!world.validateTx(tx))
+        return out;
+    // 3. doesn't interfere with instant txs I approved
+    const std::set<COutPoint> txInputs = getInputsOf_set(tx);
+    for (const auto& in : txInputs) {
+        if (pledge.approvedTxs.interfereWith(in, tx.GetHash())) {  // this input is already assigned to another tx
+            LogPrintf("dpos: %s: skipping tx %s, because it assigns input %s, but I promised it to another tx \n", __func__, tx.GetHash().GetHex(), in.ToString());
+            return out;
+        }
+    }
+    // 4. doesn't interfere with vice-blocks I approved
+    for (const auto& in : txInputs) {
+        if (pledge.vblocks.interfereWith(in, tx.GetHash())) {  // this input is already assigned to another tx, in a vice-block I approved
+            LogPrintf("dpos: %s: skipping tx %s, because it assigns input %s, but I promised it to another tx in a vice-block \n", __func__, tx.GetHash().GetHex(), in.ToString());
+            return out;
+        }
+    }
+    // 5. doesn't interfere with committed instant txs from prev. votings. It's not necessary because of step 3, but nice to avoid hopeless votes
+    for (const auto& cTx : pledge.committedTxs.txs) {
+        if (cTx.GetHash() == txid)
+            continue; // the same tx we vote for
+        for (const auto& cIn : getInputsOf(cTx)) {
+            if (txInputs.count(cIn) > 0) {
+                LogPrintf("dpos: %s: skipping tx %s, because it interferes with the committed tx %s \n", __func__, tx.GetHash().GetHex(), cTx.GetHash().GetHex());
+                return out;
+            }
+        }
+    }
+
+    {
+        LogPrintf("dpos: %s: Vote for tx %s \n", __func__, txid.GetHex());
+        CTxVote newVote{};
+        newVote.voter = me;
+        newVote.nRound = nRound;
+        newVote.tip = tip;
+        newVote.choice = CVoteChoice{txid, static_cast<int8_t>(CVoteChoice::Decision::YES)};
+        out.vTxVotes.push_back(newVote);
+
+        out += applyTxVote(newVote);
+    }
+
+    return out;
+}
+
 boost::optional<CRoundVote> CDposVoter::voteForViceBlock(const CBlock& viceBlock, CDposVoter::MyPledge& pledge) const
 {
     if (!amIvoter) {
@@ -471,8 +561,8 @@ boost::optional<CRoundVote> CDposVoter::voteForViceBlock(const CBlock& viceBlock
     std::set<TxId> viceBlockTxsSet;
     for (const auto& tx : viceBlock.vtx) {
         for (const auto& in : getInputsOf(tx)) {
-            if (pledge.approvedTxs.assignedInputs.count(in) > 0 && pledge.approvedTxs.assignedInputs[in] != tx.GetHash()) {  // this input is already assigned to another tx
-                LogPrintf("dpos: %s: skipping vice block %s at round %d, because it assigns input %s to tx %s, but I promised it to tx %s \n", __func__, viceBlock.GetHash().GetHex(), viceBlock.nRound, in.ToString(), tx.GetHash().GetHex(), pledge.approvedTxs.assignedInputs[in].GetHex());
+            if (pledge.approvedTxs.interfereWith(in, tx.GetHash())) {  // this input is already assigned to another tx
+                LogPrintf("dpos: %s: skipping vice block %s at round %d, because it assigns input %s to tx %s, but I promised it to another tx \n", __func__, viceBlock.GetHash().GetHex(), viceBlock.nRound, in.ToString(), tx.GetHash().GetHex());
                 return {};
             }
         }
@@ -598,96 +688,6 @@ void CDposVoter::markViceBlocksSkipped() {
     }
 }
 
-CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
-{
-    if (!amIvoter) {
-        return {};
-    }
-
-    if (v[tip].mnTxVotes[me].size() >= maxTxVotesFromVoter / 2) {
-        LogPrintf("dpos: %s: I'm exhausted, too much votes from me (it's ok, just number of txs is above limit) \n", __func__);
-        return {};
-    }
-
-    TxId txid = tx.GetHash();
-    const Round nRound = 1;
-
-    if (wasVotedByMe_tx(txid, tip, nRound)) {
-        LogPrint("dpos", "dpos: %s: Tx %s was already voted by me \n", __func__, txid.GetHex());
-        return {};
-    }
-
-    Output out{};
-
-    // build the pledge items
-    PledgeBuilderRanges ranges;
-    ranges.vblocksDeep = 1; // no much sense in check vblocks from prev votings, as they didn't become a block
-    auto pledge = buildMyPledge(ranges);
-
-    // check the pledge
-    PledgeRequiredItems r;
-    r.fCommittedTxs = false; // committedTxs check isn't necessary, so it's fine if they are missing
-    if (!ensurePledgeItemsNotMissing(r, "tx voting", pledge, out)) {
-        return out;
-    }
-
-    // check that this tx:
-    // 1. doesn't exceed instant txs section size limit. IMPORTANT: we don't check MAX_INST_SECTION_SIGOPS because all the inputs are guaranteed to be P2PKH
-    const size_t txsSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION) +
-        ::GetSerializeSize(pledge.committedTxs.txs, SER_NETWORK, PROTOCOL_VERSION) +
-        pledge.approvedTxs.txsSerializeSize; // yes, some txs are counted twice in committedTxs/approvedTxs
-
-    if (txsSize > MAX_INST_SECTION_SIZE / GUARANTEES_MEMORY) {
-        LogPrintf("dpos: %s: skipping tx %s, because the size of instant txs is above limit \n", __func__, tx.GetHash().GetHex());
-        return out;
-    }
-    // 2. may be included into a block
-    if (!world.validateTx(tx))
-        return out;
-    // 3. doesn't interfere with instant txs I approved
-    const std::set<COutPoint> txInputs = getInputsOf_set(tx);
-    for (const auto& in : txInputs) {
-        if (pledge.approvedTxs.assignedInputs.count(in) > 0 && pledge.approvedTxs.assignedInputs[in] != tx.GetHash()) {  // this input is already assigned to another tx
-            LogPrintf("dpos: %s: skipping tx %s, because it assigns input %s, but I promised it to tx %s \n", __func__, tx.GetHash().GetHex(), in.ToString(), pledge.approvedTxs.assignedInputs[in].GetHex());
-            return out;
-        }
-    }
-    // 4. doesn't interfere with vice-blocks I approved
-    for (const auto& in : txInputs) {
-        if (pledge.vblocks.vblockAssignedInputs.count(in) == 1 && pledge.vblocks.vblockAssignedInputs.find(in)->second == tx.GetHash()) {
-            continue; // assigned to this tx
-        } else if (pledge.vblocks.vblockAssignedInputs.count(in) > 0) {  // this input is already assigned to another tx, in a vice-block I approved
-            LogPrintf("dpos: %s: skipping tx %s, because it assigns input %s, but I promised it to another tx in a vice-block \n", __func__, tx.GetHash().GetHex(), in.ToString());
-            return out;
-        }
-    }
-    // 5. doesn't interfere with committed instant txs from prev. votings. It's not necessary because of step 3, but nice to avoid hopeless votes
-    for (const auto& cTx : pledge.committedTxs.txs) {
-        if (cTx.GetHash() == txid)
-            continue; // the same tx we vote for
-        for (const auto& cIn : getInputsOf(cTx)) {
-            if (txInputs.count(cIn) > 0) {
-                LogPrintf("dpos: %s: skipping tx %s, because it interferes with the committed tx %s \n", __func__, tx.GetHash().GetHex(), cTx.GetHash().GetHex());
-                return out;
-            }
-        }
-    }
-
-    {
-        LogPrintf("dpos: %s: Vote for tx %s \n", __func__, txid.GetHex());
-        CTxVote newVote{};
-        newVote.voter = me;
-        newVote.nRound = nRound;
-        newVote.tip = tip;
-        newVote.choice = CVoteChoice{txid, static_cast<int8_t>(CVoteChoice::Decision::YES)};
-        out.vTxVotes.push_back(newVote);
-
-        out += applyTxVote(newVote);
-    }
-
-    return out;
-}
-
 CDposVoter::Output CDposVoter::tryToSubmitBlock(BlockHash viceBlockId, Round nRound)
 {
     Output out{};
@@ -765,7 +765,7 @@ CDposVoter::CommittedTxs CDposVoter::listCommittedTxs(BlockHash start, uint32_t 
 
         for (const auto& txVoting_p : v[vot].txVotes) {
             const TxId txid = txVoting_p.first;
-            if (isCommittedTx(txid, vot, 1)) {
+            if (isCommittedTx(txid, vot, 0, 1)) {
                 if (txs.count(txid) == 0)
                     res.missing.emplace(txid);
                 else
@@ -777,11 +777,17 @@ CDposVoter::CommittedTxs CDposVoter::listCommittedTxs(BlockHash start, uint32_t 
     return res;
 }
 
-bool CDposVoter::isCommittedTx(const TxId& txid, BlockHash vot, Round nRound) const
+bool CDposVoter::isCommittedTx(const TxId& txid, BlockHash start, uint32_t votingsSkip, uint32_t votingsDeep, Round nRound) const
 {
-    const auto stats = calcTxVotingStats(txid, vot, nRound);
+    bool committed = false;
+    forEachVoting(start, votingsSkip, votingsDeep, [&](BlockHash vot) {
+        if (committed)
+            return;
+        const auto stats = calcTxVotingStats(txid, vot, nRound);
+        committed = stats.pro >= minQuorum;
+    });
 
-    return stats.pro >= minQuorum;
+    return committed;
 }
 
 bool CDposVoter::isTxApprovedByMe(const TxId& txid, BlockHash vot) const
@@ -824,7 +830,7 @@ CDposVoter::MyPledge CDposVoter::buildMyPledge(PledgeBuilderRanges ranges) const
     // fill committedTxs until approvedTxsDeep votings, skipping committedTxsSkip
     res.committedTxs = listCommittedTxs(tip, ranges.committedTxsSkip, ranges.committedTxsDeep);
 
-    // fill approvedTxs for last vblocksDeep votings
+    // fill vblockAssignedInputs for last vblocksDeep votings
     forEachVoting(tip, 0, ranges.vblocksDeep, [&](BlockHash vot) {
         for (auto&& roundVoting_p : v[vot].roundVotes) {
             if (roundVoting_p.second.count(me) == 0)
@@ -842,7 +848,7 @@ CDposVoter::MyPledge CDposVoter::buildMyPledge(PledgeBuilderRanges ranges) const
                 for (const auto& tx : viceBlock.vtx) {
                     const std::vector<COutPoint> inputs = getInputsOf(tx);
                     for (const auto& in : inputs) {
-                        res.vblocks.vblockAssignedInputs.emplace(in, tx.GetHash());
+                        res.vblocks.vblockAssignedInputs[in].emplace(tx.GetHash());
                     }
                 }
             }
@@ -861,15 +867,14 @@ void CDposVoter::buildApprovedTxsPledge(CDposVoter::ApprovedTxs& res, BlockHash 
     for (auto&& txVoting_p : v[vot].txVotes) {
         const TxId txid = txVoting_p.first;
 
-        if (isTxApprovedByMe(txid, vot) && !checkTxNotCommittable(txid, vot)) {
+        if (isTxApprovedByMe(txid, vot) && !isNotCommittableTx(txid)) {
             if (txs.count(txid) == 0) {
                 // can happen after reindex, if we didn't download all the txs
                 res.missing.emplace(txid);
             } else {
                 const CTransaction& tx = txs[txid];
-                const std::vector<COutPoint> inputs = getInputsOf(tx);
-                for (const auto& in : inputs) {
-                    res.assignedInputs.emplace(in, tx.GetHash());
+                for (const auto& in : getInputsOf(tx)) {
+                    res.assignedInputs[in].emplace(tx.GetHash());
                 }
                 res.txsSerializeSize += ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
             }
@@ -935,20 +940,21 @@ bool CDposVoter::wasTxLost(TxId txid) const
     return txHasAnyVote(txid);
 }
 
-bool CDposVoter::checkTxNotCommittable(TxId txid, BlockHash vot) const
+bool CDposVoter::isNotCommittableTx(TxId txid) const
 {
-    if (isCommittedTx(txid, vot, 1))
-        return false;
-
     if (txs.count(txid) == 0)
         return false; // assume worse if tx is missing
+
+    if (isCommittedTx(txid, tip)) {
+        return false;
+    }
 
     const CTransaction& tx = txs[txid];
     for (const auto& in : getInputsOf(tx)) {
         // iterate over all the voted txs which use tha same inputs
         const auto& collisions_p = this->pledgedInputs.equal_range(in);
         for (auto colliTx_it = collisions_p.first; colliTx_it != collisions_p.second; colliTx_it++) {
-            if (colliTx_it->second != txid && isCommittedTx(colliTx_it->second, vot, 1))
+            if (colliTx_it->second != txid && isCommittedTx(colliTx_it->second, tip))
                 return true;
         }
     }

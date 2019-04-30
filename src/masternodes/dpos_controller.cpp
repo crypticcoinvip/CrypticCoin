@@ -533,16 +533,12 @@ std::vector<CTransaction> CDposController::listCommittedTxs(uint32_t maxdeep) co
 bool CDposController::isCommittedTx(const TxId& txid, uint32_t maxdeep) const
 {
     LOCK(cs_main);
-    for (int i = chainActive.Height(); i > chainActive.Height() - (int) maxdeep && i >= 0; i--) {
-        if (this->voter->isCommittedTx(txid, chainActive[i]->GetBlockHash(), 1))
-            return true;
-    }
-    return false;
+    return this->voter->isCommittedTx(txid, this->voter->getTip(), 0, maxdeep);
 }
 
-bool CDposController::checkTxNotCommittable(const TxId& txid) const {
+bool CDposController::isNotCommittableTx(const TxId& txid) const {
     LOCK(cs_main);
-    return this->voter->checkTxNotCommittable(txid, this->voter->getTip());
+    return this->voter->isNotCommittableTx(txid);
 }
 
 bool CDposController::excludeTxFromBlock_miner(const CTransaction& tx) const {

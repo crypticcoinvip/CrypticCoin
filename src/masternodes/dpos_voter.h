@@ -196,14 +196,37 @@ public:
 
     struct ApprovedViceBlocks
     {
-        std::multimap<COutPoint, TxId> vblockAssignedInputs;
+        // not a multimap, because multimap may have duplicates
+        std::map<COutPoint, std::set<TxId>> vblockAssignedInputs;
         std::set<BlockHash> missing;
+
+        bool interfereWith(const COutPoint& in, TxId to) {
+            if (!missing.empty()) {
+                LogPrintf("dpos: ApprovedViceBlocks: {missing} isn't empty, but interfereWith() is called anyway. \n");
+            }
+            if (vblockAssignedInputs.count(in) > 0 && vblockAssignedInputs[in].size() == 1 && *vblockAssignedInputs[in].begin() == to) {
+                return false; // assigned to this tx, not a conflict
+            }
+            return vblockAssignedInputs.count(in) > 0 && !vblockAssignedInputs[in].empty(); // this input is already assigned to another tx, in a vice-block I approved
+        }
     };
     struct ApprovedTxs
     {
-        std::map<COutPoint, TxId> assignedInputs;
+        // it may be a map, as we never assign the same input to multiple instant txs. It's multimap to keep it similar to vblockAssignedInputs
+        // not a multimap, because multimap may have duplicates
+        std::map<COutPoint, std::set<TxId>> assignedInputs;
         size_t txsSerializeSize;
         std::set<TxId> missing;
+
+        bool interfereWith(const COutPoint& in, TxId to) {
+            if (!missing.empty()) {
+                LogPrintf("dpos: ApprovedTxs: {missing} isn't empty, but interfereWith() is called anyway. \n");
+            }
+            if (assignedInputs.count(in) > 0 && assignedInputs[in].size() == 1 && *assignedInputs[in].begin() == to) {
+                return false; // assigned to this tx, not a conflict
+            }
+            return assignedInputs.count(in) > 0 && !assignedInputs[in].empty(); // this input is already assigned to another instant tx
+        }
     };
     struct CommittedTxs
     {
@@ -220,7 +243,7 @@ public:
     /// @param votingsDeep @param votingsSkip [start - votingsSkip, start - votingsDeep]
     CommittedTxs listCommittedTxs(BlockHash start, uint32_t votingsSkip = 0, uint32_t votingsDeep = 1) const;
 
-    bool isCommittedTx(const TxId& txid, BlockHash vot, Round nRound) const;
+    bool isCommittedTx(const TxId& txid, BlockHash start, uint32_t votingsSkip = 0, uint32_t votingsDeep = GUARANTEES_MEMORY, Round nRound = 1) const;
     bool isTxApprovedByMe(const TxId& txid, BlockHash vot) const;
 
     CTxVotingDistribution calcTxVotingStats(TxId txid, BlockHash vot, Round nRound) const;
@@ -236,7 +259,7 @@ public:
     /**
      * Check that tx cannot be committed, due to already known committed (and conflicting) tx
      */
-    bool checkTxNotCommittable(TxId txid, BlockHash vot) const;
+    bool isNotCommittableTx(TxId txid) const;
 
     static std::vector<COutPoint> getInputsOf(const CTransaction& tx);
     static std::set<COutPoint> getInputsOf_set(const CTransaction& tx);
