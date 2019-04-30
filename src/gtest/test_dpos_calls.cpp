@@ -8,10 +8,10 @@ namespace dpos {
 
 TEST(dPoS_calls, TestTxCommitting) {
     std::vector<CBlock> blocks(4);
-    blocks[0].nRound = 1;
-    blocks[1].nRound = 2;
-    blocks[2].nRound = 3;
-    blocks[3].nRound = 4;
+    blocks[0].nTime = 1;
+    blocks[1].nTime = 2;
+    blocks[2].nTime = 3;
+    blocks[3].nTime = 4;
 
     dpos::CDposVoter::Callbacks callbacks;
     callbacks.getPrevBlock = [&](const BlockHash &block) {
@@ -31,25 +31,27 @@ TEST(dPoS_calls, TestTxCommitting) {
         voter.maxNotVotedTxsToKeep = 500;
         voter.maxTxVotesFromVoter = 500;
 
-        CMutableTransaction testTxCommitted_m;
-        testTxCommitted_m.vin.resize(2);
-        testTxCommitted_m.vin[1].prevout.hash = TxId{};
-        testTxCommitted_m.vin[1].prevout.n = 0;
-        testTxCommitted_m.vin[0].prevout.hash = TxId{};
-        testTxCommitted_m.vin[0].prevout.n = 1;
+        voter.updateTip(blocks[i].GetHash());
 
-        CMutableTransaction testTxUncommitable_m;
-        testTxUncommitable_m.vin.resize(2);
-        testTxUncommitable_m.vin[1].prevout.hash = TxId{};
-        testTxUncommitable_m.vin[1].prevout.n = 2;
-        testTxUncommitable_m.vin[0].prevout.hash = TxId{};
-        testTxUncommitable_m.vin[0].prevout.n = 1;
+        CMutableTransaction txApproved_m;
+        txApproved_m.vin.resize(2);
+        txApproved_m.vin[1].prevout.hash = TxId{};
+        txApproved_m.vin[1].prevout.n = 0;
+        txApproved_m.vin[0].prevout.hash = TxId{};
+        txApproved_m.vin[0].prevout.n = 1;
 
-        voter.txs.emplace(testTxCommitted_m.GetHash(), CTransaction{testTxCommitted_m});
-        voter.pledgedInputs.emplace(testTxCommitted_m.vin[0].prevout, testTxCommitted_m.GetHash());
-        voter.pledgedInputs.emplace(testTxCommitted_m.vin[1].prevout, testTxCommitted_m.GetHash());
+        CMutableTransaction txRejected_m;
+        txRejected_m.vin.resize(2);
+        txRejected_m.vin[1].prevout.hash = TxId{};
+        txRejected_m.vin[1].prevout.n = 2;
+        txRejected_m.vin[0].prevout.hash = TxId{};
+        txRejected_m.vin[0].prevout.n = 1;
 
-        voter.txs.emplace(testTxUncommitable_m.GetHash(), testTxUncommitable_m);
+        voter.txs.emplace(txApproved_m.GetHash(), CTransaction{txApproved_m});
+        voter.pledgedInputs.emplace(txApproved_m.vin[0].prevout, txApproved_m.GetHash());
+        voter.pledgedInputs.emplace(txApproved_m.vin[1].prevout, txApproved_m.GetHash());
+
+        voter.txs.emplace(txRejected_m.GetHash(), txRejected_m);
 
         for (uint64_t mi = 0; mi < 23; mi++) {
             CMasternode::ID mId = ArithToUint256(arith_uint256{mi});
@@ -59,32 +61,30 @@ TEST(dPoS_calls, TestTxCommitting) {
             newVote.tip = blocks[i].GetHash();
             newVote.voter = mId;
             newVote.choice.decision = CVoteChoice::Decision::YES;
-            newVote.choice.subject = testTxCommitted_m.GetHash();
+            newVote.choice.subject = txApproved_m.GetHash();
 
             voter.insertTxVote(newVote);
 
             // some random tx, it isn't uncommittable
-            ASSERT_FALSE(voter.checkTxNotCommittable(TxId{}, blocks[i].GetHash()));
+            ASSERT_FALSE(voter.isNotCommittableTx(TxId{}));
             // some random tx, it isn't committed
             ASSERT_FALSE(voter.isCommittedTx(TxId{}, blocks[i].GetHash(), 1));
 
             if (mi < 23 - 1) {
-                ASSERT_FALSE(voter.checkTxNotCommittable(testTxUncommitable_m.GetHash(), blocks[i].GetHash()));
-                ASSERT_FALSE(voter.isCommittedTx(testTxCommitted_m.GetHash(), blocks[i].GetHash(), 1));
+                ASSERT_FALSE(voter.isNotCommittableTx(txRejected_m.GetHash()));
+                ASSERT_FALSE(voter.isCommittedTx(txApproved_m.GetHash(), blocks[i].GetHash()));
             } else { // committed
-                for (int j = 0; j < blocks.size(); j++) {
-                    if (i == j) //(j <= i && j > i - CDposVoter::GUARANTEES_MEMORY)
-                        ASSERT_TRUE(
-                                voter.checkTxNotCommittable(testTxUncommitable_m.GetHash(), blocks[j].GetHash()));
-                    else
-                        ASSERT_FALSE(
-                                voter.checkTxNotCommittable(testTxUncommitable_m.GetHash(), blocks[j].GetHash()));
-                }
-                ASSERT_TRUE(voter.isCommittedTx(testTxCommitted_m.GetHash(), blocks[i].GetHash(), 1));
+                ASSERT_TRUE(voter.isCommittedTx(txApproved_m.GetHash(), blocks[i].GetHash()));
+                ASSERT_TRUE(voter.isCommittedTx(txApproved_m.GetHash(), blocks[i].GetHash(), 0, 1));
+                ASSERT_TRUE(voter.isNotCommittableTx(txRejected_m.GetHash()));
             }
 
-            ASSERT_FALSE(voter.isCommittedTx(testTxUncommitable_m.GetHash(), blocks[i].GetHash(), 1));
-            ASSERT_FALSE(voter.checkTxNotCommittable(testTxCommitted_m.GetHash(), blocks[i].GetHash()));
+            ASSERT_FALSE(voter.isCommittedTx(txApproved_m.GetHash(), blocks[i].GetHash(), 1, 1));
+
+            ASSERT_FALSE(voter.isCommittedTx(txRejected_m.GetHash(), blocks[i].GetHash()));
+            ASSERT_FALSE(voter.isCommittedTx(txRejected_m.GetHash(), blocks[i].GetHash(), 0, 1));
+
+            ASSERT_FALSE(voter.isNotCommittableTx(txApproved_m.GetHash()));
         }
     }
 }

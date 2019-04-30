@@ -93,7 +93,7 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
     if (confirms > 0 || stats.pro >= dpos_params.nMinQuorum)
         dposStatus = "committed";
     if (confirms <= 0) {
-        if (dpos::getController()->checkTxNotCommittable(wtx.GetHash()))
+        if (dpos::getController()->isNotCommittableTx(wtx.GetHash()))
             dposStatus = "rejected";
         else if (stats.totus() == 0)
             dposStatus = "not_voted";
@@ -2451,7 +2451,7 @@ UniValue listunspent(const UniValue& params, bool fHelp)
         if (out.nDepth > 0 || stats.pro >= dpos_params.nMinQuorum)
             dposStatus = "committed";
         if (out.nDepth <= 0) {
-            if (dpos::getController()->checkTxNotCommittable(out.tx->GetHash()))
+            if (dpos::getController()->isNotCommittableTx(out.tx->GetHash()))
                 dposStatus = "rejected";
             else if (stats.totus() == 0)
                 dposStatus = "not_voted";
