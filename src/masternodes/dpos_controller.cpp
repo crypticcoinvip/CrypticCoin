@@ -285,9 +285,7 @@ void CDposController::loadDB()
     success = pdposdb->LoadViceBlocks([this](const BlockHash& blockHash, const CBlock& block) {
         if (block.GetHash() != blockHash)
             throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
-        this->voter->v[block.hashPrevBlock].viceBlocks.emplace(block.GetHash(), block);
-        // don't vote for blocks which were seen when voter was inactive
-        this->voter->v[block.hashPrevBlock].viceBlocksToSkip.emplace(block.GetHash());
+        this->voter->insertViceBlock(block);
     });
     if (!success)
         throw std::runtime_error("dPoS database is corrupted (reading vice-blocks)! Please restart with -reindex to recover.");
@@ -305,9 +303,7 @@ void CDposController::loadDB()
             roundVote.choice = vote.choice;
 
             this->receivedRoundVotes.emplace(vote.GetHash(), vote);
-            this->voter->v[vote.tip].roundVotes[roundVote.nRound].emplace(roundVote.voter, roundVote);
-            // don't vote for blocks which were seen when voter was inactive
-            this->voter->v[vote.tip].viceBlocksToSkip.emplace(vote.choice.subject);
+            this->voter->insertRoundVote(roundVote);
         }
     });
     if (!success)
@@ -326,8 +322,7 @@ void CDposController::loadDB()
                 txVote.nRound = vote.nRound;
                 txVote.choice = choice;
 
-                this->voter->v[vote.tip].txVotes[choice.subject].emplace(txVote.voter, txVote);
-                this->voter->v[vote.tip].mnTxVotes[txVote.voter].push_back(txVote);
+                this->voter->insertTxVote(txVote);
             }
             this->receivedTxVotes.emplace(vote.GetHash(), vote);
         }

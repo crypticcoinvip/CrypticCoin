@@ -142,7 +142,13 @@ public:
     mutable std::map<TxId, CTransaction> txs;
     mutable std::multimap<COutPoint, TxId> pledgedInputs; // used inputs -> tx. Only for voted txs
 
+    // rm straightly, no validation or voting
     std::map<TxId, CTransaction>::iterator pruneTx(std::map<TxId, CTransaction>::iterator tx_it);
+    // insert straightly, no validation or voting
+    void insertTx(const CTransaction& tx, bool hasVotes);
+    void insertTxVote(const CTxVote& txVote);
+    void insertViceBlock(const CBlock& viceBlock);
+    void insertRoundVote(const CRoundVote& roundVote);
 
     size_t minQuorum;
     size_t numOfVoters;
@@ -169,6 +175,7 @@ public:
     /// @param tip - current best block
     void updateTip(BlockHash tip);
 
+    // These methods are normally called when new item is received
     Output applyViceBlock(const CBlock& viceBlock);
     Output applyTx(const CTransaction& tx);
     Output applyTxVote(const CTxVote& vote);

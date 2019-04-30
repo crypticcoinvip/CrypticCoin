@@ -60,9 +60,8 @@ TEST(dPoS_calls, TestTxCommitting) {
             newVote.voter = mId;
             newVote.choice.decision = CVoteChoice::Decision::YES;
             newVote.choice.subject = testTxCommitted_m.GetHash();
-            //voters[0].applyTxVote(newVote);
-            voter.v[blocks[i].GetHash()].txVotes[newVote.choice.subject].emplace(mId, newVote);
-            voter.v[blocks[i].GetHash()].mnTxVotes[mId].push_back(newVote);
+
+            voter.insertTxVote(newVote);
 
             // some random tx, it isn't uncommittable
             ASSERT_FALSE(voter.checkTxNotCommittable(TxId{}, blocks[i].GetHash()));
