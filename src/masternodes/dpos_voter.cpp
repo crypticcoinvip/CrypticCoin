@@ -962,16 +962,22 @@ bool CDposVoter::verifyVotingState() const
     }
     // check viceBlocksToSkip
     for (const auto& viceBlock : v[tip].viceBlocksToSkip) {
-        if (v[tip].viceBlocks.count(viceBlock) > 0)
-            continue; // found
-        for (const auto& roundVoting_p : v[tip].roundVotes) {
-            for (const auto& vote_p : roundVoting_p.second) {
-                if (vote_p.second.choice.subject == viceBlock) {
-                    continue; // found
+        bool found = false;
+        if (v[tip].viceBlocks.count(viceBlock) > 0) {
+            found = true; // in the most cases, we end here
+        } else {
+            for (const auto& roundVoting_p : v[tip].roundVotes) {
+                for (const auto& vote_p : roundVoting_p.second) {
+                    if (vote_p.second.choice.subject == viceBlock) {
+                        found = true;
+                    }
                 }
             }
         }
-        return false; // not found
+        if (!found) {
+            LogPrintf("dpos: viceBlocksToSkip %s wasn't found \n", viceBlock.GetHex());
+            return false;
+        }
     }
 
     return txVotes == mnTxVotes;
