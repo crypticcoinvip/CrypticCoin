@@ -116,7 +116,8 @@ void CDposVoter::updateTip(BlockHash tip)
     if (this->tip == tip)
         return;
 
-    resetRoundVotingTimer();
+    resetNoVotingTimer();
+    resetSkipBlockTimer();
 
     LogPrintf("dpos: %s: Change current tip from %s to %s\n", __func__, this->tip.GetHex(), tip.GetHex());
 
@@ -187,8 +188,8 @@ void CDposVoter::insertTxVote(const CTxVote& vote) {
 void CDposVoter::insertViceBlock(const CBlock& viceBlock) {
     v[viceBlock.hashPrevBlock].viceBlocks.emplace(viceBlock.GetHash(), viceBlock);
 
-    // don't vote for blocks which were seen when voter was inactive
-    if (!amIvoter || lastRoundVotedTime != 0) {
+    // don't vote for blocks which were seen when voter was inactive (related to block finality)
+    if (!amIvoter || skipBlocksTimer != 0) {
         v[viceBlock.hashPrevBlock].viceBlocksToSkip.emplace(viceBlock.GetHash());
     }
 }
@@ -197,8 +198,8 @@ void CDposVoter::insertRoundVote(const CRoundVote& vote) {
     auto& roundVoting = v[vote.tip].roundVotes[vote.nRound];
     roundVoting.emplace(vote.voter, vote);
 
-    // don't vote for blocks which were seen when voter was inactive
-    if (!amIvoter || lastRoundVotedTime != 0) {
+    // don't vote for blocks which were seen when voter was inactive (related to block finality)
+    if (!amIvoter || skipBlocksTimer != 0) {
         v[vote.tip].viceBlocksToSkip.emplace(vote.choice.subject);
     }
 }
@@ -600,8 +601,8 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         return {};
     }
 
-    if (lastRoundVotedTime != 0) {
-        // I voted recently. Wait until controller resets lastRoundVotedTime
+    if (noVotingTimer != 0) {
+        // I voted recently. Wait until controller resets noVotingTimer
         return {};
     }
 
@@ -643,13 +644,13 @@ CDposVoter::Output CDposVoter::doRoundVoting()
         sortedViceBlocks.emplace_back(viceBlock_p.second.nRound, stats.pro[viceBlock_p.first], UintToArith256(viceBlock_p.first));
     }
 
-    // sort the vice-blocks by round (increasing), number of votes (decreasing), vice-block Hash (decreasing)
+    // sort the vice-blocks by number of votes (decreasing), round (increasing), vice-block Hash (increasing)
     std::sort(sortedViceBlocks.begin(), sortedViceBlocks.end(), [](const BlockVotes& l, const BlockVotes& r) {
-        if (l.nRound == r.nRound && l.pro == r.pro)
-            return l.hash > r.hash;
-        if (l.nRound == r.nRound)
-            return l.pro > r.pro;
-        return l.nRound < r.nRound;
+        if (l.pro == r.pro && l.nRound == r.nRound)
+            return l.hash < r.hash;
+        if (l.pro == r.pro)
+            return l.nRound < r.nRound;
+        return l.pro > r.pro;
     });
 
     // vote for a vice-block
@@ -664,8 +665,9 @@ CDposVoter::Output CDposVoter::doRoundVoting()
 
     if (vote) {
         // disable round (vice-blocks) voting until timer is 0 again
-        lastRoundVotedTime = world.getTime();
-        // don't vote for blocks which were seen when voter was inactive
+        noVotingTimer = world.getTime();
+        skipBlocksTimer = world.getTime();
+        // don't vote for blocks which were seen before the last round vote (related to block finality)
         markViceBlocksSkipped();
 
         out.vRoundVotes.push_back(*vote);

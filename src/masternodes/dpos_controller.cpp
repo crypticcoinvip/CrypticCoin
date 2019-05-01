@@ -170,8 +170,13 @@ void CDposController::runEventLoop()
                     }
                 }
 
-                if ((now - self->voter->lastRoundVotedTime) > params.dpos.nDelayBetweenRoundVotes * 1000) {
-                    self->voter->resetRoundVotingTimer();
+                if ((now - self->voter->noVotingTimer) > params.dpos.nDelayBetweenRoundVotes * 1000) {
+                    self->voter->resetNoVotingTimer();
+                    CValidationState state;
+                    self->handleVoterOutput(self->voter->doRoundVoting(), state);
+                }
+                if ((now - self->voter->skipBlocksTimer) > params.dpos.nDelayBetweenRoundVotes / 5 * 1000) {
+                    self->voter->resetSkipBlockTimer();
                 }
             }
 

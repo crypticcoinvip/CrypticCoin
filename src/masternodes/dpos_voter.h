@@ -158,9 +158,13 @@ public:
 
     // Primitive timer. When voter creates round vote, it sets this value. Then it should reseted by a controller.
     // Why not a proper timer? Simpler to do unit testing this way.
-    int64_t lastRoundVotedTime = 0;
-    void resetRoundVotingTimer() {
-        lastRoundVotedTime = 0;
+    int64_t noVotingTimer = 0;
+    void resetNoVotingTimer() {
+        noVotingTimer = 0;
+    };
+    int64_t skipBlocksTimer = 0;
+    void resetSkipBlockTimer() {
+        skipBlocksTimer = 0;
     };
 
     /// @param world - blockchain callbacks

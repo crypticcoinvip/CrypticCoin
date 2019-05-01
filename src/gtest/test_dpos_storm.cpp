@@ -110,7 +110,7 @@ public:
         Tick t = 0;
 
         // after block is found, wait for {randRange} to check that there'll be no new different block
-        for (; !((foundBlockToSubmitAt >= 0 && (t - foundBlockToSubmitAt) >= randRange) || t > maxTick); t++) {
+        for (; !((foundBlockToSubmitAt >= 0 && (t - foundBlockToSubmitAt) >= 3 * randRange) || t > maxTick); t++) {
             size_t msgsIn = 0;
             size_t msgsOut = 0;
 
@@ -187,12 +187,15 @@ public:
                     }
                 }
 
-                // decrease lastRoundVotedTime until it's 0
-                if (voters[voterId].lastRoundVotedTime == 1) {
-                    voters[voterId].resetRoundVotingTimer();
+                // decrease skipBlocksTimer/noVotingTimer until it's 0. skipBlocksTimer is decreasing 5 times faster
+                if (voters[voterId].skipBlocksTimer > 0) {
+                    voters[voterId].skipBlocksTimer -= 5;
                 }
-                if (voters[voterId].lastRoundVotedTime > 0) {
-                    voters[voterId].lastRoundVotedTime--;
+                if (voters[voterId].skipBlocksTimer < 0) {
+                    voters[voterId].skipBlocksTimer = 0;
+                }
+                if (voters[voterId].noVotingTimer > 0) {
+                    voters[voterId].noVotingTimer--;
                 }
 
                 if (!voters[voterId].verifyVotingState()) {
@@ -296,7 +299,7 @@ public:
             return heightToBlock.at(height - 1);
         };
         callbacks.getTime = [&]() {
-            return 1 + randRange * 2; // 2 times greater than the ping should ensure finality
+            return 1 + randRange * 4; // 4 times greater than the ping should ensure finality
         };
 
         return callbacks;
@@ -462,7 +465,7 @@ TEST(dPoS_storm, PessimisticStorm)
 
     suit.randRange = 25;
     suit.maxTick = 1000;
-    suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 2000;
+    suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 2; // a LOT of blocks! It's a tough task to ensure liveness here
     suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 2000;
     for (int i = 0; i < 2 * dpos::CDposVoter::GUARANTEES_MEMORY; i++)
         ASSERT_LE(suit.run(), suit.maxTick);
@@ -475,7 +478,7 @@ TEST(dPoS_storm, PessimisticStorm)
     ASSERT_GE(committedNum, 2u);
 }
 
-/// Like PessimisticStorm, but 10 mns are down, so any quorum is impossible
+/// 10 mns are down, so any quorum is impossible
 TEST(dPoS_storm, ImporssibleStorm)
 {
     StormTestSuit suit{};
@@ -514,10 +517,9 @@ TEST(dPoS_storm, ImporssibleStorm)
         suit.voters[i].setVoting(i < 22, ArithToUint256(arith_uint256{i}));
     }
 
-    suit.randRange = 25;
+    suit.randRange = 5;
     suit.maxTick = 1000;
     suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 2000;
-    suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 2000;
     for (int i = 0; i < 2; i++)
         ASSERT_EQ(suit.run(), suit.maxTick + 404);
 
@@ -549,11 +551,19 @@ TEST(dPoS_storm, RealisticStorm)
     }
 
     suit.addConflict(suit.txs[0], suit.txs[1], false);
-    suit.addConflict(suit.txs[2], suit.txs[3], false);
-    suit.addConflict(suit.txs[4], suit.txs[5], false);
-    suit.addConflict(suit.txs[6], suit.txs[7], false);
-    suit.addConflict(suit.txs[8], suit.txs_nonInstant[0], false);
-    suit.addConflict(suit.txs[9], suit.txs_nonInstant[1], false);
+    suit.addConflict(suit.txs[0], suit.txs[2], false);
+    suit.addConflict(suit.txs[0], suit.txs[3], false);
+    suit.addConflict(suit.txs[4], suit.txs[1], false);
+    suit.addConflict(suit.txs[4], suit.txs[3], false);
+
+    suit.addConflict(suit.txs[5], suit.txs[6], false);
+    suit.addConflict(suit.txs[7], suit.txs[8], false);
+    suit.addConflict(suit.txs[8], suit.txs[9], false);
+
+    suit.addConflict(suit.txs[1], suit.txs_nonInstant[0], false);
+    suit.addConflict(suit.txs[1], suit.txs_nonInstant[1], false);
+    suit.addConflict(suit.txs[2], suit.txs_nonInstant[2], false);
+    suit.addConflict(suit.txs[10], suit.txs_nonInstant[3], false);
     suit.printTxs();
 
     // create voters
@@ -575,16 +585,16 @@ TEST(dPoS_storm, RealisticStorm)
 
     suit.randRange = 10;
     suit.maxTick = 1000;
-    suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 4000;
-    suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 40000;
+    suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 1000;
+    suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 10000;
     for (int i = 0; i < 2 * dpos::CDposVoter::GUARANTEES_MEMORY; i++)
         ASSERT_LE(suit.run(), suit.maxTick);
 
     auto committedTxs = suit.voters[0].listCommittedTxs(tip, 0, 2 * dpos::CDposVoter::GUARANTEES_MEMORY);
     size_t committedNum = committedTxs.txs.size() + committedTxs.missing.size();
-    ASSERT_GE(suit.minedTxs.size(), 20u - 2 * 6u);
+    ASSERT_GE(suit.minedTxs.size(), 2u + 4u);
     ASSERT_LE(suit.minedTxs.size(), 20u - 6u);
-    ASSERT_GE(committedNum, 15u - 2 * 6u);
+    ASSERT_GE(committedNum, 4u);
     ASSERT_LE(committedNum, 15u - 4u);
 }
 
@@ -612,11 +622,19 @@ TEST(dPoS_storm, ExtraLongStorm)
         }
 
         suit.addConflict(suit.txs[0], suit.txs[1], false);
-        suit.addConflict(suit.txs[2], suit.txs[3], false);
-        suit.addConflict(suit.txs[4], suit.txs[5], false);
-        suit.addConflict(suit.txs[6], suit.txs[7], false);
-        suit.addConflict(suit.txs[8], suit.txs_nonInstant[0], false);
-        suit.addConflict(suit.txs[9], suit.txs_nonInstant[1], false);
+        suit.addConflict(suit.txs[0], suit.txs[2], false);
+        suit.addConflict(suit.txs[0], suit.txs[3], false);
+        suit.addConflict(suit.txs[4], suit.txs[1], false);
+        suit.addConflict(suit.txs[4], suit.txs[3], false);
+
+        suit.addConflict(suit.txs[5], suit.txs[6], false);
+        suit.addConflict(suit.txs[7], suit.txs[8], false);
+        suit.addConflict(suit.txs[8], suit.txs[9], false);
+
+        suit.addConflict(suit.txs[1], suit.txs_nonInstant[0], false);
+        suit.addConflict(suit.txs[1], suit.txs_nonInstant[1], false);
+        suit.addConflict(suit.txs[2], suit.txs_nonInstant[2], false);
+        suit.addConflict(suit.txs[10], suit.txs_nonInstant[3], false);
         suit.printTxs();
 
         // create voters
@@ -638,16 +656,16 @@ TEST(dPoS_storm, ExtraLongStorm)
 
         suit.randRange = 5;
         suit.maxTick = 1000;
-        suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 200;
-        suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 2000;
+        suit.probabilityOfBlockGeneration = suit.MAX_PROBABILITY / 100;
+        suit.probabilityOfDisconnection = suit.MAX_PROBABILITY / 1000;
         for (int i = 0; i < 2 * dpos::CDposVoter::GUARANTEES_MEMORY; i++)
             ASSERT_LE(suit.run(), suit.maxTick);
 
         auto committedTxs = suit.voters[0].listCommittedTxs(tip, 0, 2 * dpos::CDposVoter::GUARANTEES_MEMORY);
         size_t committedNum = committedTxs.txs.size() + committedTxs.missing.size();
-        ASSERT_GE(suit.minedTxs.size(), 20u - 2 * 6u);
+        ASSERT_GE(suit.minedTxs.size(), 2u + 4u);
         ASSERT_LE(suit.minedTxs.size(), 20u - 6u);
-        ASSERT_GE(committedNum, 15u - 2 * 6u);
+        ASSERT_GE(committedNum, 4u);
         ASSERT_LE(committedNum, 15u - 4u);
     }
 }
