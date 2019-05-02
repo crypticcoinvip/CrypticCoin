@@ -150,7 +150,7 @@ void CDposController::runEventLoop()
                     initialBlocksDownloadPassedT = now;
                 }
 
-                if (self->initialVotesDownload && initialBlocksDownloadPassedT > 0 && ((now - initialBlocksDownloadPassedT) > params.dpos.nDelayIBD * 1000)) {
+                if (self->initialVotesDownload && initialBlocksDownloadPassedT != 0 && ((now - initialBlocksDownloadPassedT) > params.dpos.nDelayIBD * 1000)) {
                     self->initialVotesDownload = false;
                     self->onChainTipUpdated(tip);
                 }
@@ -170,12 +170,12 @@ void CDposController::runEventLoop()
                     }
                 }
 
-                if ((now - self->voter->noVotingTimer) > params.dpos.nDelayBetweenRoundVotes * 1000) {
+                if (self->voter->noVotingTimer != 0 && (now - self->voter->noVotingTimer) > params.dpos.nDelayBetweenRoundVotes * 1000) {
                     self->voter->resetNoVotingTimer();
                     CValidationState state;
                     self->handleVoterOutput(self->voter->doRoundVoting(), state);
                 }
-                if ((now - self->voter->skipBlocksTimer) > params.dpos.nDelayBetweenRoundVotes / 5 * 1000) {
+                if (self->voter->skipBlocksTimer != 0 && (now - self->voter->skipBlocksTimer) > params.dpos.nDelayBetweenRoundVotes / 5 * 1000) {
                     self->voter->resetSkipBlockTimer();
                 }
             }
@@ -341,25 +341,25 @@ void CDposController::loadDB()
 
 void CDposController::onChainTipUpdated(const BlockHash& tip)
 {
-    if (isEnabled(GetAdjustedTime(), tip)) {
-        const auto mnId{findMyMasternodeId()};
-        LOCK(cs_main);
+    const auto mnId{findMyMasternodeId()};
+    LOCK(cs_main);
 
-        if (!initialVotesDownload && mnId != boost::none && !this->voter->checkAmIVoter()) {
-            LogPrintf("dpos: %s: I became a team member, enabling voter for me (I'm %s)\n", __func__, mnId.get().GetHex());
-            this->voter->setVoting(true, mnId.get());
-        } else if (mnId == boost::none && this->voter->checkAmIVoter()) {
-            LogPrintf("dpos: %s: Disabling voter, I'm not a team member for now \n", __func__);
-            this->voter->setVoting(false, CMasternode::ID{});
-        }
-
-        CValidationState state;
-        this->voter->updateTip(tip);
-        handleVoterOutput(this->voter->requestMissingTxs() + this->voter->doTxsVoting() + this->voter->doRoundVoting(), state);
-
-        // periodically rm waste data from old blocks
-        cleanUpDb();
+    const bool dposEnabled = isEnabled(0, tip); // pass 0 time, because we should update regardless of time
+    const bool voterEnabled = !initialVotesDownload && mnId != boost::none && dposEnabled;
+    if (voterEnabled && !this->voter->checkAmIVoter()) {
+        LogPrintf("dpos: %s: I became a team member, enabling voter for me (I'm %s)\n", __func__, mnId.get().GetHex());
+        this->voter->setVoting(true, mnId.get());
+    } else if (!voterEnabled && this->voter->checkAmIVoter()) {
+        LogPrintf("dpos: %s: Disabling voter, I'm not a team member for now \n", __func__);
+        this->voter->setVoting(false, CMasternode::ID{});
     }
+
+    CValidationState state;
+    this->voter->updateTip(tip);
+    handleVoterOutput(this->voter->requestMissingTxs() + this->voter->doTxsVoting() + this->voter->doRoundVoting(), state);
+
+    // periodically rm waste data from old blocks
+    cleanUpDb();
 }
 
 void CDposController::proceedViceBlock(const CBlock& viceBlock, CValidationState& state)
