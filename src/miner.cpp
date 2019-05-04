@@ -187,7 +187,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             const CTransaction& tx = mi->GetTx();
             if (tx.fInstant)
                 continue;
-            if (dpos::getController()->excludeTxFromBlock_miner(tx))
+            if (dpos::getController()->isConflictedWithDposTx(tx))
                 continue;
 
             int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)

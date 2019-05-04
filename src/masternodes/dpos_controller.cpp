@@ -549,7 +549,7 @@ bool CDposController::isNotCommittableTx(const TxId& txid) const {
     return this->voter->isNotCommittableTx(txid);
 }
 
-bool CDposController::excludeTxFromBlock_miner(const CTransaction& tx) const {
+bool CDposController::isConflictedWithDposTx(const CTransaction& tx) const {
     LOCK(cs_main);
     const std::vector<COutPoint> inputs = CDposVoter::getInputsOf(tx);
     for (const auto& in : inputs) {
@@ -593,10 +593,10 @@ CTxVotingDistribution CDposController::calcTxVotingStats(const TxId& txid) const
     return this->voter->calcTxVotingStats(txid, this->voter->getTip(), 1);
 }
 
-bool CDposController::isTxApprovedByMe(const TxId& txid) const
+bool CDposController::isMinableTx(const CTransaction& tx, uint32_t maxdeep) const
 {
     LOCK(cs_main);
-    return this->voter->isTxApprovedByMe(txid, this->voter->getTip());
+    return validator->validateTx(tx);
 }
 
 bool CDposController::handleVoterOutput(const CDposVoterOutput& out, CValidationState& state)

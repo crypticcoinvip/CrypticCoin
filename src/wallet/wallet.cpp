@@ -2778,7 +2778,9 @@ CAmount CWallet::GetBalance() const
         {
             const CWalletTx* pcoin = &(*it).second;
             // don't include instant txs. They should be included in GetInstantBalance() only
-            if (pcoin->IsTrusted() && !pDposController->isCommittedTx(pcoin->GetHash(), 1))
+            if (dpos::getController()->isCommittedTx(pcoin->GetHash()) && dpos::getController()->isMinableTx(*pcoin))
+                continue;
+            if (pcoin->IsTrusted())
                 nTotal += pcoin->GetAvailableCredit();
         }
     }
@@ -2786,7 +2788,6 @@ CAmount CWallet::GetBalance() const
     return nTotal;
 }
 
-/// @TODO @maxb From cryptic. Check, maybe totally unused
 CAmount CWallet::GetCoinbaseBalance() const {
     CAmount nTotal = 0;
     {
@@ -2837,10 +2838,8 @@ CAmount CWallet::GetInstantBalance() const
 
     const auto instantTxs = dpos::getController()->listCommittedTxs();
     for (const auto& tx : instantTxs) {
-        CTransaction dummy;
-        uint256 block;
-        if (GetTransaction(tx.GetHash(), dummy, block, true) && !block.IsNull()) {
-            continue; // only not included into a block txs
+        if (!dpos::getController()->isMinableTx(tx)) {
+            continue;
         }
         for (unsigned int i = 0; i < tx.vout.size(); i++) {
             const CTxOut &txout = tx.vout[i];

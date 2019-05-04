@@ -510,7 +510,7 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
             return out;
         }
     }
-    // 5. doesn't interfere with committed instant txs from current voting.
+    // 5. doesn't interfere with committed instant txs from prev voting.
     for (const auto& cTx : pledge.committedTxs.txs) {
         if (cTx.GetHash() == txid)
             continue; // the same tx we vote for
@@ -521,7 +521,7 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
             }
         }
     }
-    // 6. doesn't interfere with committed instant txs from current voting. It's not necessary because of step 3, but nice to avoid hopeless votes
+    // 6. doesn't interfere with not missing committed instant txs from current voting. It's not necessary because of step 3, but nice to avoid hopeless votes
     for (const auto& cTx : this->listCommittedTxs(tip, 0, 1).txs) {
         if (cTx.GetHash() == txid)
             continue; // the same tx we vote for
