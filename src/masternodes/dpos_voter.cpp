@@ -473,11 +473,11 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
     // build the pledge items
     PledgeBuilderRanges ranges;
     ranges.vblocksDeep = 1; // no much sense in check vblocks from prev votings, as they didn't become a block
+    ranges.committedTxsSkip = 1; // skip current voting
     auto pledge = buildMyPledge(ranges);
 
     // check the pledge
-    PledgeRequiredItems r;
-    r.fCommittedTxs = false; // committedTxs check isn't necessary, so it's fine if they are missing
+    PledgeRequiredItems r{};
     if (!ensurePledgeItemsNotMissing(r, "tx voting", pledge, out)) {
         return out;
     }
@@ -510,13 +510,24 @@ CDposVoter::Output CDposVoter::voteForTx(const CTransaction& tx)
             return out;
         }
     }
-    // 5. doesn't interfere with committed instant txs from prev. votings. It's not necessary because of step 3, but nice to avoid hopeless votes
+    // 5. doesn't interfere with committed instant txs from current voting.
     for (const auto& cTx : pledge.committedTxs.txs) {
         if (cTx.GetHash() == txid)
             continue; // the same tx we vote for
         for (const auto& cIn : getInputsOf(cTx)) {
             if (txInputs.count(cIn) > 0) {
                 LogPrintf("dpos: %s: skipping tx %s, because it interferes with the committed tx %s \n", __func__, tx.GetHash().GetHex(), cTx.GetHash().GetHex());
+                return out;
+            }
+        }
+    }
+    // 6. doesn't interfere with committed instant txs from current voting. It's not necessary because of step 3, but nice to avoid hopeless votes
+    for (const auto& cTx : this->listCommittedTxs(tip, 0, 1).txs) {
+        if (cTx.GetHash() == txid)
+            continue; // the same tx we vote for
+        for (const auto& cIn : getInputsOf(cTx)) {
+            if (txInputs.count(cIn) > 0) {
+                LogPrintf("dpos: %s: skipping tx %s, because it interferes with the current committed tx %s \n", __func__, tx.GetHash().GetHex(), cTx.GetHash().GetHex());
                 return out;
             }
         }
