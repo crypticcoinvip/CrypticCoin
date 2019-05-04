@@ -271,13 +271,13 @@ CDposVoter::Output CDposVoter::applyViceBlock(const CBlock& viceBlock)
         return {};
     }
 
-    if (!world.validateBlock(viceBlock, true)) {
-        return misbehavingErr("vice-block PoW validation failed");
-    }
-
     if (viceBlock.hashPrevBlock != tip && !world.allowArchiving(viceBlock.hashPrevBlock)) {
         LogPrintf("dpos: %s: Ignoring too old vice-block: %s \n", __func__, viceBlock.GetHash().GetHex());
         return {};
+    }
+
+    if (!world.validateBlock(viceBlock, true)) {
+        return misbehavingErr("vice-block PoW validation failed");
     }
 
     insertViceBlock(viceBlock);

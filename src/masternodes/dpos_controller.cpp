@@ -175,7 +175,7 @@ void CDposController::runEventLoop()
                     CValidationState state;
                     self->handleVoterOutput(self->voter->doRoundVoting(), state);
                 }
-                if (self->voter->skipBlocksTimer != 0 && (now - self->voter->skipBlocksTimer) > params.dpos.nDelayBetweenRoundVotes / 5 * 1000) {
+                if (self->voter->skipBlocksTimer != 0 && (now - self->voter->skipBlocksTimer) > params.dpos.nDelayBetweenRoundVotes * 1000 / 2) {
                     self->voter->resetSkipBlockTimer();
                 }
             }
@@ -364,6 +364,9 @@ void CDposController::onChainTipUpdated(const BlockHash& tip)
 
 void CDposController::proceedViceBlock(const CBlock& viceBlock, CValidationState& state)
 {
+    if (Validator::computeBlockHeight(viceBlock.hashPrevBlock, MAX_BLOCKS_TO_KEEP) == -1) {
+        return;
+    }
     bool success = false;
     LOCK(cs_main);
     vReqs.erase(CInv{MSG_VICE_BLOCK, viceBlock.GetHash()});
@@ -600,8 +603,6 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out, CValidation
 {
     AssertLockHeld(cs_main);
     if (!out.vErrors.empty()) {
-        if (chainActive.Height() < Params().GetConsensus().nMasternodesV2ForkHeight)
-            return false;
         for (const auto& error : out.vErrors) {
             LogPrintf("dpos: %s: %s\n", __func__, error);
         }
@@ -710,8 +711,8 @@ bool CDposController::acceptRoundVote(const CRoundVote_p2p& vote, CValidationSta
 
 bool CDposController::acceptTxVote(const CTxVote_p2p& vote, CValidationState& state)
 {
-    if (vote.choices.size() != 1) {
-        return false; // currently, accept only votes with 1 tx to avoid issues with partially accepted votes
+    if (vote.choices.size() != 1) { // currently, accept only votes with 1 tx to avoid issues with partially accepted votes
+        state.DoS(1, false, REJECT_INVALID, "dpos-txvote-choices-malformed");
     }
 
     AssertLockHeld(cs_main);
@@ -783,6 +784,9 @@ boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockH
 
 boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CTxVote_p2p& vote, CValidationState& state)
 {
+    if (Validator::computeBlockHeight(vote.tip, MAX_BLOCKS_TO_KEEP) == -1) {
+        return boost::none; // check that it's a recent vote before doing heavy signature check
+    }
     CPubKey pubKey{};
     if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature))
     {
@@ -794,6 +798,9 @@ boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CTxVote_
 
 boost::optional<CMasternode::ID> CDposController::authenticateMsg(const CRoundVote_p2p& vote, CValidationState& state)
 {
+    if (Validator::computeBlockHeight(vote.tip, MAX_BLOCKS_TO_KEEP) == -1) {
+        return boost::none; // check that it's a recent vote before doing heavy signature check
+    }
     CPubKey pubKey{};
     if (!pubKey.RecoverCompact(vote.GetSignatureHash(), vote.signature))
     {
