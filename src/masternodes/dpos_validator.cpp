@@ -119,7 +119,10 @@ bool CDposController::Validator::validateBlock(const CBlock& block, bool fJustCh
     if (fJustCheckPoW) {
         if (!CheckBlockHeader(block, state, true))
             return false;
-        return ContextualCheckBlockHeader(block, state, chainActive.Tip());
+        const int prevHeight = computeBlockHeight(block.hashPrevBlock, MAX_BLOCKS_TO_KEEP);
+        if (prevHeight < 0)
+            return false;
+        return ContextualCheckBlockHeader(block, state, chainActive[prevHeight]);
     }
 
     // check block validity
