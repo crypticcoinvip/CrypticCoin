@@ -853,7 +853,7 @@ bool CheckLogsForAutoReindex()
         boost::filesystem::path pathDebug = GetDataDir() / "debug.log";
 
         ifstream logFile;
-        logFile.open(pathDebug.c_str(), std::ios::in | std::ios::ate);
+        logFile.open(pathDebug.string().c_str(), std::ios::in | std::ios::ate);
 
         int64_t const logSize = logFile.tellg();
         int64_t const pos = logSize < TAIL ? 0 : logSize - TAIL;
