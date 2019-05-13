@@ -2619,6 +2619,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             pindex->hashSproutAnchor = tree.root();
             // The genesis block contained no JoinSplits
             pindex->hashFinalSproutRoot = pindex->hashSproutAnchor;
+            // foolproof, in the case of not cleared db
+            mnview.Clear();
         }
         return true;
     }

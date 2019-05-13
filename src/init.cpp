@@ -886,8 +886,27 @@ bool CheckLogsForAutoReindex()
  */
 bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
+    // Make sure only a single Bitcoin process is using the data directory.
+    {
+        std::string strDataDir = GetDataDir().string();
+        boost::filesystem::path pathLockFile = GetDataDir() / ".lock";
+        FILE* file = fopen(pathLockFile.string().c_str(), "a"); // empty lock file; created if it doesn't exist.
+        if (file) fclose(file);
+
+        try {
+            static boost::interprocess::file_lock lock(pathLockFile.string().c_str());
+            if (!lock.try_lock())
+                return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Crypticcoin is probably already running."), strDataDir));
+        } catch(const boost::interprocess::interprocess_exception& e) {
+            return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Crypticcoin is probably already running.") + " %s.", strDataDir, e.what()));
+        }
+#ifndef WIN32
+        CreatePidFile(GetPidFile(), getpid());
+#endif
+    }
+
     /**
-    * Kill prev. tor (to be able to bind ports)
+    * Kill prev. tor (to be able to bind ports) AFTER dir locking!
     */
     if (!GetArg("-tor_exe_path", "").empty()) {
         tor::KillTor();
@@ -1320,22 +1339,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // Wallet file must be a plain filename without a directory
     if (strWalletFile != boost::filesystem::basename(strWalletFile) + boost::filesystem::extension(strWalletFile))
         return InitError(strprintf(_("Wallet %s resides outside data directory %s"), strWalletFile, strDataDir));
-#endif
-    // Make sure only a single Bitcoin process is using the data directory.
-    boost::filesystem::path pathLockFile = GetDataDir() / ".lock";
-    FILE* file = fopen(pathLockFile.string().c_str(), "a"); // empty lock file; created if it doesn't exist.
-    if (file) fclose(file);
-
-    try {
-        static boost::interprocess::file_lock lock(pathLockFile.string().c_str());
-        if (!lock.try_lock())
-            return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Crypticcoin is probably already running."), strDataDir));
-    } catch(const boost::interprocess::interprocess_exception& e) {
-        return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Crypticcoin is probably already running.") + " %s.", strDataDir, e.what()));
-    }
-
-#ifndef WIN32
-    CreatePidFile(GetPidFile(), getpid());
 #endif
     if (GetBoolArg("-shrinkdebugfile", !fDebug))
         ShrinkDebugFile();
