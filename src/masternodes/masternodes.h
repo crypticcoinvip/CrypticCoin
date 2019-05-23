@@ -242,11 +242,7 @@ protected:
 
     CMasternodesView() {}
 
-public:
     CMasternodesView(CMasternodesView const & other) = delete;
-
-protected:
-    void Clear();
 
     void Init(CMasternodesView * other)
     {
@@ -269,6 +265,8 @@ protected:
 
 public:
     CMasternodesView & operator=(CMasternodesView const & other) = delete;
+
+    void Clear();
 
     virtual ~CMasternodesView() {}
 

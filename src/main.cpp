@@ -1945,7 +1945,7 @@ void Misbehaving(NodeId pnode, int howmuch)
         return;
 
     state->nMisbehavior += howmuch;
-    int banscore = GetArg("-banscore", 500);
+    int banscore = GetArg("-banscore", 1000);
     if (state->nMisbehavior >= banscore && state->nMisbehavior - howmuch < banscore)
     {
         LogPrintf("%s: %s (%d -> %d) BAN THRESHOLD EXCEEDED\n", __func__, state->name, state->nMisbehavior-howmuch, state->nMisbehavior);
@@ -2620,6 +2620,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             pindex->hashSproutAnchor = tree.root();
             // The genesis block contained no JoinSplits
             pindex->hashFinalSproutRoot = pindex->hashSproutAnchor;
+            // foolproof, in the case of not cleared db
+            mnview.Clear();
         }
         return true;
     }
