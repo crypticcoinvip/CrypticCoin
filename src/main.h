@@ -452,11 +452,18 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex);
 
 /** Functions for validating blocks and updating the block tree */
 
+enum DisconnectResult
+{
+    DISCONNECT_OK,      // All good.
+    DISCONNECT_UNCLEAN, // Rolled back, but UTXO set was inconsistent with block.
+    DISCONNECT_FAILED   // Something else went wrong.
+};
+
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  In case pfClean is provided, operation will try to be tolerant about errors, and *pfClean
  *  will be true if no problems were found. Otherwise, the return value will be false in case
  *  of problems. Note that in any case, coins may be modified. */
-bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, CMasternodesViewCache & mnview, bool* pfClean = NULL);
+//DisconnectResult DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, CMasternodesViewCache & mnview, bool* pfClean = NULL);
 
 struct DposValidationRules {
     size_t nMaxInstsSize = MAX_INST_SECTION_SIZE;
@@ -599,6 +606,8 @@ extern CDposDB * pdposdb;
  * This is also true for mempool checks.
  */
 int GetSpendHeight(const CCoinsViewCache& inputs);
+
+uint64_t CalculateCurrentUsage();
 
 /** Return a CMutableTransaction with contextual default values based on set of consensus rules at height */
 CMutableTransaction CreateNewContextualCMutableTransaction(const Consensus::Params& consensusParams, int nHeight);
