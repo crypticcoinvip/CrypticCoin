@@ -5,7 +5,7 @@
 #ifndef CRYPTICCOIN_PAYMENTDISCLOSUREDB_H
 #define CRYPTICCOIN_PAYMENTDISCLOSUREDB_H
 
-#include "paymentdisclosure.h"
+#include <wallet/paymentdisclosure.h>
 
 #include <cstdint>
 #include <string>

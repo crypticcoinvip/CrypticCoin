@@ -1700,6 +1700,12 @@ boost::optional<uint256> CWallet::GetSproutNoteNullifier(const JSDescription &js
         hSig,
         (unsigned char) n);
     auto note = note_pt.note(address);
+
+    // Check note plaintext against note commitment
+    if (note.cm() != jsdesc.commitments[n]) {
+        throw libzcash::note_decryption_failed();
+    }
+
     // SpendingKeys are only available if:
     // - We have them (this isn't a viewing key)
     // - The wallet is unlocked
@@ -2407,14 +2413,17 @@ int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
 
         // no need to read and scan block, if block was created before
         // our wallet birthday (as adjusted for block time variability)
-        while (pindex && nTimeFirstKey && (pindex->GetBlockTime() < (nTimeFirstKey - 7200)))
+        int64_t const nTimeFirstKeyLess2H = (nTimeFirstKey > 7200 ? nTimeFirstKey - 7200 : nTimeFirstKey);
+        while (pindex && nTimeFirstKey && (pindex->GetBlockTime() < nTimeFirstKeyLess2H))
             pindex = chainActive.Next(pindex);
+        LogPrintf("ScanForWalletTransactions: real start at %i, nTimeFirstKey = %i\n", pindex->nHeight, nTimeFirstKey);
 
         ShowProgress(_("Rescanning..."), 0); // show rescan progress in GUI as dialog or on splashscreen, if -rescan on startup
         double dProgressStart = Checkpoints::GuessVerificationProgress(chainParams.Checkpoints(), pindex, false);
         double dProgressTip = Checkpoints::GuessVerificationProgress(chainParams.Checkpoints(), chainActive.Tip(), false);
         while (pindex)
         {
+//            boost::this_thread::interruption_point(); // not working as it should
             if (pindex->nHeight % 100 == 0 && dProgressTip - dProgressStart > 0.0)
                 ShowProgress(_("Rescanning..."), std::max(1, std::min(99, (int)((Checkpoints::GuessVerificationProgress(chainParams.Checkpoints(), pindex, false) - dProgressStart) / (dProgressTip - dProgressStart) * 100))));
 
@@ -2461,6 +2470,7 @@ int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
         }
 
         ShowProgress(_("Rescanning..."), 100); // hide progress dialog in GUI
+        LogPrintf("Rescanning: done.\n");
     }
     return ret;
 }
@@ -4096,6 +4106,21 @@ void CWallet::UpdatedTransaction(const uint256 &hashTx)
     }
 }
 
+void CWallet::GetScriptForMining(boost::shared_ptr<CReserveScript> &script)
+{
+    if (!GetArg("-mineraddress", "").empty()) {
+        return;
+    }
+
+    boost::shared_ptr<CReserveKey> rKey(new CReserveKey(this));
+    CPubKey pubkey;
+    if (!rKey->GetReservedKey(pubkey))
+        return;
+
+    script = rKey;
+    script->reserveScript = CScript() << OP_DUP << OP_HASH160 << ToByteVector(pubkey.GetID()) << OP_EQUALVERIFY << OP_CHECKSIG;
+}
+
 void CWallet::LockCoin(COutPoint& output)
 {
     AssertLockHeld(cs_wallet); // setLockedCoins
@@ -4660,7 +4685,8 @@ boost::optional<libzcash::SpendingKey> GetSpendingKeyForPaymentAddress::operator
 SpendingKeyAddResult AddSpendingKeyToWallet::operator()(const libzcash::SproutSpendingKey &sk) const {
     auto addr = sk.address();
     if (log){
-        LogPrint("zrpc", "Importing zaddr %s...\n", EncodePaymentAddress(addr));
+//        LogPrint("zrpc", "Importing zaddr %s..., nTime = %i\n", EncodePaymentAddress(addr), nTime);
+        LogPrintf("Importing zaddr %s..., nTime = %i\n", EncodePaymentAddress(addr), nTime);
     }
     if (m_wallet->HaveSproutSpendingKey(addr)) {
         return KeyAlreadyExists;
