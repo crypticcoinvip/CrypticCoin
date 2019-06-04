@@ -294,10 +294,13 @@ UniValue importwallet_impl(const UniValue& params, bool fHelp, bool fImportZKeys
         if (vstr.size() < 2)
             continue;
 
+        int64_t nTime = DecodeDumpTime(vstr[1]);
+        // We should not allow passing 0!, cause 1 in wallet->nTimeFirstKey means "from wallet birth", but zero is zero, =="empty wallet"
+        // May be 1 should be changed to genesis block time
+        nTime = nTime == 0 ? 1 : nTime;
         // Let's see if the address is a valid Crypticcoin spending key
         if (fImportZKeys) {
             auto spendingkey = DecodeSpendingKey(vstr[0]);
-            int64_t nTime = DecodeDumpTime(vstr[1]);
             // Only include hdKeypath and seedFpStr if we have both
             boost::optional<std::string> hdKeypath = (vstr.size() > 3) ? boost::optional<std::string>(vstr[2]) : boost::none;
             boost::optional<std::string> seedFpStr = (vstr.size() > 3) ? boost::optional<std::string>(vstr[3]) : boost::none;
@@ -309,6 +312,8 @@ UniValue importwallet_impl(const UniValue& params, bool fHelp, bool fImportZKeys
                 } else if (addResult == KeyNotAdded) {
                     // Something went wrong
                     fGood = false;
+                } else { // addResult == KeyAdded
+                    nTimeBegin = std::min(nTimeBegin, nTime);
                 }
                 continue;
             } else {
@@ -327,7 +332,7 @@ UniValue importwallet_impl(const UniValue& params, bool fHelp, bool fImportZKeys
             LogPrintf("Skipping import of %s (key already present)\n", EncodeDestination(keyid));
             continue;
         }
-        int64_t nTime = DecodeDumpTime(vstr[1]);
+//        int64_t nTime = DecodeDumpTime(vstr[1]);
         std::string strLabel;
         bool fLabel = true;
         for (unsigned int nStr = 2; nStr < vstr.size(); nStr++) {
@@ -356,15 +361,18 @@ UniValue importwallet_impl(const UniValue& params, bool fHelp, bool fImportZKeys
     pwalletMain->ShowProgress("", 100); // hide progress dialog in GUI
 
     CBlockIndex *pindex = chainActive.Tip();
-    while (pindex && pindex->pprev && pindex->GetBlockTime() > nTimeBegin - 7200)
+    int64_t const nTimeBeginLess2H = (nTimeBegin > 7200 ? nTimeBegin - 7200 : nTimeBegin);
+    while (pindex && pindex->pprev && pindex->GetBlockTime() > nTimeBeginLess2H)
         pindex = pindex->pprev;
 
     if (!pwalletMain->nTimeFirstKey || nTimeBegin < pwalletMain->nTimeFirstKey)
         pwalletMain->nTimeFirstKey = nTimeBegin;
 
     LogPrintf("Rescanning last %i blocks\n", chainActive.Height() - pindex->nHeight + 1);
-    pwalletMain->ScanForWalletTransactions(pindex);
+    pwalletMain->ScanForWalletTransactions(pindex, true); // may be "update" not nesessary, but for sure
     pwalletMain->MarkDirty();
+    pwalletMain->SetBestChain(chainActive.GetLocator());
+    nWalletDBUpdated++;
 
     if (!fGood)
         throw JSONRPCError(RPC_WALLET_ERROR, "Error adding some keys to wallet");
@@ -656,6 +664,9 @@ UniValue z_importkey(const UniValue& params, bool fHelp)
     // We want to scan for transactions and notes
     if (fRescan) {
         pwalletMain->ScanForWalletTransactions(chainActive[nRescanHeight], true);
+        // Save state of witnesses and so on (wallet has strange saving system that don't flush some parts of its data correctly on Flush())
+        pwalletMain->SetBestChain(chainActive.GetLocator());
+        nWalletDBUpdated++;
     }
 
     return NullUniValue;
@@ -751,6 +762,9 @@ UniValue z_importviewingkey(const UniValue& params, bool fHelp)
         // We want to scan for transactions and notes
         if (fRescan) {
             pwalletMain->ScanForWalletTransactions(chainActive[nRescanHeight], true);
+            // Save state of witnesses and so on (wallet has strange saving system that don't flush some parts of its data correctly on Flush())
+            pwalletMain->SetBestChain(chainActive.GetLocator());
+            nWalletDBUpdated++;
         }
     }
 

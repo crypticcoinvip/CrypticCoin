@@ -827,6 +827,7 @@ protected:
             LogPrintf("SetBestChain(): Couldn't commit atomic write\n");
             return;
         }
+        LogPrintf("Wallet::SetBestChain(): Done\n");
     }
 
 private:
