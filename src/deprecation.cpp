@@ -15,6 +15,9 @@ static const std::string CLIENT_VERSION_STR = FormatVersion(CLIENT_VERSION);
 
 void EnforceNodeDeprecation(int nHeight, bool forceLogging, bool fThread) {
 
+    // Deprecation turned off due to too long release circle!
+    return;
+
     // Do not enforce deprecation in regtest or on testnet
     std::string networkID = Params().NetworkIDString();
     if (networkID != "main") return;
