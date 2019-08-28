@@ -90,10 +90,10 @@ void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
         stats = dpos::getController()->calcTxVotingStats(wtx.GetHash());
 
     std::string dposStatus = "";
-    if (confirms > 0 || stats.pro >= dpos_params.nMinQuorum)
+    if (confirms > 0 || (stats.pro >= dpos_params.nMinQuorum && dpos::getController()->isMinableTx(wtx)))
         dposStatus = "committed";
     if (confirms <= 0) {
-        if (dpos::getController()->checkTxNotCommittable(wtx.GetHash()))
+        if (dpos::getController()->isNotCommittableTx(wtx.GetHash()) || !dpos::getController()->isMinableTx(wtx))
             dposStatus = "rejected";
         else if (stats.totus() == 0)
             dposStatus = "not_voted";
@@ -2432,7 +2432,7 @@ UniValue listunspent(const UniValue& params, bool fHelp)
     LOCK2(cs_main, pwalletMain->cs_wallet);
     pwalletMain->AvailableCoins(vecOutputs, false, NULL, true);
     BOOST_FOREACH (const COutput& out, vecOutputs) {
-        if (out.nDepth < nMinDepth || out.nDepth > nMaxDepth) // @todo @egorl if !out.tx->fInstant
+        if (out.nDepth < nMinDepth || out.nDepth > nMaxDepth)
             continue;
 
         CTxDestination address;
@@ -2448,10 +2448,10 @@ UniValue listunspent(const UniValue& params, bool fHelp)
             stats = dpos::getController()->calcTxVotingStats(out.tx->GetHash());
 
         std::string dposStatus = "";
-        if (out.nDepth > 0 || stats.pro >= dpos_params.nMinQuorum)
+        if (out.nDepth > 0 || (stats.pro >= dpos_params.nMinQuorum && dpos::getController()->isMinableTx(*out.tx)))
             dposStatus = "committed";
         if (out.nDepth <= 0) {
-            if (dpos::getController()->checkTxNotCommittable(out.tx->GetHash()))
+            if (dpos::getController()->isNotCommittableTx(out.tx->GetHash()) || !dpos::getController()->isMinableTx(*out.tx))
                 dposStatus = "rejected";
             else if (stats.totus() == 0)
                 dposStatus = "not_voted";
@@ -2694,10 +2694,8 @@ UniValue i_listunspent(const UniValue& params, bool fHelp)
 
     UniValue rv{UniValue::VARR};
     for (const auto& tx : dpos::getController()->listCommittedTxs()) {
-        CTransaction dummy;
-        uint256 block;
-        if (GetTransaction(tx.GetHash(), dummy, block, true) && !block.IsNull()) {
-            continue; // only not included into a block txs
+        if (!dpos::getController()->isMinableTx(tx)) {
+            continue;
         }
         for (std::size_t i{0}; i < tx.vout.size(); i++) {
             CTxDestination address{};
@@ -2881,11 +2879,17 @@ UniValue zc_benchmark(const UniValue& params, bool fHelp)
             }
             sample_times.push_back(benchmark_large_tx(nInputs));
         } else if (benchmarktype == "trydecryptnotes") {
-            int nAddrs = params[2].get_int();
-            sample_times.push_back(benchmark_try_decrypt_notes(nAddrs));
+            int nKeys = params[2].get_int();
+            sample_times.push_back(benchmark_try_decrypt_sprout_notes(nKeys));
+        } else if (benchmarktype == "trydecryptsaplingnotes") {
+            int nKeys = params[2].get_int();
+            sample_times.push_back(benchmark_try_decrypt_sapling_notes(nKeys));
         } else if (benchmarktype == "incnotewitnesses") {
             int nTxs = params[2].get_int();
-            sample_times.push_back(benchmark_increment_note_witnesses(nTxs));
+            sample_times.push_back(benchmark_increment_sprout_note_witnesses(nTxs));
+        } else if (benchmarktype == "incsaplingnotewitnesses") {
+            int nTxs = params[2].get_int();
+            sample_times.push_back(benchmark_increment_sapling_note_witnesses(nTxs));
         } else if (benchmarktype == "connectblockslow") {
             if (Params().NetworkIDString() != "regtest") {
                 throw JSONRPCError(RPC_TYPE_ERROR, "Benchmark must be run in regtest mode");
@@ -3410,10 +3414,8 @@ CAmount getInstantBalanceZaddr(std::string address, bool ignoreUnspendable)
 
     for (const auto& tx : dpos::getController()->listCommittedTxs()) {
         LOCK2(cs_main, pwalletMain->cs_wallet);
-        CTransaction dummy;
-        uint256 block;
-        if (GetTransaction(tx.GetHash(), dummy, block, true) && !block.IsNull()) {
-            continue; // only not included into a block txs
+        if (!dpos::getController()->isMinableTx(tx)) {
+            continue;
         }
         // Filter the transactions before checking for notes
         if (!CheckFinalTx(tx)) {

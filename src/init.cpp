@@ -215,11 +215,7 @@ void Shutdown()
         pwalletMain->Flush(false);
 #endif
 #ifdef ENABLE_MINING
- #ifdef ENABLE_WALLET
-    GenerateBitcoins(false, NULL, 0);
- #else
-    GenerateBitcoins(false, 0);
- #endif
+    GenerateBitcoins(false, 0, Params());
 #endif
     StopNode();
     tor::StopTorControl();
@@ -848,13 +844,69 @@ static void preprocessMapArgs() {
     }
 }
 
+bool CheckLogsForAutoReindex()
+{
+    int const TAIL = 4000; // it's about 40 lines or more
+
+    if (GetBoolArg("-autoreindex", true))
+    {
+        boost::filesystem::path pathDebug = GetDataDir() / "debug.log";
+
+        ifstream logFile;
+        logFile.open(pathDebug.string().c_str(), std::ios::in | std::ios::ate);
+
+        int64_t const logSize = logFile.tellg();
+        int64_t const pos = logSize < TAIL ? 0 : logSize - TAIL;
+
+        logFile.seekg(pos, logFile.beg);
+
+        std::string str;
+        std::vector<std::string> tails;
+        while (logFile.good())
+        {
+            std::getline(logFile, str);
+            tails.push_back(str);
+        }
+        logFile.close();
+        for (auto it = tails.rbegin(); it != tails.rend(); ++it)
+        {
+            if (it->find("-reindex") != std::string::npos || it->find("Aborted block database rebuild") != std::string::npos)
+                return true;
+
+            // In the case of overlapping previous start: ("Crypticcoin version XXXX" should be the first message in the current session)
+            if (it->find("Crypticcoin version") != std::string::npos)
+                return false;
+        }
+    }
+    return false;
+}
+
 /** Initialize bitcoin.
  *  @pre Parameters should be parsed and config file should be read.
  */
 bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
+    // Make sure only a single Bitcoin process is using the data directory.
+    {
+        std::string strDataDir = GetDataDir().string();
+        boost::filesystem::path pathLockFile = GetDataDir() / ".lock";
+        FILE* file = fopen(pathLockFile.string().c_str(), "a"); // empty lock file; created if it doesn't exist.
+        if (file) fclose(file);
+
+        try {
+            static boost::interprocess::file_lock lock(pathLockFile.string().c_str());
+            if (!lock.try_lock())
+                return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Crypticcoin is probably already running."), strDataDir));
+        } catch(const boost::interprocess::interprocess_exception& e) {
+            return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Crypticcoin is probably already running.") + " %s.", strDataDir, e.what()));
+        }
+#ifndef WIN32
+        CreatePidFile(GetPidFile(), getpid());
+#endif
+    }
+
     /**
-    * Kill prev. tor (to be able to bind ports)
+    * Kill prev. tor (to be able to bind ports) AFTER dir locking!
     */
     if (!GetArg("-tor_exe_path", "").empty()) {
         tor::KillTor();
@@ -936,6 +988,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             return InitError(_("Saving the Sprout R1CS requires -experimentalfeatures."));
         }
     }
+
+    // Early check for autoreindex before the very first write to debug.log
+    bool fAutoReindexFromLogs = CheckLogsForAutoReindex();
 
     // Set this early so that parameter interactions go to console
     fPrintToConsole = GetBoolArg("-printtoconsole", false);
@@ -1285,22 +1340,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (strWalletFile != boost::filesystem::basename(strWalletFile) + boost::filesystem::extension(strWalletFile))
         return InitError(strprintf(_("Wallet %s resides outside data directory %s"), strWalletFile, strDataDir));
 #endif
-    // Make sure only a single Bitcoin process is using the data directory.
-    boost::filesystem::path pathLockFile = GetDataDir() / ".lock";
-    FILE* file = fopen(pathLockFile.string().c_str(), "a"); // empty lock file; created if it doesn't exist.
-    if (file) fclose(file);
-
-    try {
-        static boost::interprocess::file_lock lock(pathLockFile.string().c_str());
-        if (!lock.try_lock())
-            return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Crypticcoin is probably already running."), strDataDir));
-    } catch(const boost::interprocess::interprocess_exception& e) {
-        return InitError(strprintf(_("Cannot obtain a lock on data directory %s. Crypticcoin is probably already running.") + " %s.", strDataDir, e.what()));
-    }
-
-#ifndef WIN32
-    CreatePidFile(GetPidFile(), getpid());
-#endif
     if (GetBoolArg("-shrinkdebugfile", !fDebug))
         ShrinkDebugFile();
 
@@ -1534,7 +1573,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // ********************************************************* Step 7: load block chain
 
-    fReindex = GetBoolArg("-reindex", false);
+    fReindex = GetBoolArg("-reindex", fAutoReindexFromLogs);
 
     // Upgrading to 0.8; hard-link the old blknnnn.dat files into /blocks/
     boost::filesystem::path blocksDir = GetDataDir() / "blocks";
@@ -1889,7 +1928,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
  #ifdef ENABLE_WALLET
         bool minerAddressInLocalWallet = false;
         if (pwalletMain) {
-            // Address has alreday been validated
+            // Address has already been validated
             CTxDestination addr = DecodeDestination(mapArgs["-mineraddress"]);
             CKeyID keyID = boost::get<CKeyID>(addr);
             minerAddressInLocalWallet = pwalletMain->HaveKey(keyID);
@@ -1898,6 +1937,22 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             return InitError(_("-mineraddress is not in the local wallet. Either use a local address, or set -minetolocalwallet=0"));
         }
  #endif // ENABLE_WALLET
+
+        // This is leveraging the fact that boost::signals2 executes connected
+        // handlers in-order. Further up, the wallet is connected to this signal
+        // if the wallet is enabled. The wallet's ScriptForMining handler does
+        // nothing if -mineraddress is set, and GetScriptForMinerAddress() does
+        // nothing if -mineraddress is not set (or set to an invalid address).
+        //
+        // The upshot is that when ScriptForMining(script) is called:
+        // - If -mineraddress is set (whether or not the wallet is enabled), the
+        //   CScript argument is set to -mineraddress.
+        // - If the wallet is enabled and -mineraddress is not set, the CScript
+        //   argument is set to a wallet address.
+        // - If the wallet is disabled and -mineraddress is not set, the CScript
+        //   argument is not modified; in practice this means it is empty, and
+        //   GenerateBitcoins() returns an error.
+        GetMainSignals().ScriptForMining.connect(GetScriptForMinerAddress);
     }
 #endif // ENABLE_MINING
 
@@ -1967,12 +2022,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
 #ifdef ENABLE_MINING
     // Generate coins in the background
- #ifdef ENABLE_WALLET
-    if (pwalletMain || !GetArg("-mineraddress", "").empty())
-        GenerateBitcoins(GetBoolArg("-gen", false), pwalletMain, GetArg("-genproclimit", 1));
- #else
-    GenerateBitcoins(GetBoolArg("-gen", false), GetArg("-genproclimit", 1));
- #endif
+    GenerateBitcoins(GetBoolArg("-gen", false), GetArg("-genproclimit", 1), Params());
 #endif
 
     // ********************************************************* Step 11: finished

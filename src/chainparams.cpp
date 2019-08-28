@@ -125,7 +125,7 @@ public:
         // dPoS
         consensus.dpos.nTeamSize = 32;
         consensus.dpos.nMinQuorum = 23;
-        consensus.dpos.nDelayIBD = 30 * 60;
+        consensus.dpos.nDelayIBD = 15 * 60;
         consensus.dpos.nPollingPeriod = 20;
         consensus.dpos.nMaxNotVotedTxsToKeep = 2048;
         consensus.dpos.nMaxTxVotesFromVoter = 256;
@@ -202,6 +202,13 @@ public:
             (10000, uint256S("0x0000264991d920934cf2d70303c99e203fc00e8a271658a3e6bac68ca922124c"))
             (25000, uint256S("0x0000000977377c91961efa4da9c23688de3172493ba31513b1e1e0aeff122822"))
             (44585, uint256S("0x00000007ddd54c42f44d7b236811793743647e677042a6b332a6c4fb0c6198c5"))
+            (124476, uint256S("0x000011893b66230a5284b35394cc20b9745ad7c0e30f01dd1be14b93cdc5a119"))    // sapling activated
+            (127866, uint256S("0x000004d44917b8decb78acafe3252a539d7f9c813b1618f049f589105da35400"))    // strange stuck (someone got there)
+            (133992, uint256S("0x00000316684d04296331ed45ee6bdd3b2889e5370e139406b92b328327c4c99d"))    // some skipped Mn txs
+            (134254, uint256S("0x00000275a016fec3310ac566bd8dc6b3616fac13ca2807ccebb4d292b6c1c219"))    // some skipped Mn txs
+            (134427, uint256S("0x0000047e72d4074f86d7874a8b53d4fe88f8188797fbbc50d62f1f114e958925"))    // some skipped Mn txs
+            (135316, uint256S("0x000000098b607ba2fe34fb160a7edc0cc8fb8c3d76f2cadfc11a61ac9bb05030"))    // some skipped Mn txs
+            (135321, uint256S("0x000003f37e10cbd6c659f468415491df479a02a77ea1c68ab2f194dea2d96715"))    // some skipped Mn txs
             (136000, uint256S("0x000006ce418b33fe036ebf8f11ae1a8122b758f3d30e7f4ff8033977f3055938")),
             1555553484,     // * UNIX timestamp of last checkpoint block
             339883,  // * total number of transactions between genesis and last checkpoint
@@ -333,6 +340,15 @@ public:
             0
         };
 
+/* // new from zcash 2.0.4 - CHANGE IF NEED
+        // Hardcoded fallback value for the Sprout shielded value pool balance
+        // for nodes that have not reindexed since the introduction of monitoring
+        // in #2795.
+        nSproutValuePoolCheckpointHeight = 440329;
+        nSproutValuePoolCheckpointBalance = 40000029096803;
+        fZIP209Enabled = true;
+        hashSproutValuePoolCheckpointBlock = uint256S("000a95d08ba5dcbabe881fc6471d11807bcca7df5f1795c99f3ec4580db4279b");
+*/
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = {};
         assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(false));

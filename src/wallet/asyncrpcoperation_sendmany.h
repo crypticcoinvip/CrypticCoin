@@ -12,7 +12,7 @@
 #include "crypticcoin/JoinSplit.hpp"
 #include "crypticcoin/Address.hpp"
 #include "wallet.h"
-#include "paymentdisclosure.h"
+#include "wallet/paymentdisclosure.h"
 
 #include <array>
 #include <unordered_map>

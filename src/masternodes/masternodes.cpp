@@ -828,6 +828,7 @@ void CMasternodesView::WriteDposTeam(int height, const CTeam & team)
  *
 */
 extern CFeeRate minRelayTxFee;
+extern void StartShutdown();
 
 std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAmount totalBlockSubsidy, CAmount dPosTransactionsFee, int height) const
 {
@@ -889,7 +890,7 @@ std::pair<std::vector<CTxOut>, CAmount> CMasternodesView::CalcDposTeamReward(CAm
         return {result, dposReward};
     } catch(...) {
         LogPrintf("Masternodes database is corrupted (reading dPoS team)! Please restart with -reindex to recover. \n");
-        assert(!"Masternodes database is corrupted (reading dPoS team)! Please restart with -reindex to recover.");
+        StartShutdown();
     }
 }
 

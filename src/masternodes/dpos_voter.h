@@ -114,6 +114,7 @@ public:
         std::map<Round, std::map<CMasternode::ID, CRoundVote> > roundVotes;
 
         std::map<BlockHash, CBlock> viceBlocks;
+        std::set<BlockHash> viceBlocksToSkip; // vice blocks which were seen when voter was inactive
 
         bool isNull() const
         {
@@ -141,7 +142,13 @@ public:
     mutable std::map<TxId, CTransaction> txs;
     mutable std::multimap<COutPoint, TxId> pledgedInputs; // used inputs -> tx. Only for voted txs
 
+    // rm straightly, no validation or voting
     std::map<TxId, CTransaction>::iterator pruneTx(std::map<TxId, CTransaction>::iterator tx_it);
+    // insert straightly, no validation or voting
+    void insertTx(const CTransaction& tx, bool hasVotes);
+    void insertTxVote(const CTxVote& txVote);
+    void insertViceBlock(const CBlock& viceBlock);
+    void insertRoundVote(const CRoundVote& roundVote);
 
     size_t minQuorum;
     size_t numOfVoters;
@@ -151,9 +158,13 @@ public:
 
     // Primitive timer. When voter creates round vote, it sets this value. Then it should reseted by a controller.
     // Why not a proper timer? Simpler to do unit testing this way.
-    int64_t lastRoundVotedTime = 0;
-    void resetRoundVotingTimer() {
-        lastRoundVotedTime = 0;
+    int64_t noVotingTimer = 0;
+    void resetNoVotingTimer() {
+        noVotingTimer = 0;
+    };
+    int64_t skipBlocksTimer = 0;
+    void resetSkipBlockTimer() {
+        skipBlocksTimer = 0;
     };
 
     /// @param world - blockchain callbacks
@@ -163,18 +174,18 @@ public:
     * @param amIvoter is true if voting is enabled and I'm an active operator, member of the team
     * @param me is ID of current masternode
     */
-    void setVoting(bool amIvoter,
-                   CMasternode::ID me);
+    void setVoting(bool amIvoter, CMasternode::ID me);
 
     /// @param tip - current best block
     void updateTip(BlockHash tip);
 
+    // These methods are normally called when new item is received
     Output applyViceBlock(const CBlock& viceBlock);
     Output applyTx(const CTransaction& tx);
     Output applyTxVote(const CTxVote& vote);
     Output applyRoundVote(const CRoundVote& vote);
 
-    Output requestMissingTxs();
+    Output requestMissingTxs() const;
 
     Output doRoundVoting();
     /**
@@ -189,14 +200,37 @@ public:
 
     struct ApprovedViceBlocks
     {
-        std::multimap<COutPoint, TxId> vblockAssignedInputs;
+        // not a multimap, because multimap may have duplicates
+        std::map<COutPoint, std::set<TxId>> vblockAssignedInputs;
         std::set<BlockHash> missing;
+
+        bool interfereWith(const COutPoint& in, TxId to) {
+            if (!missing.empty()) {
+                LogPrintf("dpos: ApprovedViceBlocks: {missing} isn't empty, but interfereWith() is called anyway. \n");
+            }
+            if (vblockAssignedInputs.count(in) > 0 && vblockAssignedInputs[in].size() == 1 && *vblockAssignedInputs[in].begin() == to) {
+                return false; // assigned to this tx, not a conflict
+            }
+            return vblockAssignedInputs.count(in) > 0 && !vblockAssignedInputs[in].empty(); // this input is already assigned to another tx, in a vice-block I approved
+        }
     };
     struct ApprovedTxs
     {
-        std::map<COutPoint, TxId> assignedInputs;
-        size_t votedTxsSerializeSize;
+        // it may be a map, as we never assign the same input to multiple instant txs. It's multimap to keep it similar to vblockAssignedInputs
+        // not a multimap, because multimap may have duplicates
+        std::map<COutPoint, std::set<TxId>> assignedInputs;
+        size_t txsSerializeSize;
         std::set<TxId> missing;
+
+        bool interfereWith(const COutPoint& in, TxId to) {
+            if (!missing.empty()) {
+                LogPrintf("dpos: ApprovedTxs: {missing} isn't empty, but interfereWith() is called anyway. \n");
+            }
+            if (assignedInputs.count(in) > 0 && assignedInputs[in].size() == 1 && *assignedInputs[in].begin() == to) {
+                return false; // assigned to this tx, not a conflict
+            }
+            return assignedInputs.count(in) > 0 && !assignedInputs[in].empty(); // this input is already assigned to another instant tx
+        }
     };
     struct CommittedTxs
     {
@@ -211,9 +245,9 @@ public:
     };
 
     /// @param votingsDeep @param votingsSkip [start - votingsSkip, start - votingsDeep]
-    CommittedTxs listCommittedTxs(BlockHash start, uint32_t votingsSkip = 0, uint32_t votingsDeep = 1);
+    CommittedTxs listCommittedTxs(BlockHash start, uint32_t votingsSkip = 0, uint32_t votingsDeep = 1) const;
 
-    bool isCommittedTx(const TxId& txid, BlockHash vot, Round nRound) const;
+    bool isCommittedTx(const TxId& txid, BlockHash start, uint32_t votingsSkip = 0, uint32_t votingsDeep = GUARANTEES_MEMORY, Round nRound = 1) const;
     bool isTxApprovedByMe(const TxId& txid, BlockHash vot) const;
 
     CTxVotingDistribution calcTxVotingStats(TxId txid, BlockHash vot, Round nRound) const;
@@ -229,7 +263,7 @@ public:
     /**
      * Check that tx cannot be committed, due to already known committed (and conflicting) tx
      */
-    bool checkTxNotCommittable(TxId txid, BlockHash vot) const;
+    bool isNotCommittableTx(TxId txid) const;
 
     static std::vector<COutPoint> getInputsOf(const CTransaction& tx);
     static std::set<COutPoint> getInputsOf_set(const CTransaction& tx);
@@ -239,14 +273,17 @@ protected:
     Output voteForTx(const CTransaction& tx);
     boost::optional<CRoundVote> voteForViceBlock(const CBlock& viceBlock, MyPledge& pledge) const;
 
+    /// mark all the known vice-blocks as "don't vote for it"
+    void markViceBlocksSkipped();
+
     /**
      * @return true if transaction had any vote from me during the round.
      */
     bool wasVotedByMe_tx(TxId txid, BlockHash vot, Round nRound) const;
     bool wasVotedByMe_round(BlockHash vot, Round nRound) const;
 
-    bool txHasAnyVote(TxId txid, BlockHash vot) const;
-    bool wasTxLost(TxId txid, BlockHash vot) const;
+    bool txHasAnyVote(TxId txid) const;
+    bool wasTxLost(TxId txid) const;
 
     struct PledgeBuilderRanges
     {
@@ -256,7 +293,7 @@ protected:
         uint32_t committedTxsSkip = 0;
         uint32_t committedTxsDeep = GUARANTEES_MEMORY;
     };
-    MyPledge buildMyPledge(PledgeBuilderRanges ranges);
+    MyPledge buildMyPledge(PledgeBuilderRanges ranges) const;
     void buildApprovedTxsPledge(ApprovedTxs& res, BlockHash vot) const;
 
     struct PledgeRequiredItems
@@ -269,7 +306,7 @@ protected:
     bool ensurePledgeItemsNotMissing(PledgeRequiredItems r, const std::string& methodName, MyPledge& pledge, Output& out) const;
 
     template <typename F>
-    void forEachVoting(BlockHash start, uint32_t skip, uint32_t deep, F&& f) {
+    void forEachVoting(BlockHash start, uint32_t skip, uint32_t deep, F&& f) const {
         uint32_t i = 0;
         for (BlockHash vot = start; !vot.IsNull() && i < deep; i++, vot = world.getPrevBlock(vot)) {
             if (i < skip)

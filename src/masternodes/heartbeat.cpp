@@ -162,18 +162,18 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message, CValida
     const time_ms now{GetTimeMillis()};
     const uint256 hash{message.GetHash()};
 
-    bool authenticated = false;
-
     if (message.GetPubKey(pubKey)) {
         AssertLockHeld(cs_main);
         const CKeyID masternodeKey{pubKey.GetID()};
 
-        if (checkMasternodeKeyAndStatus(masternodeKey) &&
-            message.GetTimestamp() < now + maxHeartbeatInFuture)
+        if (!checkMasternodeKeyAndStatus(masternodeKey))
+            return state.DoS(IsInitialBlockDownload() ? 0 : 1,
+                             error("CHeartBeatTracker(): received not authenticated heartbeat"),
+                             REJECT_INVALID, "heartbeat-auth");
+
+        if (message.GetTimestamp() < now + maxHeartbeatInFuture)
         {
             LOCK(cs);
-            authenticated = true;
-
             const auto it{keyMessageMap.find(masternodeKey)};
 
             if (it == keyMessageMap.end()) {
@@ -190,11 +190,6 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message, CValida
                 rv = true;
             }
         }
-    }
-    if (!authenticated) {
-        return state.DoS(IsInitialBlockDownload() ? 0 : 1,
-                         error("CHeartBeatTracker(): received not authenticated heartbeat"),
-                         REJECT_INVALID, "heartbeat-auth");
     }
 
     return rv;
