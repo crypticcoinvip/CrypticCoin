@@ -2,7 +2,7 @@
 // Copyright (c) 2016-2019 The Zcash developers
 // Copyright (c) 2018-2019 The Crypticcoin developers
 // Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
 #ifndef BITCOIN_CLIENTVERSION_H
 #define BITCOIN_CLIENTVERSION_H
@@ -18,8 +18,8 @@
 //! These need to be macros, as clientversion.cpp's and bitcoin*-res.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR 2
 #define CLIENT_VERSION_MINOR 2
-#define CLIENT_VERSION_REVISION 3
-#define CLIENT_VERSION_BUILD 50
+#define CLIENT_VERSION_REVISION 7
+#define CLIENT_VERSION_BUILD 53
 
 //! Set to true for release, false for prerelease or test build
 #define CLIENT_VERSION_IS_RELEASE true
