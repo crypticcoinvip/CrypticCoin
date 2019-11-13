@@ -2072,11 +2072,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // Monitor the chain, and alert if we get blocks much quicker or slower than expected
     int64_t nPowTargetSpacing = Params().GetConsensus().nPreBlossomPowTargetSpacing;
-/*
+
     CScheduler::Function f = boost::bind(&PartitionCheck, &IsInitialBlockDownload,
-                                         boost::ref(cs_main), boost::cref(pindexBestHeader), nPowTargetSpacing);
+                                         boost::ref(cs_main), boost::cref(pindexBestHeader));
     scheduler.scheduleEvery(f, nPowTargetSpacing);
-*/
+
 #ifdef ENABLE_MINING
     // Generate coins in the background
     GenerateBitcoins(GetBoolArg("-gen", false), GetArg("-genproclimit", 1), chainparams);
