@@ -279,7 +279,7 @@ endloop:
             dpos::getController()->proceedViceBlock(*pblock, state);
         } else {
             LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
-            if (!ProcessNewBlock(state, Params(), pblock, true, NULL))
+            if (!ProcessNewBlock(state, Params(), NULL, pblock, true, NULL))
                 throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
         }
         ++nHeight;

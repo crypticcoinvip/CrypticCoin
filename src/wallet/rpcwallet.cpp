@@ -3469,12 +3469,12 @@ CAmount getInstantBalanceZaddr(std::string address, bool ignoreUnspendable)
             }
 
             // determine amount of funds in the note
-            auto hSig = tx.vjoinsplit[i].h_sig(*pcrypticcoinParams, tx.joinSplitPubKey);
+            auto hSig = tx.vJoinSplit[i].h_sig(*pcrypticcoinParams, tx.joinSplitPubKey);
             try {
                 rv += SproutNotePlaintext::decrypt(
                           decryptor,
-                          tx.vjoinsplit[i].ciphertexts[j],
-                          tx.vjoinsplit[i].ephemeralKey,
+                          tx.vJoinSplit[i].ciphertexts[j],
+                          tx.vJoinSplit[i].ephemeralKey,
                           hSig,
                           static_cast<unsigned char>(j))
                           .value();

@@ -157,10 +157,7 @@ public:
         nDefaultPort = 23303;
         nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 100000;
-        const size_t N = 200, K = 9;
         BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
-        nEquihashN = N;
-        nEquihashK = K;
 
         genesis = CreateGenesisBlock(
             1533007800,
@@ -230,10 +227,10 @@ public:
         // for nodes that have not reindexed since the introduction of monitoring
         // in #2795.
         // TODO: merge to 2.0.7 ?
-        //nSproutValuePoolCheckpointHeight = 520633;
-        //nSproutValuePoolCheckpointBalance = 22145062442933;
-        //fZIP209Enabled = true;
-        //hashSproutValuePoolCheckpointBlock = uint256S("0000000000c7b46b6bc04b4cbf87d8bb08722aebd51232619b214f7273f8460e");
+        nSproutValuePoolCheckpointHeight = 520633;
+        nSproutValuePoolCheckpointBalance = 22145062442933;
+        fZIP209Enabled = true;
+        hashSproutValuePoolCheckpointBlock = uint256S("0000000000c7b46b6bc04b4cbf87d8bb08722aebd51232619b214f7273f8460e");
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = {};
@@ -313,10 +310,6 @@ public:
         nDefaultPort = 23313;
         nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 1000;
-        const size_t N = 200, K = 9;
-        BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
-        nEquihashN = N;
-        nEquihashK = K;
 
         genesis = CreateGenesisBlock(
             1533007800,
@@ -455,10 +448,6 @@ public:
         nDefaultPort = 18344;
         nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 1000;
-        const size_t N = 48, K = 5;
-        BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
-        nEquihashN = N;
-        nEquihashK = K;
 
         genesis = CreateGenesisBlockRegTest(
             1296688602,

@@ -93,8 +93,6 @@ private:
 public:
     TransactionBuilder() {}
     TransactionBuilder(
-
-    void SetInstant(bool fInstant);
         const Consensus::Params& consensusParams,
         int nHeight,
         CKeyStore* keyStore = nullptr,
@@ -102,6 +100,7 @@ public:
         CCoinsViewCache* coinsView = nullptr,
         CCriticalSection* cs_coinsView = nullptr);
 
+    void SetInstant(bool fInstant);
     void SetExpiryHeight(uint32_t nExpiryHeight);
 
     void SetFee(CAmount fee);

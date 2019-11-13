@@ -1882,7 +1882,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 
     CAmount nSubsidy = 1655 * COIN;
 
-    int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
+    int halvings = nHeight / consensusParams.nPreBlossomSubsidyHalvingInterval;
 
     if (halvings >= 11)
         return 0;
@@ -2394,7 +2394,7 @@ enum DisconnectResult
  */
 static DisconnectResult DisconnectBlock(const CBlock& block, CValidationState& state,
     const CBlockIndex* pindex, CCoinsViewCache& view, const CChainParams& chainparams,
-    const bool updateIndices)
+    const bool updateIndices, CMasternodesViewCache & mnview)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
 
@@ -2533,9 +2533,11 @@ static DisconnectResult DisconnectBlock(const CBlock& block, CValidationState& s
 
     mnview.SetHeight(pindex->pprev->nHeight);
 
+    // insightexplorer
+    if (fAddressIndex && updateIndices) {
         if (!pblocktree->EraseAddressIndex(addressIndex)) {
             AbortNode(state, "Failed to delete address index");
-            return DISCONNECT_FAILED;
+               return DISCONNECT_FAILED;
         }
         if (!pblocktree->UpdateAddressUnspentIndex(addressUnspentIndex)) {
             AbortNode(state, "Failed to write address unspent index");
@@ -2739,7 +2741,9 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
 bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
-                  CCoinsViewCache& view, CMasternodesViewCache & mnview, const CChainParams& chainparams, bool fJustCheck)
+                  CCoinsViewCache& view, const CChainParams& chainparams,
+                  CMasternodesViewCache & mnview, bool fJustCheck,
+                  const DposValidationRules& dvr)
 {
     AssertLockHeld(cs_main);
 
@@ -3338,7 +3342,7 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
 
     // Check the version of the last 100 blocks to see if we need to upgrade:
     static bool fWarned = false;
-    if (!IsInitialBlockDownload() && !fWarned)
+    if (!IsInitialBlockDownload(Params()) && !fWarned)
     {
         int nUpgraded = 0;
         const CBlockIndex* pindex = chainActive.Tip();
@@ -3380,7 +3384,7 @@ bool static DisconnectTip(CValidationState &state, const CChainParams& chainpara
         CCoinsViewCache view(pcoinsTip);
         CMasternodesViewCache mnview(pmasternodesview);
         // insightexplorer: update indices (true)
-        if (DisconnectBlock(block, state, pindexDelete, view, mnview,chainparams, true) != DISCONNECT_OK)
+        if (DisconnectBlock(block, state, pindexDelete, view, chainparams, true, mnview) != DISCONNECT_OK)
         {
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         }
@@ -3467,7 +3471,7 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     {
         CCoinsViewCache view(pcoinsTip);
         CMasternodesViewCache mnview(pmasternodesview);
-        bool rv = ConnectBlock(*pblock, state, pindexNew, view, mnview, chainparams);
+        bool rv = ConnectBlock(*pblock, state, pindexNew, view, chainparams, mnview);
         GetMainSignals().BlockChecked(*pblock, state);
         if (!rv) {
             if (state.IsInvalid())
@@ -4451,7 +4455,7 @@ bool ProcessNewBlock(CValidationState& state, const CChainParams& chainparams, c
     if (NetworkUpgradeActive(height, Params().GetConsensus(), Consensus::UPGRADE_SAPLING))
     {
         // MN automation
-        if (!IsInitialBlockDownload() && (Params().NetworkIDString() != "regtest" || !GetBoolArg("-nomnautomation", false)))
+        if (!IsInitialBlockDownload(Params()) && (Params().NetworkIDString() != "regtest" || !GetBoolArg("-nomnautomation", false)))
         {
             LOCK(cs_main);
             TryMasternodeAutoActivation(*pmasternodesview, height);
@@ -4493,7 +4497,7 @@ bool TestBlockValidity(CValidationState &state, const CChainParams& chainparams,
         return false;
     if (!ContextualCheckBlock(block, state, chainparams, pindexPrev))
         return false;
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, mnview, chainparams, true, dvr))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, chainparams, mnview, true, dvr))
         return false;
     assert(state.IsValid());
 
@@ -5570,7 +5574,8 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
                    pcoinsTip->HaveCoins(inv.hash);
         }
     case MSG_BLOCK:
-        return mapBlockIndex.count(inv.hash);
+        // TODO remove coment
+        //return mapBlockIndex.count(inv.hash);
     case MSG_HEARTBEAT:
         return CHeartBeatTracker::getInstance().findReceivedMessage(inv.hash);
     case MSG_VICE_BLOCK:
@@ -5762,6 +5767,8 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
         if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK)
             break;
     }
+
+    } //while
 
     pfrom->vRecvGetData.erase(pfrom->vRecvGetData.begin(), it);
 

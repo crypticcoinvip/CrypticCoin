@@ -12,6 +12,7 @@
 //#include "masternodes/mntypes.h"
 #include "chain.h"
 #include "masternodes/masternodes.h"
+#include "masternodes/dpos_p2p_messages.h"
 
 #include <map>
 #include <string>

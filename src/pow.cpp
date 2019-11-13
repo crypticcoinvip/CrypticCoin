@@ -36,7 +36,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
             // Special difficulty rule for testnet (or first blocks after sapling):
             // If the new block's timestamp is more than 24 * 2.5 minutes
             // then allow mining of a min-difficulty block.
-            if (pblock && pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing * 24)
+            if (pblock && pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPreBlossomPowTargetSpacing * 24)
                 return nProofOfWorkLimit;
         }
     }

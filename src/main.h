@@ -459,16 +459,6 @@ bool WriteBlockToDisk(const CBlock& block, CDiskBlockPos& pos, const CMessageHea
 bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams);
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams);
 
-/** Functions for validating blocks and updating the block tree */
-
-enum DisconnectResult
-{
-    DISCONNECT_OK,      // All good.
-    DISCONNECT_UNCLEAN, // Rolled back, but UTXO set was inconsistent with block.
-    DISCONNECT_FAILED   // Something else went wrong.
-};
-
-
 struct DposValidationRules {
     size_t nMaxInstsSize = MAX_INST_SECTION_SIZE;
     size_t nMaxInstsSigops = MAX_INST_SECTION_SIGOPS;
@@ -478,6 +468,9 @@ struct DposValidationRules {
     bool fCheckDposReward = true;
     bool fCheckSaplingRoot = true;
 };
+
+/** Functions for validating blocks and updating the block tree */
+
 /** Context-independent validity checks */
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
     const CChainParams& chainparams,
@@ -492,15 +485,16 @@ bool CheckBlock(const CBlock& block, CValidationState& state,
  *  set; UTXO-related validity checks are done in ConnectBlock(). */
 bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& state,
                                 const CChainParams& chainparams, CBlockIndex *pindexPrev);
-bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex *pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true, const DposValidationRules& dvr = DposValidationRules{});
+bool ContextualCheckBlock(const CBlock& block, CValidationState& state,
+                                const CChainParams& chainparams, CBlockIndex * const pindexPrev);
+
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins,
-                  const CChainParams& chainparams, bool fJustCheck = false);
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, const CChainParams& chainparams,
+                  CMasternodesViewCache & mnview, bool fJustCheck = false, const DposValidationRules& dvr = DposValidationRules{});
 
 /** Check a block is completely valid from start to finish (only works on top of our current best block, with cs_main held) */
-bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
 bool TestBlockValidity(CValidationState &state, const CChainParams& chainparams, const CBlock& block, CBlockIndex *pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true, const DposValidationRules& dvr = DposValidationRules{});
 
 /**
@@ -513,6 +507,8 @@ bool TestBlockValidity(CValidationState &state, const CChainParams& chainparams,
  */
 bool RewindBlockIndex(const CChainParams& chainparams, bool& clearWitnessCaches);
 
+// because the same class exist in txdb.h
+/*
 class CBlockFileInfo
 {
 public:
@@ -554,6 +550,7 @@ public:
      std::string ToString() const;
 
      /** update statistics (does not update nSize) */
+/*
      void AddBlock(unsigned int nHeightIn, uint64_t nTimeIn) {
          if (nBlocks==0 || nHeightFirst > nHeightIn)
              nHeightFirst = nHeightIn;
@@ -565,7 +562,9 @@ public:
          if (nTimeIn > nTimeLast)
              nTimeLast = nTimeIn;
      }
+
 };
+*/
 
 /** RAII wrapper for VerifyDB: Verify consistency of the block and coin databases */
 class CVerifyDB {

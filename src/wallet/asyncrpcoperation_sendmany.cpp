@@ -465,9 +465,6 @@ bool AsyncRPCOperation_sendmany::main_impl() {
 
         UniValue sendResult = SendTransaction(tx_, keyChange, testmode);
         set_result(sendResult);
-            o.push_back(Pair("dpos_instant", tx_.fInstant));
-            o.push_back(Pair("dpos_instant", tx_.fInstant));
-
         return true;
     }
     /**
@@ -902,9 +899,6 @@ bool AsyncRPCOperation_sendmany::main_impl() {
     return true;
 }
 
-
-        o.push_back(Pair("dpos_instant", tx_.fInstant));
-        o.push_back(Pair("dpos_instant", tx_.fInstant));
 bool AsyncRPCOperation_sendmany::find_utxos(bool fAcceptCoinbase=false) {
     std::set<CTxDestination> destinations;
     destinations.insert(fromtaddr_);

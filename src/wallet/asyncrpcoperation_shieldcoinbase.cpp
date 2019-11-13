@@ -265,9 +265,6 @@ bool ShieldToAddress::operator()(const libzcash::SaplingPaymentAddress &zaddr) c
 
     UniValue sendResult = SendTransaction(m_op->tx_, boost::none, m_op->testmode);
     m_op->set_result(sendResult);
-        o.push_back(Pair("dpos_instant", m_op->tx_.fInstant));
-        o.push_back(Pair("dpos_instant", m_op->tx_.fInstant));
-
     return true;
 }
 
@@ -275,9 +272,6 @@ bool ShieldToAddress::operator()(const libzcash::InvalidEncoding& no) const {
     return false;
 }
 
-
-        o.push_back(Pair("dpos_instant", tx_.fInstant));
-        o.push_back(Pair("dpos_instant", tx_.fInstant));
 UniValue AsyncRPCOperation_shieldcoinbase::perform_joinsplit(ShieldCoinbaseJSInfo & info) {
     uint32_t consensusBranchId;
     uint256 anchor;

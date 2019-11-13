@@ -612,7 +612,7 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
     } else {
         LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
         // Process this block the same as if we had received it from another node
-        if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
+        if (!ProcessNewBlock(state, Params(),NULL, pblock, true, NULL))
             return error("CrypticcoinMiner: ProcessNewBlock, block not accepted");
 
         TrackMinedBlock(pblock->GetHash());

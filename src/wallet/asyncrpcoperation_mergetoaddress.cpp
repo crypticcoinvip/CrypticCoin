@@ -34,6 +34,8 @@
 
 using namespace libzcash;
 
+extern UniValue sendrawtransaction(const UniValue& params, bool fHelp);
+
 int mta_find_output(UniValue obj, int n)
 {
     UniValue outputMapValue = find_value(obj, "outputmap");
@@ -361,10 +363,35 @@ bool AsyncRPCOperation_mergetoaddress::main_impl()
         // Build the transaction
         tx_ = builder_.Build().GetTxOrThrow();
 
-        UniValue sendResult = SendTransaction(tx_, boost::none, testmode);
-        set_result(sendResult);
+        //UniValue sendResult = SendTransaction(tx_, boost::none, testmode);
+
+        // Send the transaction
+        // TODO: Use CWallet::CommitTransaction instead of sendrawtransaction
+        auto signedtxn = EncodeHexTx(tx_);
+        if (!testmode) {
+            UniValue params = UniValue(UniValue::VARR);
+            params.push_back(signedtxn);
+            UniValue sendResultValue = sendrawtransaction(params, false);
+            if (sendResultValue.isNull()) {
+                throw JSONRPCError(RPC_WALLET_ERROR, "sendrawtransaction did not return an error or a txid.");
+            }
+
+            auto txid = sendResultValue.get_str();
+
+            UniValue o(UniValue::VOBJ);
+            o.push_back(Pair("txid", txid));
             o.push_back(Pair("dpos_instant", tx_.fInstant));
+            set_result(o);
+        } else {
+            // Test mode does not send the transaction to the network.
+            UniValue o(UniValue::VOBJ);
+            o.push_back(Pair("test", 1));
+            o.push_back(Pair("txid", tx_.GetHash().ToString()));
+            o.push_back(Pair("hex", signedtxn));
             o.push_back(Pair("dpos_instant", tx_.fInstant));
+            set_result(o);
+        }
+
 
         return true;
     }
@@ -729,8 +756,6 @@ bool AsyncRPCOperation_mergetoaddress::main_impl()
 }
 
 
-        o.push_back(Pair("dpos_instant", tx_.fInstant));
-        o.push_back(Pair("dpos_instant", tx_.fInstant));
 UniValue AsyncRPCOperation_mergetoaddress::perform_joinsplit(MergeToAddressJSInfo& info)
 {
     std::vector<boost::optional<SproutWitness>> witnesses;

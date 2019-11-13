@@ -30,6 +30,8 @@
 
 using namespace std;
 
+extern CTxDestination GetAccountAddress(std::string strAccount, bool bForceNew=false);
+
 /**
  * @note Do not add or change anything in the information returned by this
  * method. `getinfo` exists for backwards-compatibility only. It combines
@@ -417,7 +419,8 @@ UniValue createmultisig(const UniValue& params, bool fHelp)
     CScriptID innerID(inner);
 
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("address", EncodeDestination(innerID)));
+    // TODO remove coment
+    //result.push_back(Pair("address", EncodeDestination(innerID)));
     result.push_back(Pair("redeemScript", HexStr(inner.begin(), inner.end())));
 
     return result;
@@ -586,6 +589,7 @@ UniValue mn_sendheartbeat(const UniValue& params, bool fHelp)
     }
 
     const std::string address{params.empty() ? std::string{} : params[0].get_str()};
+
     const CTxDestination destination{(address.empty() ? GetAccountAddress("") : DecodeDestination(address))};
 
     if (!IsValidDestination(destination)) {
@@ -742,7 +746,7 @@ UniValue isinitialblockdownload(const UniValue& params, bool fHelp)
     }
 
     UniValue rv(UniValue::VBOOL);
-    rv.setBool(IsInitialBlockDownload());
+    rv.setBool(IsInitialBlockDownload(Params()));
     return rv;
 }
 

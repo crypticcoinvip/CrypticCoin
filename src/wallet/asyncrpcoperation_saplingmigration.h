@@ -1,8 +1,8 @@
 #include "amount.h"
 #include "asyncrpcoperation.h"
 #include "univalue.h"
-#include "zcash/Address.hpp"
-#include "zcash/zip32.h"
+#include "crypticcoin/Address.hpp"
+#include "crypticcoin/zip32.h"
 
 class AsyncRPCOperation_saplingmigration : public AsyncRPCOperation
 {
