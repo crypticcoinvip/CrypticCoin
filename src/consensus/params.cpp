@@ -32,7 +32,7 @@ namespace Consensus {
         }
     }
 
-     int Params::GetLastFoundersRewardBlockHeight(int nHeight) const {
+     int Params::GetLastFoundersRewardBlockHeight(int nHeight, bool isRegtest) const {
         // zip208
         // FoundersRewardLastBlockHeight := max({ height ⦂ N | Halving(height) < 1 })
         // Halving(h) is defined as floor(f(h)) where f is a strictly increasing rational
@@ -47,15 +47,18 @@ namespace Consensus {
         // height = H + postInterval - (H - SS) * (postInterval / preInterval)
         // height = H + postInterval - (H - SS) * R
         // Note: This depends on R being an integer
-        bool blossomActive = NetworkUpgradeActive(nHeight, Consensus::UPGRADE_BLOSSOM);
-        if (blossomActive) {
-            int blossomActivationHeight = vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight;
-            // The following calculation depends on BLOSSOM_POW_TARGET_SPACING_RATIO being an integer. 
-            return blossomActivationHeight + nPostBlossomSubsidyHalvingInterval
-                - (blossomActivationHeight - SubsidySlowStartShift()) * BLOSSOM_POW_TARGET_SPACING_RATIO - 1;
-        } else {
-            return nPreBlossomSubsidyHalvingInterval + SubsidySlowStartShift() - 1;
+        if (isRegtest == true) {
+            bool blossomActive = NetworkUpgradeActive(nHeight, Consensus::UPGRADE_BLOSSOM);
+            if (blossomActive) {
+                int blossomActivationHeight = vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight;
+                // The following calculation depends on BLOSSOM_POW_TARGET_SPACING_RATIO being an integer. 
+                return blossomActivationHeight + nPostBlossomSubsidyHalvingInterval
+                    - (blossomActivationHeight - SubsidySlowStartShift()) * BLOSSOM_POW_TARGET_SPACING_RATIO - 1;
+            } else {
+                return nPreBlossomSubsidyHalvingInterval + SubsidySlowStartShift() - 1;
+            }
         }
+        return 0;
     }
 
     int64_t Params::PoWTargetSpacing(int nHeight) const {

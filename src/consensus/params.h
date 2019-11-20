@@ -65,7 +65,7 @@ struct NetworkUpgrade {
 static const unsigned int PRE_BLOSSOM_POW_TARGET_SPACING = 150;
 static const unsigned int POST_BLOSSOM_POW_TARGET_SPACING = 75;
 static_assert(POST_BLOSSOM_POW_TARGET_SPACING < PRE_BLOSSOM_POW_TARGET_SPACING, "Blossom target spacing must be less than pre-Blossom target spacing.");
-static const unsigned int PRE_BLOSSOM_HALVING_INTERVAL = 840000;
+static const unsigned int PRE_BLOSSOM_HALVING_INTERVAL = 10483200;
 static const unsigned int PRE_BLOSSOM_REGTEST_HALVING_INTERVAL = 150;
 static const int BLOSSOM_POW_TARGET_SPACING_RATIO = PRE_BLOSSOM_POW_TARGET_SPACING / POST_BLOSSOM_POW_TARGET_SPACING;
 static_assert(BLOSSOM_POW_TARGET_SPACING_RATIO * POST_BLOSSOM_POW_TARGET_SPACING == PRE_BLOSSOM_POW_TARGET_SPACING, "Invalid BLOSSOM_POW_TARGET_SPACING_RATIO");
@@ -110,7 +110,7 @@ struct Params {
 
     int Halving(int nHeight) const;
 
-    int GetLastFoundersRewardBlockHeight(int nHeight) const;
+    int GetLastFoundersRewardBlockHeight(int nHeight, bool isRegtest) const;
 
     /** Used to check majorities for block version upgrade */
     int nMajorityEnforceBlockUpgrade;

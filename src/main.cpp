@@ -4268,7 +4268,7 @@ bool ContextualCheckBlock(
     // Now, it's ONLY for regtest:
     if (Params().NetworkIDString() == "regtest")
     {
-        if ((nHeight > 0) && (nHeight <= consensusParams.GetLastFoundersRewardBlockHeight(nHeight))) {
+        if ((nHeight > 0) && (nHeight <= consensusParams.GetLastFoundersRewardBlockHeight(nHeight, chainparams.NetworkIDString() == "regtest"))) {
             bool found = false;
 
             BOOST_FOREACH(const CTxOut& output, block.vtx[0].vout) {

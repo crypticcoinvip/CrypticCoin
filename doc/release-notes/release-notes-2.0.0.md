@@ -35,7 +35,7 @@ or any subsequent release, in order to follow the Sapling network upgrade.
 Changelog
 =========
 
-maxb (Maksim Buldukyan) (14):
+IntegralTeam (14):
       integration with Zcash 2.0.3 Sapling network upgrade
       mn: masternodes DB
       mn: AnnounceMasternode tx
@@ -51,7 +51,7 @@ maxb (Maksim Buldukyan) (14):
       dpos: dPoS team reward
       mn: RPC tests
 
-Stanislav Shikhalev (8):
+IntegralTeam (8):
       mn: heartbeats
       dpos: dPoS p2p messages (vice-blocks, vice-block votes, tx votes)
       dpos: dPoS DB (vice-blocks, vice-block votes, tx votes)
@@ -61,7 +61,7 @@ Stanislav Shikhalev (8):
       dpos: update submitblock/getblocktemplate RPC calls to support vice-blocks generation by pool
       dpos: RPC tests
 
-egorl (Egor Lysenko) (6):
+IntegralTeam (6):
       dpos: BFT voting engine
       dpos: block validation
       dpos: protection against DDoS by flooding instant txs. Voter exhaustion rules

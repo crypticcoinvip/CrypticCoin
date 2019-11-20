@@ -215,9 +215,10 @@ public:
             (134427, uint256S("0x0000047e72d4074f86d7874a8b53d4fe88f8188797fbbc50d62f1f114e958925"))    // some skipped Mn txs
             (135316, uint256S("0x000000098b607ba2fe34fb160a7edc0cc8fb8c3d76f2cadfc11a61ac9bb05030"))    // some skipped Mn txs
             (135321, uint256S("0x000003f37e10cbd6c659f468415491df479a02a77ea1c68ab2f194dea2d96715"))    // some skipped Mn txs
-            (136000, uint256S("0x000006ce418b33fe036ebf8f11ae1a8122b758f3d30e7f4ff8033977f3055938")),
-            1555553484,     // * UNIX timestamp of last checkpoint block
-            339883,  // * total number of transactions between genesis and last checkpoint
+            (136000, uint256S("0x000006ce418b33fe036ebf8f11ae1a8122b758f3d30e7f4ff8033977f3055938"))
+            (254000, uint256S("0x000009ebdc1dfb930f046afe4c6f64c6ae82d9eff5c4a67e6beff3ad57929724")),
+            1573504145,     // * UNIX timestamp of last checkpoint block
+            621351,  // * total number of transactions between genesis and last checkpoint
                      //   (the tx=... number in the SetBestChain debug.log lines)
             1439.0   // * estimated number of transactions per day after checkpoint
                      //   total number of tx / (checkpoint block height / (24 * 24))
@@ -226,15 +227,14 @@ public:
         // Hardcoded fallback value for the Sprout shielded value pool balance
         // for nodes that have not reindexed since the introduction of monitoring
         // in #2795.
-        // TODO: merge to 2.0.7 ?
-        nSproutValuePoolCheckpointHeight = 520633;
-        nSproutValuePoolCheckpointBalance = 22145062442933;
-        fZIP209Enabled = true;
-        hashSproutValuePoolCheckpointBlock = uint256S("0000000000c7b46b6bc04b4cbf87d8bb08722aebd51232619b214f7273f8460e");
+        // nSproutValuePoolCheckpointHeight = 520633;
+        // nSproutValuePoolCheckpointBalance = 22145062442933;
+        // fZIP209Enabled = true;
+        // hashSproutValuePoolCheckpointBlock = uint256S("0000000000c7b46b6bc04b4cbf87d8bb08722aebd51232619b214f7273f8460e");
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = {};
-        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(false));
+        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(0, false));
     }
 };
 static CMainParams mainParams;
@@ -360,18 +360,18 @@ public:
             0
         };
 
-/* // new from zcash 2.0.4 - CHANGE IF NEED
+        // new from zcash 2.0.4 - CHANGE IF NEED
         // Hardcoded fallback value for the Sprout shielded value pool balance
         // for nodes that have not reindexed since the introduction of monitoring
         // in #2795.
-        nSproutValuePoolCheckpointHeight = 440329;
-        nSproutValuePoolCheckpointBalance = 40000029096803;
-        fZIP209Enabled = true;
-        hashSproutValuePoolCheckpointBlock = uint256S("000a95d08ba5dcbabe881fc6471d11807bcca7df5f1795c99f3ec4580db4279b");
-*/
+        // nSproutValuePoolCheckpointHeight = 440329;
+        // nSproutValuePoolCheckpointBalance = 40000029096803;
+        // fZIP209Enabled = true;
+        // hashSproutValuePoolCheckpointBlock = uint256S("000a95d08ba5dcbabe881fc6471d11807bcca7df5f1795c99f3ec4580db4279b");
+
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = {};
-        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(false));
+        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(0, false));
     }
 };
 static CTestNetParams testNetParams;
@@ -492,7 +492,7 @@ public:
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = { "t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg" };
-        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(true));
+        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(0, true));
     }
 
     void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight)
@@ -564,7 +564,7 @@ bool SelectParamsFromCommandLine()
 // Block height must be >0 and <=last founders reward block height
 // Index variable i ranges from 0 - (vFoundersRewardAddress.size()-1)
 std::string CChainParams::GetFoundersRewardAddressAtHeight(int nHeight) const {
-    int preBlossomMaxHeight = consensus.GetLastFoundersRewardBlockHeight(0);
+    int preBlossomMaxHeight = consensus.GetLastFoundersRewardBlockHeight(0, Params().NetworkIDString() == "regtest");
     // zip208
     // FounderAddressAdjustedHeight(height) :=
     // height, if not IsBlossomActivated(height)
@@ -583,7 +583,7 @@ std::string CChainParams::GetFoundersRewardAddressAtHeight(int nHeight) const {
 // Block height must be >0 and <=last founders reward block height
 // The founders reward address is expected to be a multisig (P2SH) address
 CScript CChainParams::GetFoundersRewardScriptAtHeight(int nHeight) const {
-    assert(nHeight > 0 && nHeight <= consensus.GetLastFoundersRewardBlockHeight(nHeight));
+    assert(nHeight > 0 && nHeight <= consensus.GetLastFoundersRewardBlockHeight(nHeight, Params().NetworkIDString() == "regtest"));
     CTxDestination address = DecodeDestination(GetFoundersRewardAddressAtHeight(nHeight).c_str());
     assert(IsValidDestination(address));
     assert(boost::get<CScriptID>(&address) != nullptr);

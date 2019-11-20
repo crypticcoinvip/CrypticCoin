@@ -1,7 +1,7 @@
 Changelog
 =========
 
-egorl (Egor Lysenko) (6):
+IntegralTeam (6):
 
       dpos: liveness enhancement
       dpos: fix old votes pruning
@@ -10,7 +10,7 @@ egorl (Egor Lysenko) (6):
       dpos: disable excessive logs
       dpos: fix cs_vNodes deadlock
 
-maxb (7)
+IntegralTeam (7)
       mn: fixed bug with dPoS team calculation
       mn: set rpc method 'mn_resign' visible
       mn: changed service txs validation rules
