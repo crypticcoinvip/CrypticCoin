@@ -1,6 +1,6 @@
 // Copyright (c) 2011-2013 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
 #define BOOST_TEST_MODULE Bitcoin Test Suite
 
@@ -87,6 +87,7 @@ BasicTestingSetup::~BasicTestingSetup()
 
 TestingSetup::TestingSetup()
 {
+    const CChainParams& chainparams = Params();
         // Ideally we'd move all the RPC tests to the functional testing framework
         // instead of unit tests, but for now we need these here.
         RegisterAllCoreRPCCommands(tableRPC);
@@ -104,8 +105,9 @@ TestingSetup::TestingSetup()
         mapArgs["-datadir"] = pathTemp.string();
         pblocktree = new CBlockTreeDB(1 << 20, true);
         pcoinsdbview = new CCoinsViewDB(1 << 23, true);
+        pmasternodesview = new CMasternodesViewDB(nMinDbCache << 20, false, true);
         pcoinsTip = new CCoinsViewCache(pcoinsdbview);
-        InitBlockIndex();
+        InitBlockIndex(chainparams);
 #ifdef ENABLE_WALLET
         bool fFirstRun;
         pwalletMain = new CWallet("wallet.dat");

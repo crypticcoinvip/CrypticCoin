@@ -13,6 +13,7 @@
 #include <vector>
 #include <boost/filesystem.hpp>
 #include "util.h"
+#include "utiltest.h"
 
 // To run tests:
 // ./crypticcoin-gtest --gtest_filter="founders_reward_test.*"
@@ -80,8 +81,73 @@ TEST(founders_reward_test, create_testnet_2of3multisig) {
     std::cout << s << std::endl;
 
     pWallet->Flush(true);
+}
+#endif
 
-    ECC_Stop();
+
+// static int GetLastFoundersRewardHeight(const Consensus::Params& params) {
+//     int blossomActivationHeight = Params().GetConsensus().vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight;
+//     bool blossom = blossomActivationHeight != Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
+//     return params.GetLastFoundersRewardBlockHeight(blossom ? blossomActivationHeight : 0);
+// }
+
+// // Utility method to check the number of unique addresses from height 1 to maxHeight
+// void checkNumberOfUniqueAddresses(int nUnique) {
+//     std::set<std::string> addresses;
+//     for (int i = 1; i <= GetLastFoundersRewardHeight(Params().GetConsensus()); i++) {
+//         addresses.insert(Params().GetFoundersRewardAddressAtHeight(i));
+//     }
+//     EXPECT_EQ(addresses.size(), nUnique);
+// }
+
+#if 0
+TEST(founders_reward_test, general) {
+    SelectParams(CBaseChainParams::TESTNET);
+
+    CChainParams params = Params();
+    
+    // Fourth testnet reward:
+    // address = t2ENg7hHVqqs9JwU5cgjvSbxnT2a9USNfhy
+    // script.ToString() = OP_HASH160 55d64928e69829d9376c776550b6cc710d427153 OP_EQUAL
+    // HexStr(script) = a91455d64928e69829d9376c776550b6cc710d42715387
+    EXPECT_EQ(HexStr(params.GetFoundersRewardScriptAtHeight(1)), "a914ef775f1f997f122a062fff1a2d7443abd1f9c64287");
+    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(1), "t2UNzUUx8mWBCRYPRezvA363EYXyEpHokyi");
+    EXPECT_EQ(HexStr(params.GetFoundersRewardScriptAtHeight(53126)), "a914ac67f4c072668138d88a86ff21b27207b283212f87");
+    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(53126), "t2NGQjYMQhFndDHguvUw4wZdNdsssA6K7x2");
+    EXPECT_EQ(HexStr(params.GetFoundersRewardScriptAtHeight(53127)), "a91455d64928e69829d9376c776550b6cc710d42715387");
+    EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(53127), "t2ENg7hHVqqs9JwU5cgjvSbxnT2a9USNfhy");
+
+    int maxHeight = GetLastFoundersRewardHeight(params.GetConsensus());
+    
+    // If the block height parameter is out of bounds, there is an assert.
+    EXPECT_DEATH(params.GetFoundersRewardScriptAtHeight(0), "nHeight");
+    EXPECT_DEATH(params.GetFoundersRewardScriptAtHeight(maxHeight+1), "nHeight");
+    EXPECT_DEATH(params.GetFoundersRewardAddressAtHeight(0), "nHeight");
+    EXPECT_DEATH(params.GetFoundersRewardAddressAtHeight(maxHeight+1), "nHeight"); 
+}
+
+TEST(founders_reward_test, regtest_get_last_block_blossom) {
+    int blossomActivationHeight = Consensus::PRE_BLOSSOM_REGTEST_HALVING_INTERVAL / 2; // = 75
+    auto params = RegtestActivateBlossom(false, blossomActivationHeight);
+    int lastFRHeight = params.GetLastFoundersRewardBlockHeight(blossomActivationHeight);
+    EXPECT_EQ(0, params.Halving(lastFRHeight));
+    EXPECT_EQ(1, params.Halving(lastFRHeight + 1));
+    RegtestDeactivateBlossom();
+}
+
+TEST(founders_reward_test, mainnet_get_last_block) {
+    SelectParams(CBaseChainParams::MAIN);
+    auto params = Params().GetConsensus();
+    int lastFRHeight = GetLastFoundersRewardHeight(params);
+    EXPECT_EQ(0, params.Halving(lastFRHeight));
+    EXPECT_EQ(1, params.Halving(lastFRHeight + 1));
+}
+
+#define NUM_MAINNET_FOUNDER_ADDRESSES 48
+
+TEST(founders_reward_test, mainnet) {
+    SelectParams(CBaseChainParams::MAIN);
+    checkNumberOfUniqueAddresses(NUM_MAINNET_FOUNDER_ADDRESSES);
 }
 #endif
 
@@ -96,6 +162,11 @@ TEST(founders_reward_test, create_testnet_2of3multisig) {
 //    ASSERT_TRUE(addresses.size() == nUnique);
 //}
 
+//TODO
+//TEST(founders_reward_test, testnet) {
+//    SelectParams(CBaseChainParams::TESTNET);
+//    checkNumberOfUniqueAddresses(NUM_TESTNET_FOUNDER_ADDRESSES);
+//}
 
 //TEST(founders_reward_test, general) {
 //    SelectParams(CBaseChainParams::TESTNET);
@@ -150,22 +221,22 @@ TEST(founders_reward_test, create_testnet_2of3multisig) {
 
 // Test that 10% founders reward is fully rewarded after the first halving and slow start shift.
 // On Mainnet, this would be 2,100,000 CRYP after 850,000 blocks (840,000 + 10,000).
-TEST(founders_reward_test, slow_start_subsidy) {
-    SelectParams(CBaseChainParams::MAIN);
-    CChainParams params = Params();
+// TEST(founders_reward_test, slow_start_subsidy) {
+//     SelectParams(CBaseChainParams::MAIN);
+//     CChainParams params = Params();
 
-    int maxHeight = params.GetConsensus().GetLastFoundersRewardBlockHeight(Params().NetworkIDString() == "regtest");
-    if (maxHeight < 2)
-        return;
+//     int maxHeight = params.GetConsensus().GetLastFoundersRewardBlockHeight(Params().NetworkIDString() == "regtest");
+//     if (maxHeight < 2)
+//         return;
 
-    CAmount totalSubsidy = 0;
-    for (int nHeight = 1; nHeight <= maxHeight; nHeight++) {
-        CAmount nSubsidy = GetBlockSubsidy(nHeight, params.GetConsensus()) / 5;
-        totalSubsidy += nSubsidy;
-    }
+//     CAmount totalSubsidy = 0;
+//     for (int nHeight = 1; nHeight <= GetLastFoundersRewardHeight(Params().GetConsensus()); nHeight++) {
+//         CAmount nSubsidy = GetBlockSubsidy(nHeight, params.GetConsensus()) / 5;
+//         totalSubsidy += nSubsidy;
+//     }
     
-    ASSERT_TRUE(totalSubsidy == MAX_MONEY/10.0);
-}
+//     ASSERT_TRUE(totalSubsidy == MAX_MONEY/10.0);
+// }
 
 
 //// For use with mainnet and testnet which each have 48 addresses.

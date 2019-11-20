@@ -1,12 +1,14 @@
 ---
-name: "crypticcoin-2.2.0"
+name: "crypticcoin-2.2.7"
 enable_cache: true
 distro: "debian"
 suites:
 - "jessie"
+- "stretch"
 architectures:
 - "amd64"
 packages:
+- "curl"
 - "autoconf"
 - "automake"
 - "bsdmainutils"

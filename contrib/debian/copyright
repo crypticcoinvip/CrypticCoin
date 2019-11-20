@@ -14,6 +14,98 @@ Comment: The Bitcoin Core developers encompasses the current developers listed o
  The Zcash developers are listed at https://z.cash/team.html.
  The CrypticCoin developers are listed at https://crypticcoin.io/team/.
 
+Files: build-aux/m4/ax_boost_base.m4
+Copyright: 2008, Thomas Porschberg <thomas@randspringer.de>
+ 2009, Peter Adolphs
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_boost_chrono.m4
+Copyright: 2012, Xiyue Deng <manphiz@gmail.com>
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_boost_filesystem.m4
+Copyright: 2009, Thomas Porschberg <thomas@randspringer.de>
+ 2009, Michael Tindal
+ 2009, Roman Rybalko <libtorrent@romanr.info>
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_boost_program_options.m4
+Copyright: 2009, Thomas Porschberg <thomas@randspringer.de>
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_boost_system.m4
+Copyright: 2008, Thomas Porschberg <thomas@randspringer.de>
+ 2008, Michael Tindal
+ 2008, Daniel Casimiro <dan.casimiro@gmail.com>
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_boost_thread.m4
+Copyright: 2009, Thomas Porschberg <thomas@randspringer.de>
+ 2009, Michael Tindal
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_boost_unit_test_framework.m4
+Copyright: 2008, Thomas Porschberg <thomas@randspringer.de>
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_cxx_compile_stdcxx.m4
+Copyright: 2008, Benjamin Kosnik <bkoz@redhat.com>
+ 2012, Zack Weinberg <zackw@panix.com>
+ 2013, Roy Stogner <roystgnr@ices.utexas.edu>
+ 2014-2015, Google Inc.; contributed by Alexey Sokolov <sokolov@google.com>
+ 2015, Paul Norman <penorman@mac.com>
+ 2015, Moritz Klammler <moritz@klammler.eu>
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_gcc_func_attribute.m4
+Copyright: 2013, Gabriele Svelto <gabriele.svelto@gmail.com>
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/l_atomic.m4
+Copyright: 2015, Tim Kosse <tim.kosse@filezilla-project.org>
+License: GNU-All-permissive-License
+
+Files: build-aux/m4/ax_check_compile_flag.m4
+ build-aux/m4/ax_check_link_flag.m4
+ build-aux/m4/ax_check_preproc_flag.m4
+Copyright: 2008, Guido U. Draheim <guidod@gmx.de>
+ 2011, Maarten Bosmans <mkbosmans@gmail.com>
+License: GPLv3-or-later-with-Autoconf-exception
+
+Files: build-aux/m4/ax_compiler_vendor.m4
+Copyright: 2008, Steven G. Johnson <stevenj@alum.mit.edu>
+ 2008, Matteo Frigo
+ 2018-19, John Zaitseff <J.Zaitseff@zap.org.au>
+License: GPLv3-or-later-with-Autoconf-exception
+
+Files: build-aux/m4/ax_gcc_archflag.m4
+Copyright: 2008, Steven G. Johnson <stevenj@alum.mit.edu>
+ 2008, Matteo Frigo
+ 2014, Tsukasa Oi
+ 2017-2018, Alexey Kopytov
+License: GPLv3-or-later-with-Autoconf-exception
+
+Files: build-aux/m4/ax_gcc_x86_cpuid.m4
+Copyright: 2008, Steven G. Johnson <stevenj@alum.mit.edu>
+ 2008, Matteo Frigo
+ 2015, Michael Petch <mpetch@capp-sysware.com>
+License: GPLv3-or-later-with-Autoconf-exception
+
+Files: build-aux/m4/ax_openmp.m4
+Copyright: 2008, Steven G. Johnson <stevenj@alum.mit.edu>
+ 2015, John W. Peterson <jwpeterson@gmail.com>
+ 2016, Nick R. Papior <nickpapior@gmail.com>
+License: GPLv3-or-later-with-Autoconf-exception
+
+Files: build-aux/m4/ax_pthread.m4
+Copyright: 2008, Steven G. Johnson <stevenj@alum.mit.edu>
+ 2011, Daniel Richard G. <skunk@iSKUNK.ORG>
+License: GPLv3-or-later-with-Autoconf-exception
+
+Files: qa/zcash/checksec.sh
+Copyright: 2009-2011, Tobias Klein
+License: BSD-3clause-Tobias-Klein
+
 Files: depends/sources/libsodium-*.tar.gz
 Copyright: 2013-2016 Frank Denis
 License: ISC

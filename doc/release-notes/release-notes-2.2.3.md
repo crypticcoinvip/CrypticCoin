@@ -1,6 +1,6 @@
 Changelog
 =========
 
-maxb (Maksim Buldukyan) (1)
+IntegralTeam (1)
 
       disabled version deprecation

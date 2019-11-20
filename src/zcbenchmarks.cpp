@@ -172,8 +172,9 @@ double benchmark_solve_equihash()
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << I;
 
-    unsigned int n = Params(CBaseChainParams::MAIN).EquihashN();
-    unsigned int k = Params(CBaseChainParams::MAIN).EquihashK();
+    auto params = Params(CBaseChainParams::MAIN).GetConsensus();
+    unsigned int n = params.nEquihashN;
+    unsigned int k = params.nEquihashK;
     crypto_generichash_blake2b_state eh_state;
     EhInitialiseState(n, k, eh_state);
     crypto_generichash_blake2b_update(&eh_state, (unsigned char*)&ss[0], ss.size());
@@ -217,11 +218,11 @@ std::vector<double> benchmark_solve_equihash_threaded(int nThreads)
 double benchmark_verify_equihash()
 {
     CChainParams params = Params(CBaseChainParams::MAIN);
-    CBlock genesis = Params(CBaseChainParams::MAIN).GenesisBlock();
+    CBlock genesis = params.GenesisBlock();
     CBlockHeader genesis_header = genesis.GetBlockHeader();
     struct timeval tv_start;
     timer_start(tv_start);
-    CheckEquihashSolution(&genesis_header, params);
+    CheckEquihashSolution(&genesis_header, params.GetConsensus());
     return timer_stop(tv_start);
 }
 
@@ -455,6 +456,8 @@ static const char DB_COINS = 'c';
 // This class is based on the class CCoinsViewDB, but with limited functionality.
 // The construtor and the functions `GetCoins` and `HaveCoins` come directly from
 // CCoinsViewDB, but the rest are either mocks and/or don't really do anything.
+
+
 class FakeCoinsViewDB : public CCoinsView {
 
     CDBWrapper db;
@@ -555,7 +558,7 @@ double benchmark_connectblock_slow()
     CValidationState state;
     struct timeval tv_start;
     timer_start(tv_start);
-    assert(ConnectBlock(block, state, &index, view, mnview, true));
+    assert(ConnectBlock(block, state, &index, view, Params(), mnview, true));
     auto duration = timer_stop(tv_start);
 
     // Undo alterations to global state

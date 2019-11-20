@@ -56,9 +56,9 @@ CAmount GetMnAnnouncementFee(CAmount const & blockSubsidy, int height, size_t ac
     Consensus::Params const & consensus = Params().GetConsensus();
     size_t const dPosTeamSize = consensus.dpos.nTeamSize;
 
-    const int nMinBlocksOfIncome = consensus.nDposMinPeriodOfIncome / consensus.nPowTargetSpacing;
-    const int nMaxBlocksOfIncome = consensus.nDposMaxPeriodOfIncome / consensus.nPowTargetSpacing;
-    const int nGrowingPeriodBlocks = consensus.nDposGrowingPeriod / consensus.nPowTargetSpacing;
+    const int nMinBlocksOfIncome = consensus.nDposMinPeriodOfIncome / consensus.nPreBlossomPowTargetSpacing;
+    const int nMaxBlocksOfIncome = consensus.nDposMaxPeriodOfIncome / consensus.nPreBlossomPowTargetSpacing;
+    const int nGrowingPeriodBlocks = consensus.nDposGrowingPeriod / consensus.nPreBlossomPowTargetSpacing;
 
     activeMasternodesNum = activeMasternodesNum < dPosTeamSize ? dPosTeamSize : std::max(dPosTeamSize, activeMasternodesNum);
 

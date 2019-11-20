@@ -143,7 +143,7 @@ void CDposController::runEventLoop()
 
         try {
             { // initialVotesDownload logic. Don't vote if not passed {nDelayIBD} seconds since blocks are downloaded
-                if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload()) {
+                if (initialBlocksDownloadPassedT == 0 && !IsInitialBlockDownload(Params())) {
                     initialBlocksDownloadPassedT = now;
                 }
                 if (initialBlocksDownloadPassedT == 0 && (now - lastTipChangeT) > 2 * 60 * 1000) {
@@ -606,7 +606,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out, CValidation
         for (const auto& error : out.vErrors) {
             LogPrintf("dpos: %s: %s\n", __func__, error);
         }
-        return state.DoS(IsInitialBlockDownload() ? 0 : 1, false, REJECT_INVALID, "dpos-msg-invalid");
+        return state.DoS(IsInitialBlockDownload(Params()) ? 0 : 1, false, REJECT_INVALID, "dpos-msg-invalid");
     }
 
     if (!out.empty()) {
@@ -679,7 +679,7 @@ bool CDposController::handleVoterOutput(const CDposVoterOutput& out, CValidation
                           __func__,
                           pblock->vSig.size() / CPubKey::COMPACT_SIGNATURE_SIZE,
                           this->voter->minQuorum);
-            } else if (!ProcessNewBlock(state_, nullptr, const_cast<CBlock*>(pblock), true, nullptr)) {
+            } else if (!ProcessNewBlock(state_, Params(),nullptr, const_cast<CBlock*>(pblock), true, nullptr)) {
                 LogPrintf("dpos: %s: Can't ProcessNewBlock\n", __func__);
             }
         }
@@ -759,7 +759,7 @@ boost::optional<CMasternode::ID> CDposController::getIdOfTeamMember(const BlockH
         const int height{Validator::computeBlockHeight(blockHash, MAX_BLOCKS_TO_KEEP)};
         if (height == -1) {
             // block is unknown - maybe because we didn't sync yet
-            state.DoS(IsInitialBlockDownload() ? 0 : 1, false, REJECT_INVALID, "dpos-msg-unknown-block");
+            state.DoS(IsInitialBlockDownload(Params()) ? 0 : 1, false, REJECT_INVALID, "dpos-msg-unknown-block");
             return boost::none;
         }
 

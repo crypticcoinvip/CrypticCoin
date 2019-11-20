@@ -1,4 +1,4 @@
-Crypticcoin 2.2.3
+Crypticcoin 2.2.7
 =============
 
 What is Crypticcoin?

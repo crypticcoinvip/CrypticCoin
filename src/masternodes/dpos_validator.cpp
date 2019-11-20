@@ -25,7 +25,7 @@ bool CDposController::Validator::preValidateTx(const CTransaction& tx, uint32_t 
     if (!tx.fInstant)
         return false;
 
-    if (!tx.vjoinsplit.empty()) // no sprout txs
+    if (!tx.vJoinSplit.empty()) // no sprout txs
         return false;
 
     {
@@ -43,7 +43,7 @@ bool CDposController::Validator::preValidateTx(const CTransaction& tx, uint32_t 
         return error("validateTx: CheckTransaction failed");
 
     // Check transaction contextually against the set of consensus rules which apply in the next block to be mined.
-    if (!ContextualCheckTransaction(tx, state, nextBlockHeight, 10)) {
+    if (!ContextualCheckTransaction(tx, state, Params(),nextBlockHeight, 10)) {
         return error("validateTx: ContextualCheckTransaction failed");
     }
 
@@ -99,9 +99,9 @@ bool CDposController::Validator::validateTx(const CTransaction& tx)
     uint256 blockHash = block.GetHash();
     indexDummy.phashBlock = &blockHash;
 
-    if (!ContextualCheckBlock(block, state, chainActive.Tip()))
+    if (!ContextualCheckBlock(block, state, Params(),chainActive.Tip()))
         return false;
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, mnview, true, dvr))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, Params(),mnview, true, dvr))
         return false;
 
     return true;
@@ -117,18 +117,18 @@ bool CDposController::Validator::validateBlock(const CBlock& block, bool fJustCh
     CValidationState state;
 
     if (fJustCheckPoW) {
-        if (!CheckBlockHeader(block, state, true))
+        if (!CheckBlockHeader(block, state, Params(),true))
             return false;
         const int prevHeight = computeBlockHeight(block.hashPrevBlock, MAX_BLOCKS_TO_KEEP);
         if (prevHeight < 0)
             return false;
-        return ContextualCheckBlockHeader(block, state, chainActive[prevHeight]);
+        return ContextualCheckBlockHeader(block, state, Params(),chainActive[prevHeight]);
     }
 
     // check block validity
     DposValidationRules dvr{};
     dvr.fCheckDposSigs = false;
-    return TestBlockValidity(state, block, chainActive.Tip(), true, true, dvr);
+    return TestBlockValidity(state, Params(),block, chainActive.Tip(), true, true, dvr);
 }
 
 bool CDposController::Validator::allowArchiving(const BlockHash& blockHash)

@@ -1,7 +1,7 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
 #include "amount.h"
 #include "chainparams.h"
@@ -211,11 +211,11 @@ UniValue generate(const UniValue& params, bool fHelp)
 
     unsigned int nExtraNonce = 0;
     UniValue blockHashes(UniValue::VARR);
-    unsigned int n = Params().EquihashN();
-    unsigned int k = Params().EquihashK();
+    unsigned int n = Params().GetConsensus().nEquihashN;
+    unsigned int k = Params().GetConsensus().nEquihashK;
     while (nHeight < nHeightEnd)
     {
-        std::unique_ptr<CBlockTemplate> pblocktemplate(CreateNewBlock(coinbaseScript->reserveScript));
+        std::unique_ptr<CBlockTemplate> pblocktemplate(CreateNewBlock(Params(), coinbaseScript->reserveScript));
         if (!pblocktemplate.get())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
         CBlock *pblock = &pblocktemplate->block;
@@ -279,7 +279,7 @@ endloop:
             dpos::getController()->proceedViceBlock(*pblock, state);
         } else {
             LogPrintf("dPoS isn't active, submit block %s directly \n", pblock->GetHash().GetHex());
-            if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
+            if (!ProcessNewBlock(state, Params(), NULL, pblock, true, NULL))
                 throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
         }
         ++nHeight;
@@ -290,7 +290,6 @@ endloop:
     }
     return blockHashes;
 }
-
 
 UniValue setgenerate(const UniValue& params, bool fHelp)
 {
@@ -336,7 +335,6 @@ UniValue setgenerate(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 #endif
-
 
 UniValue getmininginfo(const UniValue& params, bool fHelp)
 {
@@ -561,7 +559,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
             if (block.hashPrevBlock != pindexPrev->GetBlockHash())
                 return "inconclusive-not-best-prevblk";
             CValidationState state;
-            TestBlockValidity(state, block, pindexPrev, false, true);
+            TestBlockValidity(state, Params(), block, pindexPrev, false, true);
             return BIP22ValidationResult(state);
         }
     }
@@ -572,7 +570,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     if (vNodes.empty())
         throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Crypticcoin is not connected!");
 
-    if (IsInitialBlockDownload())
+    if (IsInitialBlockDownload(Params()))
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Crypticcoin is downloading blocks...");
 
     static unsigned int nTransactionsUpdatedLast;
@@ -653,7 +651,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
         if (!coinbaseScript->reserveScript.size())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "No coinbase script available (mining requires a wallet or -mineraddress)");
 
-        pblocktemplate = CreateNewBlock(coinbaseScript->reserveScript);
+        pblocktemplate = CreateNewBlock(Params(), coinbaseScript->reserveScript);
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
 
@@ -844,7 +842,7 @@ UniValue submitblock(const UniValue& params, bool fHelp)
     // Process this block the same as if we had received it from another node
     submitblock_StateCatcher sc(block.GetHash());
     RegisterValidationInterface(&sc);
-    bool fAccepted = ProcessNewBlock(state, NULL, &block, true, NULL);
+    bool fAccepted = ProcessNewBlock(state, Params(), NULL, &block, true, NULL);
     UnregisterValidationInterface(&sc);
     if (fBlockPresent)
     {
@@ -967,7 +965,7 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp)
 
     CAmount nReward = GetBlockSubsidy(nHeight, Params().GetConsensus());
     CAmount nFoundersReward = 0;
-    if ((nHeight > 0) && (nHeight <= Params().GetConsensus().GetLastFoundersRewardBlockHeight(Params().NetworkIDString() == "regtest"))) {
+    if ((nHeight > 0) && (nHeight <= Params().GetConsensus().GetLastFoundersRewardBlockHeight(nHeight, Params().NetworkIDString() == "regtest"))) {
         nFoundersReward = nReward/5;
         nReward -= nFoundersReward;
     }

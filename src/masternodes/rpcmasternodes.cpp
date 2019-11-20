@@ -19,6 +19,7 @@
 
 #include <stdexcept>
 #include <univalue.h>
+#include <consensus/upgrades.h>
 
 #include <boost/assign/list_of.hpp>
 
@@ -35,7 +36,7 @@ extern void ScriptPubKeyToJSON(CScript const & scriptPubKey, UniValue & out, boo
 
 void EnsureBlocksDownloaded()
 {
-    if (IsInitialBlockDownload() && Params().NetworkIDString() != "regtest")
+    if (IsInitialBlockDownload(Params()) && Params().NetworkIDString() != "regtest")
     {
         throw JSONRPCError(RPC_IN_WARMUP, "Try it later. It is initial block download!");
     }
@@ -252,7 +253,7 @@ CAmount EstimateAnnouncementFee()
 {
     // Current height + (1 day blocks) to avoid rejection;
     CAmount const blockSubsidy = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
-    int targetHeight = chainActive.Height() + 1 + (60 * 60 / Params().GetConsensus().nPowTargetSpacing);
+    int targetHeight = chainActive.Height() + 1 + (60 * 60 / Params().GetConsensus().nPreBlossomPowTargetSpacing);
     size_t targetMnCount = pmasternodesview->GetActiveMasternodes().size() < 4 ? 0 : pmasternodesview->GetActiveMasternodes().size() - 4;
     return GetMnAnnouncementFee(blockSubsidy, targetHeight, targetMnCount);
 }

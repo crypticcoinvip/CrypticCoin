@@ -175,7 +175,7 @@ TEST(Mempool, OverwinterNotActiveYet) {
     CTxMemPool pool(::minRelayTxFee);
     bool missingInputs;
     CMutableTransaction mtx = GetValidTransaction();
-    mtx.vjoinsplit.resize(0); // no joinsplits
+    mtx.vJoinSplit.resize(0); // no joinsplits
     mtx.fOverwintered = true;
     mtx.nVersion = OVERWINTER_TX_VERSION;
     mtx.nVersionGroupId = OVERWINTER_VERSION_GROUP_ID;
@@ -201,7 +201,7 @@ TEST(Mempool, SproutV3TxFailsAsExpected) {
     CTxMemPool pool(::minRelayTxFee);
     bool missingInputs;
     CMutableTransaction mtx = GetValidTransaction();
-    mtx.vjoinsplit.resize(0); // no joinsplits
+    mtx.vJoinSplit.resize(0); // no joinsplits
     mtx.fOverwintered = false;
     mtx.nVersion = 3;
     CValidationState state1;
@@ -222,7 +222,7 @@ TEST(Mempool, SproutV3TxWhenOverwinterActive) {
     CTxMemPool pool(::minRelayTxFee);
     bool missingInputs;
     CMutableTransaction mtx = GetValidTransaction();
-    mtx.vjoinsplit.resize(0); // no joinsplits
+    mtx.vJoinSplit.resize(0); // no joinsplits
     mtx.fOverwintered = false;
     mtx.nVersion = 3;
     CValidationState state1;
@@ -246,7 +246,7 @@ TEST(Mempool, SproutNegativeVersionTxWhenOverwinterActive) {
     CTxMemPool pool(::minRelayTxFee);
     bool missingInputs;
     CMutableTransaction mtx = GetValidTransaction();
-    mtx.vjoinsplit.resize(0); // no joinsplits
+    mtx.vJoinSplit.resize(0); // no joinsplits
     mtx.fOverwintered = false;
 
     // A Sprout transaction with version -3 is created using Sprout code (as found in Crypticcoind <= 1.0.14).
@@ -295,7 +295,7 @@ TEST(Mempool, ExpiringSoonTxRejection) {
     CTxMemPool pool(::minRelayTxFee);
     bool missingInputs;
     CMutableTransaction mtx = GetValidTransaction();
-    mtx.vjoinsplit.resize(0); // no joinsplits
+    mtx.vJoinSplit.resize(0); // no joinsplits
     mtx.fOverwintered = true;
     mtx.nVersion = OVERWINTER_TX_VERSION;
     mtx.nVersionGroupId = OVERWINTER_VERSION_GROUP_ID;

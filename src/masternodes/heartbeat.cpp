@@ -167,7 +167,7 @@ bool CHeartBeatTracker::recieveMessage(const CHeartBeatMessage& message, CValida
         const CKeyID masternodeKey{pubKey.GetID()};
 
         if (!checkMasternodeKeyAndStatus(masternodeKey))
-            return state.DoS(IsInitialBlockDownload() ? 0 : 1,
+            return state.DoS(IsInitialBlockDownload(Params()) ? 0 : 1,
                              error("CHeartBeatTracker(): received not authenticated heartbeat"),
                              REJECT_INVALID, "heartbeat-auth");
 
